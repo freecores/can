@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.22  2003/07/07 11:21:37  mohor
+// Little fixes (to fix warnings).
+//
 // Revision 1.21  2003/07/03 09:32:20  mohor
 // Synchronization changed.
 //
@@ -150,7 +153,7 @@ module can_btl
   
   /* Output from can_bsp module */
   rx_idle,
-  last_bit_of_inter,
+  not_first_bit_of_inter,
   transmitting,
   go_rx_inter  
 
@@ -174,7 +177,7 @@ input         triple_sampling;
 
 /* Output from can_bsp module */
 input         rx_idle;
-input         last_bit_of_inter;
+input         not_first_bit_of_inter;
 input         transmitting;
 input         go_rx_inter;
 
@@ -218,8 +221,8 @@ wire          quant_cnt_rst;
 
 
 assign preset_cnt = (baud_r_presc + 1'b1)<<1;        // (BRP+1)*2
-assign hard_sync  =   (rx_idle | last_bit_of_inter)    & (~rx) & sampled_bit & (~hard_sync_blocked);  // Hard synchronization
-assign resync     =  (~rx_idle) & (~last_bit_of_inter) & (~rx) & sampled_bit & (~sync_blocked) & (~(transmitting & seg1));       // Re-synchronization
+assign hard_sync  =   (rx_idle | not_first_bit_of_inter)    & (~rx) & sampled_bit & (~hard_sync_blocked);  // Hard synchronization
+assign resync     =  (~rx_idle) & (~not_first_bit_of_inter) & (~rx) & sampled_bit & (~sync_blocked);       // Re-synchronization
 
 
 /* Generating general enable signal that defines baud rate. */
@@ -258,7 +261,7 @@ end
 
 /* Changing states */
  assign go_sync_unregistered = clk_en & (seg2 & (~hard_sync) & (~resync) & ((quant_cnt[2:0] == time_segment2)));
- assign go_seg1_unregistered = clk_en & (((sync | hard_sync) & (~seg1)) | (resync & seg2 & sync_window) | (resync_latched & sync_window));
+ assign go_seg1_unregistered = clk_en & (((sync | hard_sync) & (~seg1)) | (resync & seg2 & sync_window) | (resync_latched & sync_window) | (seg1 & hard_sync));
  assign go_seg2_unregistered = clk_en & (seg1 & (~hard_sync) & (quant_cnt == (time_segment1 + delay)));
 
 
@@ -294,7 +297,7 @@ begin
   if (rst)
     tx_point <= 1'b0;
   else
-    tx_point <=#Tp go_sync_unregistered | (go_seg1_unregistered & (~(sync | hard_sync)));
+    tx_point <=#Tp go_sync_unregistered | (go_seg1_unregistered & (~sync));
 end
 
 
@@ -319,7 +322,7 @@ begin
     sync <= 0;
   else if (go_sync)
     sync <=#Tp 1'b1;
-  else if (clk_en_q)
+  else if (clk_en_q | go_seg1)
     sync <=#Tp 1'b0;
 end
 
@@ -367,7 +370,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     delay <= 0;
-  else if (clk_en_q & resync & seg1)
+  else if (resync & seg1 & (~transmitting))  // when transmitting 0 with positive error delay is set to 0
     delay <=#Tp (quant_cnt > {3'h0, sync_jump_width})? (sync_jump_width + 1'b1) : (quant_cnt + 1'b1);
   else if (go_sync | go_seg1)
     delay <=#Tp 0;
@@ -420,12 +423,13 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    sync_blocked <=#Tp 1'b0;
+    sync_blocked <=#Tp 1'b1;
   else if (clk_en_q)
     begin
       if (resync)
         sync_blocked <=#Tp 1'b1;
-      else if (seg2 & (quant_cnt[2:0] == time_segment2))
+//      else if (seg2 & (quant_cnt[2:0] == time_segment2))
+      else if (go_seg2)
         sync_blocked <=#Tp 1'b0;
     end
 end
@@ -436,9 +440,10 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     hard_sync_blocked <=#Tp 1'b0;
-  else if (hard_sync | transmitting & tx_point)
+  else if (hard_sync & clk_en_q)
     hard_sync_blocked <=#Tp 1'b1;
-  else if (go_rx_inter)
+//  else if (go_rx_inter)
+  else if (go_seg2)
     hard_sync_blocked <=#Tp 1'b0;
 end
 

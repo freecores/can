@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.37  2003/07/07 11:21:37  mohor
+// Little fixes (to fix warnings).
+//
 // Revision 1.36  2003/07/03 09:32:20  mohor
 // Synchronization changed.
 //
@@ -210,6 +213,8 @@ module can_bsp
   abort_tx,
   self_rx_request,
   single_shot_transmission,
+  tx_state,
+  tx_state_q,
 
   /* Arbitration Lost Capture Register */
   read_arbitration_lost_capture_reg,
@@ -233,7 +238,7 @@ module can_bsp
   rx_idle,
   transmitting,
   go_rx_inter,
-  last_bit_of_inter,
+  not_first_bit_of_inter,
   set_reset_mode,
   node_bus_off,
   error_status,
@@ -333,6 +338,8 @@ input         tx_request;
 input         abort_tx;
 input         self_rx_request;
 input         single_shot_transmission;
+output        tx_state;
+output        tx_state_q;
 
 /* Arbitration Lost Capture Register */
 input         read_arbitration_lost_capture_reg;
@@ -353,7 +360,7 @@ input         we_tx_err_cnt;
 output        rx_idle;
 output        transmitting;
 output        go_rx_inter;
-output        last_bit_of_inter;
+output        not_first_bit_of_inter;
 output        set_reset_mode;
 output        node_bus_off;
 output        error_status;
@@ -499,6 +506,7 @@ reg     [7:0] data_for_fifo;// Multiplexed data that is stored to 64-byte fifo
 reg     [5:0] tx_pointer;
 reg           tx_bit;
 reg           tx_state;
+reg           tx_state_q;
 reg           transmitter;
 reg           finish_msg;
 
@@ -556,6 +564,8 @@ wire          go_rx_eof;
 wire          go_overload_frame;
 wire          go_rx_inter;
 wire          go_error_frame;
+
+wire          last_bit_of_inter;
 
 wire          go_crc_enable;
 wire          rst_crc_enable;
@@ -676,6 +686,7 @@ assign bit_err_exc5 = (error_frame & (error_cnt2 == 7)) | (overload_frame & (ove
 assign arbitration_field = rx_id1 | rx_rtr1 | rx_ide | rx_id2 | rx_rtr2;
 
 assign last_bit_of_inter = rx_inter & (bit_cnt == 2);
+assign not_first_bit_of_inter = rx_inter & (bit_cnt != 0);
 
 
 // Rx idle state
@@ -1687,14 +1698,15 @@ begin
 end
 
 
-assign tx_successful = transmitter & go_rx_inter & ((~error_frame_ended) & (~overload_frame_ended) & (~arbitration_lost) | single_shot_transmission);
+//assign tx_successful = transmitter & go_rx_inter & ((~error_frame_ended) & (~overload_frame_ended) & (~arbitration_lost) | single_shot_transmission);
+assign tx_successful = transmitter & go_rx_inter & (~error_frame_ended) & (~overload_frame_ended) & (~arbitration_lost);
 
 
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
     need_to_tx <= 1'b0;
-  else if (tx_successful | reset_mode | (abort_tx & (~transmitting)))
+  else if (tx_successful | reset_mode | (abort_tx & (~transmitting)) | ((~tx_state) & tx_state_q & single_shot_transmission))
     need_to_tx <=#Tp 1'h0;
   else if (tx_request & sample_point)
     need_to_tx <=#Tp 1'b1;
@@ -1730,6 +1742,11 @@ begin
     tx_state <=#Tp 1'b1;
 end
 
+always @ (posedge clk)
+begin
+  tx_state_q <=#Tp tx_state;
+end
+
 
 
 // Node is a transmitter
@@ -1739,7 +1756,7 @@ begin
     transmitter <= 1'b0;
   else if (go_tx)
     transmitter <=#Tp 1'b1;
-  else if (reset_mode | go_rx_inter)
+  else if ((reset_mode | go_rx_inter ) | ((~tx_state) & tx_state_q))
     transmitter <=#Tp 1'b0;
 end
 
@@ -1871,7 +1888,7 @@ begin
     begin
       if (~listen_only_mode)
         begin
-          if ((~transmitter) & go_rx_ack_lim & (~err) & (rx_err_cnt > 0))
+          if ((~transmitter) & rx_ack & (~err) & (rx_err_cnt > 0))
             begin
               if (rx_err_cnt > 127)
                 rx_err_cnt <=#Tp 127;

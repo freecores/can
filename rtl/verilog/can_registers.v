@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.28  2003/07/07 11:21:37  mohor
+// Little fixes (to fix warnings).
+//
 // Revision 1.27  2003/06/22 09:43:03  mohor
 // synthesi full_case parallel_case fixed.
 //
@@ -188,6 +191,8 @@ module can_registers
   tx_request,
   self_rx_request,
   single_shot_transmission,
+  tx_state,
+  tx_state_q,
 
   /* Arbitration Lost Capture Register */
   read_arbitration_lost_capture_reg,
@@ -309,6 +314,8 @@ output        abort_tx;
 output        tx_request;
 output        self_rx_request;
 output        single_shot_transmission;
+input         tx_state;
+input         tx_state_q;
 
 /* Arbitration Lost Capture Register */
 output        read_arbitration_lost_capture_reg;
@@ -393,6 +400,7 @@ reg           node_bus_off_q;
 reg           node_error_passive_q;
 reg           transmit_buffer_status;
 reg           single_shot_transmission;
+reg           self_rx_request;
 
 
 // Some interrupts exist in basic mode and in extended mode. Since they are in different registers they need to be multiplexed.
@@ -516,7 +524,7 @@ can_register_asyn_syn #(1, 1'h0) COMMAND_REG0
   .we(we_command),
   .clk(clk),
   .rst(rst),
-  .rst_sync(tx_request & sample_point)
+  .rst_sync(command[0] & sample_point)
 );
 
 can_register_asyn_syn #(1, 1'h0) COMMAND_REG1
@@ -525,7 +533,7 @@ can_register_asyn_syn #(1, 1'h0) COMMAND_REG1
   .we(we_command),
   .clk(clk),
   .rst(rst),
-  .rst_sync(abort_tx & ~transmitting)
+  .rst_sync(sample_point & (tx_request | (abort_tx & ~transmitting)))
 );
 
 can_register_asyn_syn #(2, 2'h0) COMMAND_REG
@@ -543,23 +551,34 @@ can_register_asyn_syn #(1, 1'h0) COMMAND_REG4
   .we(we_command),
   .clk(clk),
   .rst(rst),
-  .rst_sync(tx_successful & (~tx_successful_q) | abort_tx)
+  .rst_sync(command[4] & sample_point)
 );
 
-assign self_rx_request = command[4] & (~command[0]);
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    self_rx_request <= 1'b0;
+  else if (command[4] & (~command[0]))
+    self_rx_request <=#Tp 1'b1;
+  else if ((~tx_state) & tx_state_q)
+    self_rx_request <=#Tp 1'b0;
+end
+
+
 assign clear_data_overrun = command[3];
 assign release_buffer = command[2];
-assign abort_tx = command[1] & (~command[0]) & (~command[4]);
 assign tx_request = command[0] | command[4];
+assign abort_tx = command[1] & (~tx_request);
 
 
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
     single_shot_transmission <= 1'b0;
-  else if (we_command & data_in[1] & (data_in[1] | data_in[4]))
+  else if (tx_request & command[1] & sample_point)
     single_shot_transmission <=#Tp 1'b1;
-  else if (tx_successful & (~tx_successful_q))
+  else if ((~tx_state) & tx_state_q)
     single_shot_transmission <=#Tp 1'b0;
 end
 

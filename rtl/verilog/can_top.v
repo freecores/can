@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.39  2003/07/07 11:21:37  mohor
+// Little fixes (to fix warnings).
+//
 // Revision 1.38  2003/07/03 09:32:20  mohor
 // Synchronization changed.
 //
@@ -291,6 +294,8 @@ wire         tx_request;
 wire         abort_tx;
 wire         self_rx_request;
 wire         single_shot_transmission;
+wire         tx_state;
+wire         tx_state_q;
 
 /* Arbitration Lost Capture Register */
 wire         read_arbitration_lost_capture_reg;
@@ -369,7 +374,7 @@ wire         hard_sync;
 /* output from can_bsp module */
 wire         rx_idle;
 wire         transmitting;
-wire         last_bit_of_inter;
+wire         not_first_bit_of_inter;
 wire         set_reset_mode;
 wire         node_bus_off;
 wire         error_status;
@@ -445,6 +450,8 @@ can_registers i_can_registers
   .tx_request(tx_request),
   .self_rx_request(self_rx_request),
   .single_shot_transmission(single_shot_transmission),
+  .tx_state(tx_state),
+  .tx_state_q(tx_state_q),
 
   /* Arbitration Lost Capture Register */
   .read_arbitration_lost_capture_reg(read_arbitration_lost_capture_reg),
@@ -542,7 +549,7 @@ can_btl i_can_btl
   
   /* output from can_bsp module */
   .rx_idle(rx_idle),
-  .last_bit_of_inter(last_bit_of_inter),
+  .not_first_bit_of_inter(not_first_bit_of_inter),
   .transmitting(transmitting),
   .go_rx_inter(go_rx_inter)
   
@@ -581,6 +588,8 @@ can_bsp i_can_bsp
   .abort_tx(abort_tx),
   .self_rx_request(self_rx_request),
   .single_shot_transmission(single_shot_transmission),
+  .tx_state(tx_state),
+  .tx_state_q(tx_state_q),
 
   /* Arbitration Lost Capture Register */
   .read_arbitration_lost_capture_reg(read_arbitration_lost_capture_reg),
@@ -605,7 +614,7 @@ can_bsp i_can_bsp
   .rx_idle(rx_idle),
   .transmitting(transmitting),
   .go_rx_inter(go_rx_inter),
-  .last_bit_of_inter(last_bit_of_inter),
+  .not_first_bit_of_inter(not_first_bit_of_inter),
   .set_reset_mode(set_reset_mode),
   .node_bus_off(node_bus_off),
   .error_status(error_status),
