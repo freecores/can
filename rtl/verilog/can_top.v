@@ -3,7 +3,7 @@
 ////  can_top.v                                                   ////
 ////                                                              ////
 ////                                                              ////
-////  This file is part of the CAN Protocal Controller            ////
+////  This file is part of the CAN Protocol Controller            ////
 ////  http://www.opencores.org/projects/can/                      ////
 ////                                                              ////
 ////                                                              ////
@@ -12,12 +12,12 @@
 ////       igorm@opencores.org                                    ////
 ////                                                              ////
 ////                                                              ////
-////  All additional information is avaliable in the README.txt   ////
+////  All additional information is available in the README.txt   ////
 ////  file.                                                       ////
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2002 Authors                                   ////
+//// Copyright (C) 2002, 2003 Authors                             ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2002/12/26 16:00:34  mohor
+// Testbench define file added. Clock divider register added.
+//
 // Revision 1.1.1.1  2002/12/20 16:39:21  mohor
 // Initial
 //
@@ -95,7 +98,7 @@ wire    [2:0] time_segment2;
 wire          triple_sampling;
 
 /* Clock Divider register */
-wire          pelican_mode;
+wire          extended_mode;
 wire          rx_int_enable;
 wire          clock_off;
 wire    [2:0] cd;
@@ -130,7 +133,7 @@ can_registers i_can_registers
   .triple_sampling(triple_sampling),
 
   /* Clock Divider register */
-  .pelican_mode(pelican_mode),
+  .extended_mode(extended_mode),
   .rx_int_enable(rx_int_enable),
   .clock_off(clock_off),
   .cd(cd)
@@ -143,8 +146,6 @@ can_registers i_can_registers
 wire        take_sample;
 wire        clk_en;
 
-/* output signals from can_bsp (bit stream processor) module */
-wire sync_mode;
 
 
 
@@ -172,10 +173,8 @@ can_btl i_can_btl
   .clk_en(clk_en),
   
   /* States */
-  .idle(idle),
+  .idle(idle)
   
-  /* bit stream processor (can_bsp.v) */
-  .sync_mode(sync_mode)
 
 
 );
@@ -185,8 +184,7 @@ can_btl i_can_btl
 can_bsp i_can_bsp
 (
   .clk(clk),
-  .rst(rst),
-  .sync_mode(sync_mode)
+  .rst(rst)
 
 );
 

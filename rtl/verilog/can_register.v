@@ -3,7 +3,7 @@
 ////  can_register.v                                              ////
 ////                                                              ////
 ////                                                              ////
-////  This file is part of the CAN Protocal Controller            ////
+////  This file is part of the CAN Protocol Controller            ////
 ////  http://www.opencores.org/projects/can/                      ////
 ////                                                              ////
 ////                                                              ////
@@ -12,12 +12,12 @@
 ////       igorm@opencores.org                                    ////
 ////                                                              ////
 ////                                                              ////
-////  All additional information is avaliable in the README.txt   ////
+////  All additional information is available in the README.txt   ////
 ////  file.                                                       ////
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2002 Authors                                   ////
+//// Copyright (C) 2002, 2003 Authors                             ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1.1.1  2002/12/20 16:39:21  mohor
+// Initial
+//
 //
 //
 

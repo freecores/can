@@ -3,7 +3,7 @@
 ////  can_btl.v                                                   ////
 ////                                                              ////
 ////                                                              ////
-////  This file is part of the CAN Protocal Controller            ////
+////  This file is part of the CAN Protocol Controller            ////
 ////  http://www.opencores.org/projects/can/                      ////
 ////                                                              ////
 ////                                                              ////
@@ -12,12 +12,12 @@
 ////       igorm@opencores.org                                    ////
 ////                                                              ////
 ////                                                              ////
-////  All additional information is avaliable in the README.txt   ////
+////  All additional information is available in the README.txt   ////
 ////  file.                                                       ////
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2002 Authors                                   ////
+//// Copyright (C) 2002, 2003 Authors                             ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2002/12/26 01:33:05  mohor
+// Tripple sampling supported.
+//
 // Revision 1.3  2002/12/25 23:44:16  mohor
 // Commented lines removed.
 //
@@ -85,10 +88,8 @@ module can_btl
   clk_en,
   
   /* States */
-  idle,
+  idle
   
-  /* bit stream processor (can_bsp.v) */
-  sync_mode
 
 
 );
@@ -116,9 +117,6 @@ output        take_sample;      // NOT USED, YET
 output        clk_en;
 
 input         idle;
-
-/* bit stream processor (can_bsp.v) */
-input         sync_mode;        // NOT USED, YET
 
 
 reg     [8:0] clk_cnt;

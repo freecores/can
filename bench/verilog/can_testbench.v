@@ -3,7 +3,7 @@
 ////  can_testbench.v                                             ////
 ////                                                              ////
 ////                                                              ////
-////  This file is part of the CAN Protocal Controller            ////
+////  This file is part of the CAN Protocol Controller            ////
 ////  http://www.opencores.org/projects/can/                      ////
 ////                                                              ////
 ////                                                              ////
@@ -12,12 +12,12 @@
 ////       igorm@opencores.org                                    ////
 ////                                                              ////
 ////                                                              ////
-////  All additional information is avaliable in the README.txt   ////
+////  All additional information is available in the README.txt   ////
 ////  file.                                                       ////
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2002 Authors                                   ////
+//// Copyright (C) 2002, 2003 Authors                             ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2002/12/26 16:00:29  mohor
+// Testbench define file added. Clock divider register added.
+//
 // Revision 1.4  2002/12/26 01:33:01  mohor
 // Tripple sampling supported.
 //
@@ -136,8 +139,10 @@ begin
   #10;
   repeat (1000) @ (posedge clk);
   
-  test_synchronization;
-//  send_frame(mode, id, length);
+//  test_synchronization;
+  repeat (2) @ (posedge clk);   // So we are not synchronized to anything
+  send_frame(1, 29'h12345678, 1); // mode, id, length
+  
 
   repeat (50000) @ (posedge clk);
   $display("CAN Testbench finished.");
@@ -205,12 +210,91 @@ task test_synchronization;
 endtask
 
 
+task send_bit;
+  input bit;
+  integer cnt;
+  begin
+    #1 rx=bit;
+    repeat ((`CAN_TIMING1_TSEG1 + `CAN_TIMING1_TSEG2 + 3)*BRP) @ (posedge clk);
+    idle=0;
+  end
+endtask
+
+
 task send_frame;
   input mode;
-  input id;
-  input length;
+  input [28:0] id;
+  input  [3:0] length;
+  integer cnt;
+
+  reg [28:0] data;
+  reg  [3:0] len;
   begin
-    #1;
+
+    data = id;
+    len  = length;
+
+    send_bit(0);                        // SOF
+
+    if(mode)      // Extended format
+      begin
+        for (cnt=0; cnt<11; cnt=cnt+1)  // 11 bit ID
+          begin
+            send_bit(data[28]);
+            data=data<<1;
+          end
+        send_bit(1);                    // SRR
+        send_bit(1);                    // IDE
+
+        for (cnt=11; cnt<29; cnt=cnt+1)  // 18 bit ID
+          begin
+            send_bit(data[28]);
+            data=data<<1;
+          end
+
+        send_bit(0);                    // RTR
+        send_bit(0);                    // r1 (reserved 1)
+        send_bit(0);                    // r0 (reserved 0)
+
+        for (cnt=0; cnt<4; cnt=cnt+1)   // DLC (length)
+          begin
+            send_bit(len[3]);
+            len=len<<1;
+          end
+      end
+    else                  // Standard format
+      begin
+        for (cnt=0; cnt<11; cnt=cnt+1)  // 11 bit ID
+          begin
+            send_bit(data[10]);
+            data=data<<1;
+          end
+        send_bit(0);                    // RTR
+        send_bit(0);                    // IDE
+        send_bit(0);                    // r0 (reserved 0)
+
+        for (cnt=0; cnt<4; cnt=cnt+1)   // DLC (length)
+          begin
+            send_bit(len[3]);
+            len=len<<1;
+          end
+      end                 // End header
+
+
+      for (cnt=0; cnt<(8*length); cnt=cnt+4)  // data
+        begin
+          send_bit(cnt[3]);
+          send_bit(cnt[2]);
+          send_bit(cnt[1]);
+          send_bit(cnt[0]);
+        end
+
+
+      // Nothing send after the data (just recessive bit)
+      send_bit(1);
+
+
+
   end
 endtask
 

@@ -3,7 +3,7 @@
 ////  can_registers.v                                             ////
 ////                                                              ////
 ////                                                              ////
-////  This file is part of the CAN Protocal Controller            ////
+////  This file is part of the CAN Protocol Controller            ////
 ////  http://www.opencores.org/projects/can/                      ////
 ////                                                              ////
 ////                                                              ////
@@ -12,12 +12,12 @@
 ////       igorm@opencores.org                                    ////
 ////                                                              ////
 ////                                                              ////
-////  All additional information is avaliable in the README.txt   ////
+////  All additional information is available in the README.txt   ////
 ////  file.                                                       ////
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2002 Authors                                   ////
+//// Copyright (C) 2002, 2003 Authors                             ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2002/12/26 16:00:34  mohor
+// Testbench define file added. Clock divider register added.
+//
 // Revision 1.1.1.1  2002/12/20 16:39:21  mohor
 // Initial
 //
@@ -82,7 +85,7 @@ module can_registers
   triple_sampling,
   
   /* Clock Divider register */
-  pelican_mode,
+  extended_mode,
   rx_int_enable,
   clock_off,
   cd
@@ -119,7 +122,7 @@ output  [2:0] time_segment2;
 output        triple_sampling;
 
 /* Clock Divider register */
-output        pelican_mode;
+output        extended_mode;
 output        rx_int_enable;
 output        clock_off;
 output  [2:0] cd;
@@ -180,7 +183,6 @@ assign triple_sampling = bus_timing_1[7];
 
 
 /* Clock Divider register */
-wire         pelican_mode;
 wire   [7:0] clock_divider;
 can_register #(5) CLOCK_DIVIDER_REG_HI
 ( .data_in(data_in[7:3]),
@@ -196,7 +198,7 @@ can_register #(3) CLOCK_DIVIDER_REG_LOW
   .clk(clk)
 );
 
-assign pelican_mode = clock_divider[7];
+assign extended_mode = clock_divider[7];
 assign rx_int_enable = clock_divider[5];
 assign clock_off = clock_divider[3];
 assign cd[2:0] = clock_divider[2:0];
@@ -209,15 +211,15 @@ assign cd[2:0] = clock_divider[2:0];
 
 
 // Reading data from registers
-always @ ( addr or read or pelican_mode or mode or bus_timing_0 or bus_timing_1 or clock_divider
+always @ ( addr or read or extended_mode or mode or bus_timing_0 or bus_timing_1 or clock_divider
          )
 begin
   if(read)  // read
     begin
       case(addr)
         8'h0  :  data_out <= mode;
-        8'h6  :  data_out <= pelican_mode? bus_timing_0 : 8'hff;
-        8'h7  :  data_out <= pelican_mode? bus_timing_1 : 8'hff;
+        8'h6  :  data_out <= extended_mode? bus_timing_0 : 8'hff;
+        8'h7  :  data_out <= extended_mode? bus_timing_1 : 8'hff;
 
         8'h31 :  data_out <= {clock_divider[7:5], 1'b0, clock_divider[3:0]};
 
