@@ -40,11 +40,19 @@
 //// Public License along with this source; if not, download it   ////
 //// from http://www.opencores.org/lgpl.shtml                     ////
 ////                                                              ////
+//// The CAN protocol is developed by Robert Bosch GmbH and       ////
+//// protected by patents. Anybody who wants to implement this    ////
+//// CAN IP core on silicon has to obtain a CAN protocol license  ////
+//// from Bosch.                                                  ////
+////                                                              ////
 //////////////////////////////////////////////////////////////////////
 //
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.11  2003/02/04 14:34:52  mohor
+// *** empty log message ***
+//
 // Revision 1.10  2003/01/31 01:13:38  mohor
 // backup.
 //
@@ -91,7 +99,8 @@ module can_top
   data_out,
   cs, rw, addr,
   rx,
-  tx
+  tx,
+  tx_oen
 );
 
 parameter Tp = 1;
@@ -104,6 +113,7 @@ input        cs, rw;
 input  [7:0] addr;
 input        rx;
 output       tx;
+output       tx_oen;
 
 reg          data_out_fifo_selected;
 
@@ -379,7 +389,8 @@ can_bsp i_can_bsp
   /* End: Tx data registers */
   
   /* Tx signal */
-  .tx(tx)
+  .tx(tx),
+  .tx_oen(tx_oen)
 );
 
 

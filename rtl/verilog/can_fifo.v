@@ -40,11 +40,19 @@
 //// Public License along with this source; if not, download it   ////
 //// from http://www.opencores.org/lgpl.shtml                     ////
 ////                                                              ////
+//// The CAN protocol is developed by Robert Bosch GmbH and       ////
+//// protected by patents. Anybody who wants to implement this    ////
+//// CAN IP core on silicon has to obtain a CAN protocol license  ////
+//// from Bosch.                                                  ////
+////                                                              ////
 //////////////////////////////////////////////////////////////////////
 //
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.8  2003/01/31 01:13:38  mohor
+// backup.
+//
 // Revision 1.7  2003/01/17 17:44:31  mohor
 // Fifo corrected to be synthesizable.
 //

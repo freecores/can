@@ -40,11 +40,19 @@
 //// Public License along with this source; if not, download it   ////
 //// from http://www.opencores.org/lgpl.shtml                     ////
 ////                                                              ////
+//// The CAN protocol is developed by Robert Bosch GmbH and       ////
+//// protected by patents. Anybody who wants to implement this    ////
+//// CAN IP core on silicon has to obtain a CAN protocol license  ////
+//// from Bosch.                                                  ////
+////                                                              ////
 //////////////////////////////////////////////////////////////////////
 //
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.19  2003/02/04 17:24:33  mohor
+// Backup.
+//
 // Revision 1.18  2003/02/04 14:34:45  mohor
 // *** empty log message ***
 //
@@ -127,11 +135,14 @@ reg         cs, rw;
 reg   [7:0] addr;
 reg         rx;
 wire        tx;
+wire        tx_oen;
+wire        tx_3st;
 wire        rx_and_tx;
 
 integer     start_tb;
 reg   [7:0] tmp_data;
 reg         delayed_tx;
+reg         tx_bypassed;
 
 
 // Instantiate can_top module
@@ -145,10 +156,11 @@ can_top i_can_top
   .rw(rw),
   .addr(addr),
   .rx(rx_and_tx),
-  .tx(tx)
+  .tx(tx),
+  .tx_oen(tx_oen)
 );
 
-
+assign tx_3st = tx_oen? 1'bz : tx;
 
 
 // Generate clock signal 24 MHz
@@ -170,21 +182,25 @@ begin
   #200 rst = 0;
   #200 initialize_fifo;
   #200 start_tb = 1;
+  tx_bypassed = 0;
 end
+
+
 
 
 // Generating delayed tx signal (CAN transciever delay)
 always
 begin
-  wait (tx);
+  wait (tx_3st);
   repeat (4*BRP) @ (posedge clk);   // 4 time quants delay
-  #1 delayed_tx = tx;
-  wait (~tx);
+  #1 delayed_tx = tx_3st;
+  wait (~tx_3st);
   repeat (4*BRP) @ (posedge clk);   // 4 time quants delay
-  #1 delayed_tx = tx;
+  #1 delayed_tx = tx_3st;
 end
 
-assign rx_and_tx = rx & delayed_tx;
+//assign rx_and_tx = rx & delayed_tx;   FIX ME !!!
+assign rx_and_tx = rx & (delayed_tx | tx_bypassed);
 
 
 // Main testbench
@@ -251,13 +267,183 @@ begin
     begin
 //      test_empty_fifo;    // test currently switched off
 //      test_full_fifo;     // test currently switched off
-      send_frame;         // test currently switched on
+//      send_frame;         // test currently switched off
+      manual_frame;         // test currently switched on
     end
 
 
   $display("CAN Testbench finished !");
   $stop;
 end
+
+
+task manual_frame;    // Testbench sends a frame
+  begin
+
+    begin
+/*
+      $display("\n\nTestbench sends a frame bit by bit");
+      send_bit(0);  // SOF
+      send_bit(1);  // ID
+      send_bit(1);  // ID
+      send_bit(1);  // ID
+      send_bit(0);  // ID
+      send_bit(1);  // ID
+      send_bit(0);  // ID
+      send_bit(0);  // ID
+      send_bit(0);  // ID
+      send_bit(1);  // ID
+      send_bit(0);  // ID
+      send_bit(1);  // ID
+      send_bit(1);  // RTR
+      send_bit(0);  // IDE
+      send_bit(0);  // r0
+      send_bit(0);  // DLC
+      send_bit(1);  // DLC
+      send_bit(0);  // DLC
+      send_bit(0);  // DLC
+      send_bit(1);  // CRC
+      send_bit(0);  // CRC
+      send_bit(0);  // CRC
+      send_bit(0);  // CRC
+      send_bit(1);  // CRC
+      send_bit(0);  // CRC
+      send_bit(1);  // CRC
+      send_bit(1);  // CRC
+      send_bit(0);  // CRC
+      send_bit(1);  // CRC
+      send_bit(0);  // CRC
+      send_bit(1);  // CRC
+      send_bit(1);  // CRC
+      send_bit(0);  // CRC
+      send_bit(0);  // CRC          // error
+      send_bit(1);  // CRC DELIM
+      send_bit(0);  // ACK
+      send_bit(1);  // ACK DELIM
+      send_bit(0);  // EOF        // error comes here
+      send_bit(0);  // EOF        // error comes here
+
+//tx_bypassed=1;
+      send_bit(0);  // EOF        // error comes here
+//tx_bypassed=0;
+
+      send_bit(0);  // EOF        // error comes here
+      send_bit(0);  // EOF        // error comes here
+      send_bit(0);  // EOF        // error comes here
+      send_bit(1);  // EOF        // delimiter
+      send_bit(1);  // INTER      // delimiter
+      send_bit(1);  // INTER      // delimiter
+      send_bit(1);  // INTER      // delimiter
+      send_bit(1);  // IDLE       // delimiter
+      send_bit(1);  // IDLE       // delimiter
+      send_bit(1);  // IDLE       // delimiter
+      send_bit(0);  // IDLE       // delimiter
+      send_bit(1);  // IDLE       // delimiter
+      send_bit(1);  // IDLE       // delimiter
+      send_bit(1);  // IDLE       // delimiter
+      send_bit(1);  // IDLE       // delimiter
+      send_bit(1);  // IDLE       // delimiter
+      send_bit(1);  // IDLE       // delimiter
+      send_bit(1);  // IDLE
+      send_bit(1);  // IDLE
+      send_bit(1);  // IDLE
+*/      
+
+        write_register(8'd10, 8'he8); // Writing ID[10:3] = 0xe8
+        write_register(8'd11, 8'hb7); // Writing ID[2:0] = 0x5, rtr = 1, length = 7
+        write_register(8'd12, 8'h00); // data byte 1
+        write_register(8'd13, 8'h00); // data byte 2
+        write_register(8'd14, 8'h00); // data byte 3
+        write_register(8'd15, 8'h00); // data byte 4
+        write_register(8'd16, 8'h00); // data byte 5
+        write_register(8'd17, 8'h00); // data byte 6
+        write_register(8'd18, 8'h00); // data byte 7
+        write_register(8'd19, 8'h00); // data byte 8
+    end
+
+// tx_bypassed=1;
+
+  
+    fork
+      begin
+        tx_request;
+      end
+
+      begin
+        #520;
+        send_bit(0);  // SOF
+        send_bit(1);  // ID
+        send_bit(1);  // ID
+        send_bit(1);  // ID
+        send_bit(0);  // ID
+        send_bit(1);  // ID
+        send_bit(0);  // ID
+        send_bit(0);  // ID
+        send_bit(0);  // ID
+        send_bit(1);  // ID
+        send_bit(0);  // ID
+        send_bit(1);  // ID
+        send_bit(1);  // RTR
+        send_bit(0);  // IDE
+        send_bit(0);  // r0
+        send_bit(0);  // DLC
+        send_bit(1);  // DLC
+        send_bit(1);  // DLC
+        send_bit(1);  // DLC
+        send_bit(1);  // CRC
+        send_bit(0);  // CRC
+        send_bit(0);  // CRC
+        send_bit(1);  // CRC
+        send_bit(1);  // CRC
+        send_bit(1);  // CRC
+        send_bit(0);  // CRC
+        send_bit(1);  // CRC
+        send_bit(0);  // CRC
+        send_bit(0);  // CRC
+        send_bit(1);  // CRC
+        send_bit(1);  // CRC
+        send_bit(1);  // CRC
+        send_bit(1);  // CRC
+        send_bit(1);  // CRC
+        send_bit(1);  // CRC DELIM
+        send_bit(0);  // ACK
+        send_bit(1);  // ACK DELIM
+        send_bit(1);  // EOF
+        send_bit(1);  // EOF
+        send_bit(1);  // EOF
+        send_bit(1);  // EOF
+        send_bit(1);  // EOF
+        send_bit(1);  // EOF
+        send_bit(1);  // EOF
+//  tx_bypassed=1;
+        send_bit(1);  // INTER
+        send_bit(1);  // INTER
+        send_bit(1);  // INTER
+        send_bit(1);  // IDLE
+        send_bit(1);  // IDLE
+        send_bit(1);  // IDLE
+        send_bit(1);  // IDLE
+
+      end
+    
+    
+    join
+
+    read_receive_buffer;
+    release_rx_buffer;
+
+
+
+
+
+    read_receive_buffer;
+    release_rx_buffer;
+    read_receive_buffer;
+
+    #200000;
+
+  end
+endtask
 
 
 
@@ -285,7 +471,7 @@ task send_frame;    // CAN IP core sends frames
     else
       begin
         write_register(8'd10, 8'hea); // Writing ID[10:3] = 0xea
-        write_register(8'd11, 8'h28); // Writing ID[3:0] = 0x1, rtr = 0, length = 8
+        write_register(8'd11, 8'h28); // Writing ID[2:0] = 0x1, rtr = 0, length = 8
         write_register(8'd12, 8'h56); // data byte 1
         write_register(8'd13, 8'h78); // data byte 2
         write_register(8'd14, 8'h9a); // data byte 3
@@ -306,6 +492,7 @@ task send_frame;    // CAN IP core sends frames
         receive_frame(0, 0, {26'h00000ee, 3'h1}, 4'h0, 15'h6cea); // mode, rtr, id, length, crc
         receive_frame(0, 0, {26'h00000ee, 3'h1}, 4'h1, 15'h00c5); // mode, rtr, id, length, crc
         receive_frame(0, 0, {26'h00000ee, 3'h1}, 4'h2, 15'h7b4a); // mode, rtr, id, length, crc
+
       end
 
       begin
@@ -315,9 +502,9 @@ task send_frame;    // CAN IP core sends frames
       begin
         // Transmitting acknowledge
         wait (can_testbench.i_can_top.i_can_bsp.tx_state & can_testbench.i_can_top.i_can_bsp.rx_ack);
-        rx = 0;
+        #1 rx = 0;
         wait (can_testbench.i_can_top.i_can_bsp.rx_ack_lim);
-        rx = 1;
+        #1 rx = 1;
       end
 
     join
@@ -934,7 +1121,7 @@ end
 // CRC monitor (used until proper CRC generation is used in testbench
 always @ (posedge clk)
 begin
-  if (can_testbench.i_can_top.i_can_bsp.crc_error)
+  if (can_testbench.i_can_top.i_can_bsp.crc_err)
     $display("Calculated crc = 0x%0x, crc_in = 0x%0x", can_testbench.i_can_top.i_can_bsp.calculated_crc, can_testbench.i_can_top.i_can_bsp.crc_in);
 end
 //
@@ -955,7 +1142,7 @@ end
 // form error monitor
 always @ (posedge clk)
 begin
-  if (can_testbench.i_can_top.i_can_bsp.form_error)
+  if (can_testbench.i_can_top.i_can_bsp.form_err)
     $display("\n\n(%0t) ERROR: form_error\n\n", $time);
 end
 //

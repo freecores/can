@@ -40,11 +40,19 @@
 //// Public License along with this source; if not, download it   ////
 //// from http://www.opencores.org/lgpl.shtml                     ////
 ////                                                              ////
+//// The CAN protocol is developed by Robert Bosch GmbH and       ////
+//// protected by patents. Anybody who wants to implement this    ////
+//// CAN IP core on silicon has to obtain a CAN protocol license  ////
+//// from Bosch.                                                  ////
+////                                                              ////
 //////////////////////////////////////////////////////////////////////
 //
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.9  2003/01/31 01:13:38  mohor
+// backup.
+//
 // Revision 1.8  2003/01/10 17:51:34  mohor
 // Temporary version (backup).
 //
@@ -173,7 +181,6 @@ wire          sync_window;
 assign preset_cnt = (baud_r_presc + 1'b1)<<1;        // (BRP+1)*2
 assign hard_sync  =   rx_idle  & (~rx) & sampled_bit & (~sync_blocked) & (~transmitting);  // Hard synchronization
 assign resync     = (~rx_idle) & (~rx) & sampled_bit & (~sync_blocked) & (~resync_blocked) & (~transmitting);  // Re-synchronization
-//assign resync     = (~rx_idle) & (~rx) & sampled_bit & (~sync_blocked) & (~transmitting);  // Re-synchronization
 
 
 /* Generating general enable signal that defines baud rate. */
