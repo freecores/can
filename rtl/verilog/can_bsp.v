@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.7  2003/01/09 21:54:45  mohor
+// rx fifo added. Not 100 % verified, yet.
+//
 // Revision 1.6  2003/01/09 14:46:58  mohor
 // Temporary files (backup).
 //
@@ -90,7 +93,10 @@ module can_bsp
   reset_mode,
   acceptance_filter_mode,
 
-  // Clock Divider register
+  /* Command register */
+  release_buffer,
+
+  /* Clock Divider register */
   extended_mode,
 
   rx_idle,
@@ -134,6 +140,8 @@ input         reset_mode;
 input         acceptance_filter_mode;
 input         extended_mode;
 
+/* Command register */
+input         release_buffer;
 
 output        rx_idle;
 
@@ -576,6 +584,8 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     bit_stuff_cnt <= 1;
+  else if (bit_de_stuff_reset)
+    bit_stuff_cnt <=#Tp 1;
   else if (sample_point & bit_stuff_cnt_en)
     begin
       if (bit_stuff_cnt == 5)
@@ -817,7 +827,7 @@ can_fifo i_can_fifo
   .data_out(data_out),
 
   .reset_mode(reset_mode),
-  .release_buffer(1'b0),     // FIX ME
+  .release_buffer(release_buffer),
   .extended_mode(extended_mode)
 
   

@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2003/01/09 21:54:45  mohor
+// rx fifo added. Not 100 % verified, yet.
+//
 // Revision 1.5  2003/01/08 02:10:56  mohor
 // Acceptance filter added.
 //
@@ -100,6 +103,9 @@ wire         listen_only_mode;
 wire         acceptance_filter_mode;
 wire         sleep_mode;
 
+/* Command register */
+wire          release_buffer;
+
 /* Bus Timing 0 register */
 wire    [5:0] baud_r_presc;
 wire    [1:0] sync_jump_width;
@@ -154,6 +160,13 @@ can_registers i_can_registers
   .listen_only_mode(listen_only_mode),
   .acceptance_filter_mode(acceptance_filter_mode),
   .sleep_mode(sleep_mode),
+
+  /* Command register */
+  .clear_data_overrun(),
+  .release_buffer(release_buffer),
+  .abort_tx(),
+  .tx_request(),
+  .self_rx_request(),
 
   /* Bus Timing 0 register */
   .baud_r_presc(baud_r_presc),
@@ -269,6 +282,9 @@ can_bsp i_can_bsp
   .reset_mode(reset_mode),
   .acceptance_filter_mode(acceptance_filter_mode),
   
+  /* Command register */
+  .release_buffer(release_buffer),
+
   /* Clock Divider register */
   .extended_mode(extended_mode),
 

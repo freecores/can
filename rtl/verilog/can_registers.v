@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2003/01/09 14:46:58  mohor
+// Temporary files (backup).
+//
 // Revision 1.4  2003/01/08 02:10:55  mohor
 // Acceptance filter added.
 //
@@ -80,6 +83,14 @@ module can_registers
   listen_only_mode,
   acceptance_filter_mode,
   sleep_mode,
+
+
+  /* Command register */
+  clear_data_overrun,
+  release_buffer,
+  abort_tx,
+  tx_request,
+  self_rx_request,
 
   /* Bus Timing 0 register */
   baud_r_presc,
@@ -141,6 +152,13 @@ output        listen_only_mode;
 output        acceptance_filter_mode;
 output        sleep_mode;
 
+/* Command register */
+output        clear_data_overrun;
+output        release_buffer;
+output        abort_tx;
+output        tx_request;
+output        self_rx_request;
+
 /* Bus Timing 0 register */
 output  [5:0] baud_r_presc;
 output  [1:0] sync_jump_width;
@@ -186,6 +204,7 @@ output  [7:0] acceptance_mask_3;
 
 
 wire we_mode                  = cs & (~rw) & (addr == 8'h0);
+wire we_command               = cs & (~rw) & (addr == 8'h1);
 wire we_bus_timing_0          = cs & (~rw) & (addr == 8'h6) & reset_mode;
 wire we_bus_timing_1          = cs & (~rw) & (addr == 8'h7) & reset_mode;
 wire we_clock_divider_hi      = cs & (~rw) & (addr == 8'h31) & reset_mode;
@@ -228,6 +247,28 @@ assign listen_only_mode = mode[1];
 assign acceptance_filter_mode = mode[3];
 assign sleep_mode = mode[4];
 /* End Mode register */
+
+
+/* Command register */
+wire   [4:0] command;
+wire   [2:0] command_dummy;
+can_register_syn #(8, 8'h0) COMMAND_REG
+( .data_in(data_in),
+  .data_out({command_dummy, command}),
+  .we(we_command),
+  .clk(clk),
+  .rst_sync(|command)
+);
+
+assign self_rx_request = command[4];
+assign clear_data_overrun = command[3];
+assign release_buffer = command[2];
+assign abort_tx = command[1];
+assign tx_request = command[0];
+/* End Command register */
+
+
+
 
 
 /* Bus Timing 0 register */
@@ -396,6 +437,7 @@ begin
         begin
           case(addr)
             8'h0  :  data_out <= mode;
+            8'h1  :  data_out <= 8'h0;
             8'h6  :  data_out <= bus_timing_0;
             8'h7  :  data_out <= bus_timing_1;
             8'h16 :  data_out <= reset_mode? acceptance_code_0 : fix_me;    // + fix TX identifiers
@@ -416,6 +458,7 @@ begin
         begin
           case(addr)
             8'h0  :  data_out <= mode;
+            8'h1  :  data_out <= 8'hff;
             8'h4  :  data_out <= reset_mode? acceptance_code_0 : 8'hff;
             8'h5  :  data_out <= reset_mode? acceptance_mask_0 : 8'hff;
             8'h6  :  data_out <= reset_mode? bus_timing_0 : 8'hff;

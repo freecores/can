@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.7  2003/01/08 02:10:53  mohor
+// Acceptance filter added.
+//
 // Revision 1.6  2002/12/28 04:13:23  mohor
 // Backup version.
 //
@@ -292,7 +295,7 @@ begin
       sampled_bit_q <= 1;
       sample_point <= 0;
     end
-  else if (clk_en)
+  else if (clk_en & (~hard_sync))
     begin
       if (seg1 & (quant_cnt == (time_segment1 + delay)))
         begin

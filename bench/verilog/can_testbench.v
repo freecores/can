@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.9  2003/01/09 21:54:39  mohor
+// rx fifo added. Not 100 % verified, yet.
+//
 // Revision 1.8  2003/01/08 02:09:43  mohor
 // Acceptance filter added.
 //
@@ -184,25 +187,40 @@ begin
 
   if(`CAN_CLOCK_DIVIDER_MODE)   // Extended mode
     begin
-      send_frame(0, 1, {26'h00000a6, 3'h5}, 2, 15'h2a11); // mode, rtr, id, length, crc
+//      send_frame(0, 1, {26'h00000a6, 3'h5}, 2, 15'h2a11); // mode, rtr, id, length, crc
 //      send_frame(0, 1, 29'h12567635, 2, 15'h75b4); // mode, rtr, id, length, crc
+      send_frame(0, 1, {26'h00000a6, 3'h5}, 4'h2, 15'h2a11); // mode, rtr, id, length, crc
     end
   else
     begin
-      send_frame(0, 1, {26'h00000a6, 3'h5}, 2, 15'h2a11); // mode, rtr, id, length, crc
+      send_frame(0, 1, {26'h00000a6, 3'h5}, 4'h2, 15'h2a11); // mode, rtr, id, length, crc
+
+  read_receive_buffer;
+  $display("\n\n");
+
+      send_frame(0, 1, {26'h00000a6, 3'h5}, 4'h2, 15'h2a11); // mode, rtr, id, length, crc
     end
+
   
 
-  repeat (50000) @ (posedge clk);
 
-  read_register(8'h4);
-  read_register(8'h20);
-  read_register(8'h21);
-  read_register(8'h22);
-  read_register(8'h23);
-  read_register(8'h24);
-  read_register(8'h25);
+  read_receive_buffer;
 
+  release_rx_buffer;
+  $display("\n\n");
+
+  read_receive_buffer;
+
+  release_rx_buffer;
+  $display("\n\n");
+
+  read_receive_buffer;
+
+  send_frame(0, 1, {26'h00000a6, 3'h5}, 4'h2, 15'h2a11); // mode, rtr, id, length, crc
+
+  $display("\n\n");
+
+  read_receive_buffer;
 
   $display("CAN Testbench finished.");
   $stop;
@@ -247,6 +265,30 @@ task write_register;
     data_in = 'hz;
     cs = 0;
     rw = 'hz;
+  end
+endtask
+
+
+task read_receive_buffer;
+  integer i;
+  begin
+    if(`CAN_CLOCK_DIVIDER_MODE)   // Extended mode
+      begin
+        for (i=8'h16; i<=8'h28; i=i+1)
+          read_register(i);
+      end
+    else
+      begin
+        for (i=8'h20; i<=8'h29; i=i+1)
+          read_register(i);
+      end
+  end
+endtask
+
+
+task release_rx_buffer;
+  begin
+      write_register(8'h1, 8'h4);
   end
 endtask
 
@@ -299,6 +341,64 @@ task send_frame;
   input [28:0] id;
   input  [3:0] length;
   input [14:0] crc;
+  integer pointer;
+  integer cnt;
+  integer total_bits;
+  integer stuff_cnt;
+  reg [117:0] data;
+  begin
+
+    stuff_cnt = 0;
+
+    if(mode)          // Extended format
+      data = {id[28:18], 1'b1, 1'b1, 1'b0, id[17:0], remote_trans_req, 2'h0, length};
+    else              // Standard format
+      data = {id[10:0], remote_trans_req, 1'b0, 1'b0, length};
+
+    if(length)    // Send data if length is > 0
+      begin
+        for (cnt=1; cnt<=(2*length); cnt=cnt+1)  // data   (we are sending nibbles)
+          data = {data[113:0], cnt[3:0]};
+      end
+
+    // Adding CRC
+    data = {data[104:0], crc[14:0]};
+
+
+    // Calculating pointer that points to the bit that will be send
+    if(mode)          // Extended format
+      pointer = 53 + 8 * length;
+    else              // Standard format
+      pointer = 32 + 8 * length;
+
+    // This is how many bits we need to shift
+    total_bits = pointer;
+
+      
+    send_bit(0);                        // SOF
+
+    for (cnt=0; cnt<=total_bits; cnt =cnt+1)
+      begin
+        send_bit(data[pointer]);        // Bit stuffing comes here !!!
+        pointer = pointer - 1;
+      end
+
+    
+    // Nothing send after the data (just recessive bit)
+    repeat (13) send_bit(1);         // CRC delimiter + ack + ack delimiter + EOF   !!! Check what is the minimum value for which core works ok
+
+
+
+  end
+endtask
+
+
+task send_frame_old;
+  input mode;
+  input remote_trans_req;
+  input [28:0] id;
+  input  [3:0] length;
+  input [14:0] crc;
   integer cnt;
 
   reg [28:0] data;
@@ -344,6 +444,7 @@ task send_frame;
             data=data<<1;
           end
         send_bit(remote_trans_req);
+        
         send_bit(0);                    // IDE
         send_bit(0);                    // r0 (reserved 0)
 
