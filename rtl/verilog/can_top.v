@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.30  2003/03/20 17:01:17  mohor
+// unix.
+//
 // Revision 1.28  2003/03/14 19:36:48  mohor
 // can_cs signal used for generation of the cs.
 //
@@ -175,7 +178,7 @@ module can_top
   clk_i,
   rx_i,
   tx_o,
-  irq_o,
+  irq_on,
   clkout_o
 );
 
@@ -218,12 +221,13 @@ input        cs_can_i;
 input        clk_i;
 input        rx_i;
 output       tx_o;
-output       irq_o;
+output       irq_on;
 output       clkout_o;
 
 reg          data_out_fifo_selected;
 
 
+wire         irq_o;
 wire   [7:0] data_out_fifo;
 wire   [7:0] data_out_regs;
 
@@ -462,16 +466,10 @@ can_registers i_can_registers
   .tx_data_11(tx_data_11),
   .tx_data_12(tx_data_12)
   /* End: Tx data registers */
-
-
-
-
-
-
 );
 
 
-
+assign irq_on = ~irq_o;
 
 
 /* Connecting can_btl module */
