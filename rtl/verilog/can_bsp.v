@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.25  2003/02/19 14:44:03  mohor
+// CAN core finished. Host interface added. Registers finished.
+// Synchronization to the wishbone finished.
+//
 // Revision 1.24  2003/02/18 00:10:15  mohor
 // Most of the registers added. Registers "arbitration lost capture", "error code
 // capture" + few more still need to be added.
@@ -454,14 +458,12 @@ reg           ack_err_latched;
 reg           bit_err_latched;
 reg           stuff_err_latched;
 reg           form_err_latched;
-reg           rule5;
 reg           rule3_exc1_1;
 reg           rule3_exc1_2;
 reg           rule3_exc2;
 reg           suspend;
 reg           susp_cnt_en;
 reg     [2:0] susp_cnt;
-reg           go_error_frame_q;
 reg           error_flag_over_blocked;
 
 reg     [7:0] error_capture_code;
@@ -474,6 +476,7 @@ wire          error_capture_code_direction;
 wire          bit_de_stuff;
 wire          bit_de_stuff_tx;
 
+wire          rule5;
 
 /* Rx state machine */
 wire          go_rx_idle;
@@ -1071,19 +1074,10 @@ begin
 end
 
 
-// Rule 5 (Fault confinement).
-always @ (posedge clk or posedge rst)
-begin
-  if (rst)
-    rule5 <= 1'b0;
-  else if (reset_mode | error_flag_over)
-    rule5 <=#Tp 1'b0;
-  else if ((~node_error_passive) & bit_err & (~bit_err_latched) &  (error_frame    & (error_cnt1    < 7) | 
-                                                                    overload_frame & (overload_cnt1 < 7) )
-          )
-    rule5 <=#Tp 1'b1;
-end
 
+// Rule 5 (Fault confinement).
+assign rule5 = (~node_error_passive) & bit_err &  (error_frame    & (error_cnt1    < 7) | 
+                                                   overload_frame & (overload_cnt1 < 7) );
 
 // Rule 3 exception 1 - first part (Fault confinement).
 always @ (posedge clk or posedge rst)
@@ -1349,12 +1343,6 @@ begin
 end
 
 
-always @ (posedge clk)
-begin
-    go_error_frame_q <=#Tp go_error_frame;
-end
-
-
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
@@ -1613,7 +1601,7 @@ assign rst_tx_pointer = ((~bit_de_stuff_tx) & tx_point & (~rx_data) &   extended
                         (                     tx_point &   rx_crc_lim                                                                               ) |   // crc
                         (go_rx_idle                                                                                                                 ) |   // at the end
                         (reset_mode                                                                                                                 ) |
-                        (overload_frame                                                                                                              ) |
+                        (overload_frame                                                                                                             ) |
                         (error_frame                                                                                                                ) ;
 
 always @ (posedge clk or posedge rst)
@@ -1807,10 +1795,10 @@ begin
             end
           else if ((rx_err_cnt < 248) & (~transmitter))   // 248 + 8 = 256
             begin
-              if (go_error_frame_q & (~rule5))                                                                          // 1  (rule 5 is just the opposite then rule 1 exception
+              if (go_error_frame & (~rule5))                                                                            // 1  (rule 5 is just the opposite then rule 1 exception
                 rx_err_cnt <=#Tp rx_err_cnt + 1'b1;
               else if ( (error_frame & sample_point & (~sampled_bit) & (error_cnt1 == 7) & (~rx_err_cnt_blocked)  ) |   // 2
-                        (go_error_frame_q & rule5                                                                 ) |   // 5
+                        (go_error_frame & rule5                                                                   ) |   // 5
                         (error_frame & sample_point & (~sampled_bit) & (delayed_dominant_cnt == 7)                )     // 6
                       )
                 rx_err_cnt <=#Tp rx_err_cnt + 4'h8;
@@ -1835,7 +1823,7 @@ begin
       else if (transmitter)
         begin
           if ( (sample_point & (~sampled_bit) & (delayed_dominant_cnt == 7)                     ) |       // 6
-               (error_flag_over & (~error_flag_over_blocked) & rule5                            ) |       // 4  (rule 5 is the same as rule 4)
+               (go_error_frame & rule5                                                          ) |       // 4  (rule 5 is the same as rule 4)
                (error_flag_over & (~error_flag_over_blocked) & (~rule3_exc1_2) & (~rule3_exc2)  )         // 3
              )
             tx_err_cnt <=#Tp tx_err_cnt + 4'h8;
@@ -1863,7 +1851,7 @@ begin
     node_error_passive <= 1'b0;
   else if ((rx_err_cnt < 128) & (tx_err_cnt < 128) & error_frame_ended)
     node_error_passive <=#Tp 1'b0;
-  else if (((rx_err_cnt >= 128) | (tx_err_cnt >= 128)) & (error_frame_ended | (~reset_mode) & reset_mode_q) & (~node_bus_off))
+  else if (((rx_err_cnt >= 128) | (tx_err_cnt >= 128)) & (error_frame_ended | go_error_frame | (~reset_mode) & reset_mode_q) & (~node_bus_off))
     node_error_passive <=#Tp 1'b1;
 end
 
