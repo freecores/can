@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.15  2003/06/11 09:37:05  mohor
+// overrun and length_info fifos are initialized at the end of reset.
+//
 // Revision 1.14  2003/03/05 15:02:30  mohor
 // Xilinx RAM added.
 //
@@ -474,7 +477,7 @@ end
   // writing length_fifo
   always @ (posedge clk)
   begin
-    if (write_length_info & (~info_full) | initialize_memories))
+    if (write_length_info & (~info_full) | initialize_memories)
       length_fifo[wr_info_pointer] <=#Tp len_cnt & {4{~initialize_memories}};
   end
 
