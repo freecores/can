@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2003/01/08 02:10:53  mohor
+// Acceptance filter added.
+//
 // Revision 1.3  2002/12/28 04:13:23  mohor
 // Backup version.
 //
@@ -77,7 +80,7 @@ module can_bsp
   reset_mode,
   acceptance_filter_mode,
 
-  /* Clock Divider register */
+  // Clock Divider register
   extended_mode,
 
   rx_idle,
@@ -506,7 +509,6 @@ end
 
 
 
-
 // CRC
 always @ (posedge clk or posedge rst)
 begin
@@ -613,7 +615,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     crc_error <= 0;
-  else if (sample_point & rx_crc_lim)
+  else if (go_rx_ack)
     crc_error <=#Tp crc_in != calculated_crc;
   else if (reset_mode | rx_eof)
     crc_error <=#Tp 0;
@@ -650,6 +652,7 @@ can_acf i_can_acf
   .reset_mode(reset_mode),
   .acceptance_filter_mode(acceptance_filter_mode),
 
+  // Clock Divider register
   .extended_mode(extended_mode),
   
   /* This section is for BASIC and EXTENDED mode */
@@ -686,6 +689,137 @@ can_acf i_can_acf
   .id_ok(id_ok)
 
 );
+
+
+
+reg [3:0] wr_fifo_cnt;    // Counting the data written in FIFO
+
+reg wr_fifo_normal_mode;    // Write fifo when in normal mode (clock divider register)
+reg wr_fifo_ext_mode_std;   // Write fifo when in extended mode (clock divider register) and receiving standard format msg
+reg wr_fifo_ext_mode_ext;   // Write fifo when in extended mode (clock divider register) and receiving extended format msg
+
+wire reset_wr_fifo_normal_mode;
+
+wire [3:0] total_rx_byte = (data_len < 8)? data_len : 4'h8;
+
+
+
+
+
+assign reset_wr_fifo_normal_mode = wr_fifo_cnt == (1'b1 + total_rx_byte);
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    wr_fifo_normal_mode <= 1'b0;
+  if (go_rx_ack_lim & (~extended_mode) & id_ok & (~crc_error))
+    wr_fifo_normal_mode <=#Tp 1'b1;
+  else if (reset_wr_fifo_normal_mode)
+    wr_fifo_normal_mode <=#Tp 1'b0;
+end
+
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    wr_fifo_cnt <= 0;
+  if (wr_fifo_normal_mode)
+    wr_fifo_cnt <=#Tp wr_fifo_cnt + 1;
+  else if (reset_wr_fifo_normal_mode)
+    wr_fifo_cnt <=#Tp 0;
+end
+
+
+reg [7:0] data_for_fifo;
+always @ (extended_mode or ide or tmp_fifo or wr_fifo_cnt)
+begin
+  if (extended_mode)      // extended mode
+    begin
+      if (ide)              // extended format
+        begin
+          case (wr_fifo_cnt)            // synopsys parallel_case synopsys full_case
+            4'h0  : data_for_fifo <= {1'b1, rtr2, 2'h0, data_len};
+            4'h1  : data_for_fifo <= id[28:21];
+            4'h2  : data_for_fifo <= id[20:13];
+            4'h3  : data_for_fifo <= id[12:5];
+            4'h4  : data_for_fifo <= {id[4:0], 3'h0};
+            4'h5  : data_for_fifo <= tmp_fifo[0];
+            4'h6  : data_for_fifo <= tmp_fifo[1];
+            4'h7  : data_for_fifo <= tmp_fifo[2];
+            4'h8  : data_for_fifo <= tmp_fifo[3];
+            4'h9  : data_for_fifo <= tmp_fifo[4];
+            4'hA  : data_for_fifo <= tmp_fifo[5];
+            4'hB  : data_for_fifo <= tmp_fifo[6];
+            4'hC  : data_for_fifo <= tmp_fifo[7];
+          endcase
+        end
+      else                  // standard format
+        begin
+          case (wr_fifo_cnt)            // synopsys parallel_case synopsys full_case
+            4'h0  : data_for_fifo <= {1'b0, rtr1, 2'h0, data_len};
+            4'h1  : data_for_fifo <= id[10:3];
+            4'h2  : data_for_fifo <= {id[2:0], 5'h0};
+            4'h3  : data_for_fifo <= tmp_fifo[0];
+            4'h4  : data_for_fifo <= tmp_fifo[1];
+            4'h5  : data_for_fifo <= tmp_fifo[2];
+            4'h6  : data_for_fifo <= tmp_fifo[3];
+            4'h7  : data_for_fifo <= tmp_fifo[4];
+            4'h8  : data_for_fifo <= tmp_fifo[5];
+            4'h9  : data_for_fifo <= tmp_fifo[6];
+            4'hA  : data_for_fifo <= tmp_fifo[7];
+          endcase
+        end
+    end
+  else                    // normal mode
+    begin
+      case (wr_fifo_cnt)            // synopsys parallel_case synopsys full_case
+        4'h0  : data_for_fifo <= id[10:3];
+        4'h1  : data_for_fifo <= {id[2:0], rtr1, data_len};
+        4'h2  : data_for_fifo <= tmp_fifo[0];
+        4'h3  : data_for_fifo <= tmp_fifo[1];
+        4'h4  : data_for_fifo <= tmp_fifo[2];
+        4'h5  : data_for_fifo <= tmp_fifo[3];
+        4'h6  : data_for_fifo <= tmp_fifo[4];
+        4'h7  : data_for_fifo <= tmp_fifo[5];
+        4'h8  : data_for_fifo <= tmp_fifo[6];
+        4'h9  : data_for_fifo <= tmp_fifo[7];
+      endcase
+    end
+end
+
+/*
+always @ (posedge clk or posedge rst)
+begin
+  if (write_data_to_tmp_fifo)
+    tmp_fifo[byte_cnt] <=#Tp tmp_data;
+end
+
+
+
+// Instantiation of the RX fifo module
+can_fifo i_can_fifo;
+( 
+  .clk(clk),
+  .rst(rst),
+
+  .rd(rd),
+  .wr(wr),
+  .wr_length_info(wr_length_info),
+
+  .data_in(data_in),
+  .data_out(data_out),
+
+  .reset_mode(reset_mode),
+  .release_buffer(release_buffer),
+
+  // Clock Divider register
+  .extended_mode(extended_mode)
+  
+);
+*/
+
+
+
 
 
 
