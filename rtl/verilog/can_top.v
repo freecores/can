@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.13  2003/02/09 18:40:29  mohor
+// Overload fixed. Hard synchronization also enabled at the last bit of
+// interframe.
+//
 // Revision 1.12  2003/02/09 02:24:33  mohor
 // Bosch license warning added. Error counters finished. Overload frames
 // still need to be fixed.
@@ -61,7 +65,10 @@
 // backup.
 //
 // Revision 1.9  2003/01/15 13:16:48  mohor
-// When a frame with "remote request" is received, no data is stored to fifo, just the frame information (identifier, ...). Data length that is stored is the received data length and not the actual data length that is stored to fifo.
+// When a frame with "remote request" is received, no data is stored to
+// fifo, just the frame information (identifier, ...). Data length that
+// is stored is the received data length and not the actual data length
+// that is stored to fifo.
 //
 // Revision 1.8  2003/01/14 17:25:09  mohor
 // Addresses corrected to decimal values (previously hex).
@@ -97,11 +104,16 @@
 
 module can_top
 ( 
+  wb_clk_i,
+  wb_rst_i,
+  wb_dat_i,
+  wb_dat_o,
+  wb_cyc_i,
+  wb_stb_i,
+  wb_we_i,
+  wb_adr_i,
+  wb_ack_o,
   clk,
-  rst,
-  data_in,
-  data_out,
-  cs, rw, addr,
   rx,
   tx,
   tx_oen
@@ -109,17 +121,30 @@ module can_top
 
 parameter Tp = 1;
 
+input        wb_clk_i;
+input        wb_rst_i;
+input  [7:0] wb_dat_i;
+output [7:0] wb_dat_o;
+input        wb_cyc_i;
+input        wb_stb_i;
+input        wb_we_i;
+input  [7:0] wb_adr_i;
+output       wb_ack_o;
 input        clk;
-input        rst;
-input  [7:0] data_in;
-output [7:0] data_out;
-input        cs, rw;
-input  [7:0] addr;
 input        rx;
 output       tx;
 output       tx_oen;
 
+reg          wb_ack_o;
 reg          data_out_fifo_selected;
+
+reg          cs_sync1;
+reg          cs_sync2;
+reg          cs_sync3;
+
+reg          cs_rst1;
+reg          cs_rst2;
+reg          cs_rst3;
 
 wire   [7:0] data_out_fifo;
 wire   [7:0] data_out_regs;
@@ -187,16 +212,17 @@ wire   [7:0] tx_data_11;
 wire   [7:0] tx_data_12;
 /* End: Tx data registers */
 
+wire         cs;
 
 /* Connecting can_registers module */
 can_registers i_can_registers
 ( 
   .clk(clk),
-  .rst(rst),
+  .rst(wb_rst_i),
   .cs(cs),
-  .rw(rw),
-  .addr(addr),
-  .data_in(data_in),
+  .we(wb_we_i),
+  .addr(wb_adr_i),
+  .data_in(wb_dat_i),
   .data_out(data_out_regs),
 
   /* Mode register */
@@ -292,7 +318,7 @@ wire        last_bit_of_inter;
 can_btl i_can_btl
 ( 
   .clk(clk),
-  .rst(rst),
+  .rst(wb_rst_i),
   .rx(rx),
 
   /* Mode register */
@@ -331,7 +357,7 @@ can_btl i_can_btl
 can_bsp i_can_bsp
 (
   .clk(clk),
-  .rst(rst),
+  .rst(wb_rst_i),
   
   /* From btl module */
   .sample_point(sample_point),
@@ -340,7 +366,7 @@ can_bsp i_can_bsp
   .tx_point(tx_point),
   .hard_sync(hard_sync),
 
-  .addr(addr),
+  .addr(wb_adr_i),
   .data_out(data_out_fifo),
 
   /* Mode register */
@@ -401,16 +427,66 @@ can_bsp i_can_bsp
 );
 
 
-// Multiplexing data_out from registers and rx fifo
-always @ (extended_mode or addr or reset_mode)
+// Multiplexing wb_dat_o from registers and rx fifo
+always @ (extended_mode or wb_adr_i or reset_mode)
 begin
-  if (extended_mode & (~reset_mode) & ((addr >= 8'd16) && (addr <= 8'd28)) | (~extended_mode) & ((addr >= 8'd20) && (addr <= 8'd29)))
+  if (extended_mode & (~reset_mode) & ((wb_adr_i >= 8'd16) && (wb_adr_i <= 8'd28)) | (~extended_mode) & ((wb_adr_i >= 8'd20) && (wb_adr_i <= 8'd29)))
     data_out_fifo_selected <= 1'b1;
   else
     data_out_fifo_selected <= 1'b0;
 end
 
 
-assign data_out = data_out_fifo_selected ? data_out_fifo : data_out_regs;
+assign wb_dat_o = data_out_fifo_selected ? data_out_fifo : data_out_regs;
+
+
+
+// Combining wb_cyc_i and wb_stb_i signals to cs signal. Than synchronizing to clk clock domain. 
+always @ (posedge clk)
+begin
+  if (cs_rst2)
+    begin
+      cs_sync1 <=#Tp 1'b0;
+      cs_sync2 <=#Tp 1'b0;
+      cs_sync3 <=#Tp 1'b0;
+    end
+  else
+    begin
+      cs_sync1 <=#Tp (wb_cyc_i & wb_stb_i);
+      cs_sync2 <=#Tp cs_sync1;
+      cs_sync3 <=#Tp cs_sync2;
+    end
+end
+
+
+assign cs = cs_sync2 & (~cs_sync3);
+
+
+always @ (posedge wb_clk_i)
+begin
+  if (wb_ack_o)
+    begin
+      cs_rst1 <=#Tp 1'b0;
+      cs_rst2 <=#Tp 1'b0;
+      cs_rst3 <=#Tp 1'b0;
+    end
+  else
+    begin
+      cs_rst1 <=#Tp cs_sync2;
+      cs_rst2 <=#Tp cs_rst1;
+      cs_rst3 <=#Tp cs_rst2;
+    end
+end
+
+
+
+// Generating acknowledge signal
+always @ (posedge wb_clk_i)
+begin
+  wb_ack_o <=#Tp (cs_rst2 & (~cs_rst3));
+end
+
+
+
 
 endmodule

@@ -50,11 +50,18 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.11  2003/02/09 02:24:33  mohor
+// Bosch license warning added. Error counters finished. Overload frames
+// still need to be fixed.
+//
 // Revision 1.10  2003/01/31 01:13:38  mohor
 // backup.
 //
 // Revision 1.9  2003/01/15 13:16:48  mohor
-// When a frame with "remote request" is received, no data is stored to fifo, just the frame information (identifier, ...). Data length that is stored is the received data length and not the actual data length that is stored to fifo.
+// When a frame with "remote request" is received, no data is stored
+// to fifo, just the frame information (identifier, ...). Data length
+// that is stored is the received data length and not the actual data
+// length that is stored to fifo.
 //
 // Revision 1.8  2003/01/14 17:25:09  mohor
 // Addresses corrected to decimal values (previously hex).
@@ -93,7 +100,7 @@ module can_registers
   clk,
   rst,
   cs,
-  rw,
+  we,
   addr,
   data_in,
   data_out,
@@ -174,12 +181,13 @@ parameter Tp = 1;
 input         clk;
 input         rst;
 input         cs;
-input         rw;
+input         we;
 input   [7:0] addr;
 input   [7:0] data_in;
 
 output  [7:0] data_out;
 reg     [7:0] data_out;
+
 
 /* Mode register */
 output        reset_mode;
@@ -253,42 +261,42 @@ output  [7:0] tx_data_12;
 
 
 
-wire we_mode                  = cs & (~rw) & (addr == 8'd0);
-wire we_command               = cs & (~rw) & (addr == 8'd1);
-wire we_bus_timing_0          = cs & (~rw) & (addr == 8'd6) & reset_mode;
-wire we_bus_timing_1          = cs & (~rw) & (addr == 8'd7) & reset_mode;
-wire we_clock_divider_low     = cs & (~rw) & (addr == 8'd31);
+wire we_mode                  = cs & we & (addr == 8'd0);
+wire we_command               = cs & we & (addr == 8'd1);
+wire we_bus_timing_0          = cs & we & (addr == 8'd6) & reset_mode;
+wire we_bus_timing_1          = cs & we & (addr == 8'd7) & reset_mode;
+wire we_clock_divider_low     = cs & we & (addr == 8'd31);
 wire we_clock_divider_hi      = we_clock_divider_low & reset_mode;
 
-wire read = cs & rw;
+wire read = cs & (~we);
 
 
 /* This section is for BASIC and EXTENDED mode */
-wire we_acceptance_code_0       = cs & (~rw) &   reset_mode  & ((~extended_mode) & (addr == 8'd4)  | extended_mode & (addr == 8'd16));
-wire we_acceptance_mask_0       = cs & (~rw) &   reset_mode  & ((~extended_mode) & (addr == 8'd5)  | extended_mode & (addr == 8'd20));
-wire we_tx_data_0               = cs & (~rw) & (~reset_mode) & ((~extended_mode) & (addr == 8'd10) | extended_mode & (addr == 8'd16));
-wire we_tx_data_1               = cs & (~rw) & (~reset_mode) & ((~extended_mode) & (addr == 8'd11) | extended_mode & (addr == 8'd17));
-wire we_tx_data_2               = cs & (~rw) & (~reset_mode) & ((~extended_mode) & (addr == 8'd12) | extended_mode & (addr == 8'd18));
-wire we_tx_data_3               = cs & (~rw) & (~reset_mode) & ((~extended_mode) & (addr == 8'd13) | extended_mode & (addr == 8'd19));
-wire we_tx_data_4               = cs & (~rw) & (~reset_mode) & ((~extended_mode) & (addr == 8'd14) | extended_mode & (addr == 8'd20));
-wire we_tx_data_5               = cs & (~rw) & (~reset_mode) & ((~extended_mode) & (addr == 8'd15) | extended_mode & (addr == 8'd21));
-wire we_tx_data_6               = cs & (~rw) & (~reset_mode) & ((~extended_mode) & (addr == 8'd16) | extended_mode & (addr == 8'd22));
-wire we_tx_data_7               = cs & (~rw) & (~reset_mode) & ((~extended_mode) & (addr == 8'd17) | extended_mode & (addr == 8'd23));
-wire we_tx_data_8               = cs & (~rw) & (~reset_mode) & ((~extended_mode) & (addr == 8'd18) | extended_mode & (addr == 8'd24));
-wire we_tx_data_9               = cs & (~rw) & (~reset_mode) & ((~extended_mode) & (addr == 8'd19) | extended_mode & (addr == 8'd25));
-wire we_tx_data_10              = cs & (~rw) & (~reset_mode) & (                                     extended_mode & (addr == 8'd26));
-wire we_tx_data_11              = cs & (~rw) & (~reset_mode) & (                                     extended_mode & (addr == 8'd27));
-wire we_tx_data_12              = cs & (~rw) & (~reset_mode) & (                                     extended_mode & (addr == 8'd28));
+wire we_acceptance_code_0       = cs & we &   reset_mode  & ((~extended_mode) & (addr == 8'd4)  | extended_mode & (addr == 8'd16));
+wire we_acceptance_mask_0       = cs & we &   reset_mode  & ((~extended_mode) & (addr == 8'd5)  | extended_mode & (addr == 8'd20));
+wire we_tx_data_0               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd10) | extended_mode & (addr == 8'd16));
+wire we_tx_data_1               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd11) | extended_mode & (addr == 8'd17));
+wire we_tx_data_2               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd12) | extended_mode & (addr == 8'd18));
+wire we_tx_data_3               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd13) | extended_mode & (addr == 8'd19));
+wire we_tx_data_4               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd14) | extended_mode & (addr == 8'd20));
+wire we_tx_data_5               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd15) | extended_mode & (addr == 8'd21));
+wire we_tx_data_6               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd16) | extended_mode & (addr == 8'd22));
+wire we_tx_data_7               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd17) | extended_mode & (addr == 8'd23));
+wire we_tx_data_8               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd18) | extended_mode & (addr == 8'd24));
+wire we_tx_data_9               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd19) | extended_mode & (addr == 8'd25));
+wire we_tx_data_10              = cs & we & (~reset_mode) & (                                     extended_mode & (addr == 8'd26));
+wire we_tx_data_11              = cs & we & (~reset_mode) & (                                     extended_mode & (addr == 8'd27));
+wire we_tx_data_12              = cs & we & (~reset_mode) & (                                     extended_mode & (addr == 8'd28));
 /* End: This section is for BASIC and EXTENDED mode */
 
 
 /* This section is for EXTENDED mode */
-wire we_acceptance_code_1     = cs & (~rw) & (addr == 8'd17) & reset_mode & extended_mode;
-wire we_acceptance_code_2     = cs & (~rw) & (addr == 8'd18) & reset_mode & extended_mode;
-wire we_acceptance_code_3     = cs & (~rw) & (addr == 8'd19) & reset_mode & extended_mode;
-wire we_acceptance_mask_1     = cs & (~rw) & (addr == 8'd21) & reset_mode & extended_mode;
-wire we_acceptance_mask_2     = cs & (~rw) & (addr == 8'd22) & reset_mode & extended_mode;
-wire we_acceptance_mask_3     = cs & (~rw) & (addr == 8'd23) & reset_mode & extended_mode;
+wire we_acceptance_code_1     = cs & we & (addr == 8'd17) & reset_mode & extended_mode;
+wire we_acceptance_code_2     = cs & we & (addr == 8'd18) & reset_mode & extended_mode;
+wire we_acceptance_code_3     = cs & we & (addr == 8'd19) & reset_mode & extended_mode;
+wire we_acceptance_mask_1     = cs & we & (addr == 8'd21) & reset_mode & extended_mode;
+wire we_acceptance_mask_2     = cs & we & (addr == 8'd22) & reset_mode & extended_mode;
+wire we_acceptance_mask_3     = cs & we & (addr == 8'd23) & reset_mode & extended_mode;
 /* End: This section is for EXTENDED mode */
 
 
@@ -315,10 +323,9 @@ assign sleep_mode = mode[4];
 
 /* Command register */
 wire   [4:0] command;
-wire   [2:0] command_dummy;
-can_register_asyn_syn #(8, 8'h0) COMMAND_REG
-( .data_in(data_in),
-  .data_out({command_dummy, command}),
+can_register_asyn_syn #(5, 5'h0) COMMAND_REG
+( .data_in(data_in[4:0]),
+  .data_out(command[4:0]),
   .we(we_command),
   .clk(clk),
   .rst(rst),
@@ -684,6 +691,12 @@ begin
   else
     data_out <= 8'h0;
 end
+
+
+
+
+
+
 
 
 

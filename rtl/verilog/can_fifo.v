@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.9  2003/02/09 02:24:33  mohor
+// Bosch license warning added. Error counters finished. Overload frames
+// still need to be fixed.
+//
 // Revision 1.8  2003/01/31 01:13:38  mohor
 // backup.
 //
@@ -57,7 +61,10 @@
 // Fifo corrected to be synthesizable.
 //
 // Revision 1.6  2003/01/15 13:16:47  mohor
-// When a frame with "remote request" is received, no data is stored to fifo, just the frame information (identifier, ...). Data length that is stored is the received data length and not the actual data length that is stored to fifo.
+// When a frame with "remote request" is received, no data is stored
+// to fifo, just the frame information (identifier, ...). Data length
+// that is stored is the received data length and not the actual data
+// length that is stored to fifo.
 //
 // Revision 1.5  2003/01/14 17:25:09  mohor
 // Addresses corrected to decimal values (previously hex).

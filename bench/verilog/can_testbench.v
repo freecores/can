@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.21  2003/02/09 18:40:23  mohor
+// Overload fixed. Hard synchronization also enabled at the last bit of
+// interframe.
+//
 // Revision 1.20  2003/02/09 02:24:11  mohor
 // Bosch license warning added. Error counters finished. Overload frames
 // still need to be fixed.
@@ -72,10 +76,14 @@
 // CRC checking fixed (when bitstuff occurs at the end of a CRC sequence).
 //
 // Revision 1.14  2003/01/15 14:40:16  mohor
-// RX state machine fixed to receive "remote request" frames correctly. No data bytes are written to fifo when such frames are received.
+// RX state machine fixed to receive "remote request" frames correctly. No
+// data bytes are written to fifo when such frames are received.
 //
 // Revision 1.13  2003/01/15 13:16:42  mohor
-// When a frame with "remote request" is received, no data is stored to fifo, just the frame information (identifier, ...). Data length that is stored is the received data length and not the actual data length that is stored to fifo.
+// When a frame with "remote request" is received, no data is stored to
+// fifo, just the frame information (identifier, ...). Data length that
+// is stored is the received data length and not the actual data length
+// that is stored to fifo.
 //
 // Revision 1.12  2003/01/14 17:25:03  mohor
 // Addresses corrected to decimal values (previously hex).
@@ -131,15 +139,21 @@ parameter BRP = 2*(`CAN_TIMING0_BRP + 1);
 
 
 
+reg         wb_clk_i;
+reg         wb_rst_i;
+reg   [7:0] wb_dat_i;
+wire  [7:0] wb_dat_o;
+reg         wb_cyc_i;
+reg         wb_stb_i;
+
+reg         wb_we_i;
+reg   [7:0] wb_adr_i;
 reg         clk;
-reg         rst;
-reg   [7:0] data_in;
-wire  [7:0] data_out;
-reg         cs, rw;
-reg   [7:0] addr;
 reg         rx;
 wire        tx;
 wire        tx_oen;
+wire        wb_ack_o;
+
 wire        tx_3st;
 wire        rx_and_tx;
 
@@ -152,19 +166,30 @@ reg         tx_bypassed;
 // Instantiate can_top module
 can_top i_can_top
 ( 
+  .wb_clk_i(wb_clk_i),
+  .wb_rst_i(wb_rst_i),
+  .wb_dat_i(wb_dat_i),
+  .wb_dat_o(wb_dat_o),
+  .wb_cyc_i(wb_cyc_i),
+  .wb_stb_i(wb_stb_i),
+  .wb_we_i(wb_we_i),
+  .wb_adr_i(wb_adr_i),
+  .wb_ack_o(wb_ack_o),
   .clk(clk),
-  .rst(rst),
-  .data_in(data_in),
-  .data_out(data_out),
-  .cs(cs),
-  .rw(rw),
-  .addr(addr),
   .rx(rx_and_tx),
   .tx(tx),
   .tx_oen(tx_oen)
 );
 
 assign tx_3st = tx_oen? 1'bz : tx;
+
+
+// Generate wishbone clock signal 10 MHz
+initial
+begin
+  wb_clk_i=0;
+  forever #50 wb_clk_i = ~wb_clk_i;
+end
 
 
 // Generate clock signal 24 MHz
@@ -174,16 +199,18 @@ begin
   forever #20 clk = ~clk;
 end
 
+
 initial
 begin
   start_tb = 0;
-  data_in = 'hz;
-  cs = 0;
-  rw = 'hz;
-  addr = 'hz;
+  wb_dat_i = 'hz;
+  wb_cyc_i = 0;
+  wb_stb_i = 0;
+  wb_we_i = 'hz;
+  wb_adr_i = 'hz;
   rx = 1;
-  rst = 1;
-  #200 rst = 0;
+  wb_rst_i = 1;
+  #200 wb_rst_i = 0;
   #200 initialize_fifo;
   #200 start_tb = 1;
   tx_bypassed = 0;
@@ -240,7 +267,7 @@ begin
     begin
       // Set Acceptance Code and Acceptance Mask registers
 //      write_register(8'd4, 8'ha6); // acceptance code
-      write_register(8'd4, 8'he8); // acceptance code
+      write_register(8'd4, 8'h08); // acceptance code
       write_register(8'd5, 8'h0f); // acceptance mask
     end
   
@@ -270,9 +297,9 @@ begin
   else
     begin
 //      test_empty_fifo;    // test currently switched off
-//      test_full_fifo;     // test currently switched off
+      test_full_fifo;     // test currently switched on
 //      send_frame;         // test currently switched off
-      manual_frame;         // test currently switched on
+//      manual_frame;         // test currently switched off
     end
 
 
@@ -375,6 +402,131 @@ task manual_frame;    // Testbench sends a frame
 
       begin
         #520;
+
+    repeat (16)
+    begin
+        send_bit(0);  // SOF
+        send_bit(1);  // ID
+        send_bit(1);  // ID
+        send_bit(1);  // ID
+        send_bit(0);  // ID
+        send_bit(1);  // ID
+        send_bit(0);  // ID
+        send_bit(0);  // ID
+        send_bit(0);  // ID
+        send_bit(1);  // ID
+        send_bit(0);  // ID
+        send_bit(1);  // ID
+        send_bit(1);  // RTR
+        send_bit(0);  // IDE
+        send_bit(0);  // r0
+        send_bit(0);  // DLC
+        send_bit(1);  // DLC
+        send_bit(1);  // DLC
+        send_bit(1);  // DLC
+        send_bit(1);  // CRC
+        send_bit(0);  // CRC
+        send_bit(0);  // CRC
+        send_bit(1);  // CRC
+        send_bit(1);  // CRC
+        send_bit(1);  // CRC
+        send_bit(0);  // CRC
+        send_bit(1);  // CRC
+        send_bit(0);  // CRC
+        send_bit(0);  // CRC
+        send_bit(1);  // CRC
+        send_bit(1);  // CRC
+        send_bit(1);  // CRC
+        send_bit(1);  // CRC
+        send_bit(1);  // CRC
+        send_bit(1);  // CRC DELIM
+        send_bit(1);  // ACK            ack error
+        send_bit(0);  // ERROR
+        send_bit(0);  // ERROR
+        send_bit(0);  // ERROR
+        send_bit(0);  // ERROR
+        send_bit(0);  // ERROR
+        send_bit(0);  // ERROR
+        send_bit(1);  // ERROR DELIM
+        send_bit(1);  // ERROR DELIM
+        send_bit(1);  // ERROR DELIM
+        send_bit(1);  // ERROR DELIM
+        send_bit(1);  // ERROR DELIM
+        send_bit(1);  // ERROR DELIM
+        send_bit(1);  // ERROR DELIM
+        send_bit(1);  // ERROR DELIM
+        send_bit(1);  // INTER
+        send_bit(1);  // INTER
+        send_bit(1);  // INTER
+    end // repeat
+
+    repeat (20)
+    begin
+        send_bit(0);  // SOF
+        send_bit(1);  // ID
+        send_bit(1);  // ID
+        send_bit(1);  // ID
+        send_bit(0);  // ID
+        send_bit(1);  // ID
+        send_bit(0);  // ID
+        send_bit(0);  // ID
+        send_bit(0);  // ID
+        send_bit(1);  // ID
+        send_bit(0);  // ID
+        send_bit(1);  // ID
+        send_bit(1);  // RTR
+        send_bit(0);  // IDE
+        send_bit(0);  // r0
+        send_bit(0);  // DLC
+        send_bit(1);  // DLC
+        send_bit(1);  // DLC
+        send_bit(1);  // DLC
+        send_bit(1);  // CRC
+        send_bit(0);  // CRC
+        send_bit(0);  // CRC
+        send_bit(1);  // CRC
+        send_bit(1);  // CRC
+        send_bit(1);  // CRC
+        send_bit(0);  // CRC
+        send_bit(1);  // CRC
+        send_bit(0);  // CRC
+        send_bit(0);  // CRC
+        send_bit(1);  // CRC
+        send_bit(1);  // CRC
+        send_bit(1);  // CRC
+        send_bit(1);  // CRC
+        send_bit(1);  // CRC
+        send_bit(1);  // CRC DELIM
+        send_bit(1);  // ACK            ack error
+        send_bit(0);  // ERROR
+        send_bit(0);  // ERROR
+        send_bit(0);  // ERROR
+        send_bit(0);  // ERROR
+        send_bit(0);  // ERROR
+        send_bit(0);  // ERROR
+        send_bit(1);  // ERROR DELIM
+        send_bit(1);  // ERROR DELIM
+        send_bit(1);  // ERROR DELIM
+        send_bit(1);  // ERROR DELIM
+        send_bit(1);  // ERROR DELIM
+        send_bit(1);  // ERROR DELIM
+        send_bit(1);  // ERROR DELIM
+        send_bit(1);  // ERROR DELIM
+        send_bit(1);  // INTER
+        send_bit(1);  // INTER
+        send_bit(1);  // INTER
+        send_bit(1);  // SUSPEND
+        send_bit(1);  // SUSPEND
+        send_bit(1);  // SUSPEND
+        send_bit(1);  // SUSPEND
+        send_bit(1);  // SUSPEND
+        send_bit(1);  // SUSPEND
+        send_bit(1);  // SUSPEND
+        send_bit(1);  // SUSPEND
+   end // repeat
+
+    repeat (20)
+    begin
         send_bit(0);  // SOF
         send_bit(1);  // ID
         send_bit(1);  // ID
@@ -419,45 +571,20 @@ task manual_frame;    // Testbench sends a frame
         send_bit(1);  // EOF
         send_bit(1);  // EOF
         send_bit(1);  // EOF
-//  tx_bypassed=1;
-        send_bit(0);  // INTER
-        send_bit(1);  // INTER    overload
-        send_bit(1);  // INTER    overload
-        send_bit(1);  // INTER    overload
-        send_bit(1);  // INTER    overload
-        send_bit(1);  // INTER    overload
-        send_bit(1);  // INTER    overload
-        send_bit(1);  // INTER    overload delim
-        send_bit(1);  // INTER    overload delim
-        send_bit(1);  // INTER    overload delim
-        send_bit(1);  // INTER    overload delim
-        send_bit(1);  // INTER    overload delim
-        send_bit(1);  // INTER    overload delim
-        send_bit(1);  // INTER    overload delim
-        send_bit(1);  // INTER    overload delim
         send_bit(1);  // INTER
-        send_bit(0);  // IDLE
-        send_bit(1);  // INTER    overload
-        send_bit(1);  // INTER    overload
-        send_bit(1);  // INTER    overload
-        send_bit(1);  // INTER    overload
-        send_bit(1);  // INTER    overload
-        send_bit(1);  // INTER    overload
-        send_bit(0);  // INTER    waiting for recessive
-        send_bit(0);  // INTER    waiting for recessive
-        send_bit(0);  // INTER    waiting for recessive
-        send_bit(0);  // INTER    waiting for recessive
-        send_bit(1);  // INTER    overload delim
-        send_bit(1);  // INTER    overload delim
-        send_bit(1);  // INTER    overload delim
-        send_bit(1);  // INTER    overload delim
-        send_bit(1);  // INTER    overload delim
-        send_bit(1);  // INTER    overload delim
-        send_bit(1);  // INTER    overload delim
-        send_bit(1);  // INTER    overload delim
-        send_bit(1);  // IDLE
-        send_bit(1);  // IDLE
-        send_bit(1);  // IDLE
+        send_bit(1);  // INTER
+        send_bit(1);  // INTER
+   end // repeat
+
+    repeat (128 * 11)
+    begin
+        send_bit(1);
+    end // repeat
+
+    tx_request;
+
+
+
 
       end
     
@@ -475,7 +602,7 @@ task manual_frame;    // Testbench sends a frame
     release_rx_buffer;
     read_receive_buffer;
 
-    #200000;
+    #4000000;
 
   end
 endtask
@@ -869,17 +996,20 @@ task read_register;
   input [7:0] reg_addr;
 
   begin
-    @ (posedge clk);
+    @ (posedge wb_clk_i);
     #1; 
-    addr = reg_addr;
-    cs = 1;
-    rw = 1;
-    @ (posedge clk);
-    $display("(%0t) Reading register [%0d] = 0x%0x", $time, addr, data_out);
+    wb_adr_i = reg_addr;
+    wb_cyc_i = 1;
+    wb_stb_i = 1;
+    wb_we_i = 0;
+    wait (wb_ack_o);
+    $display("(%0t) Reading register [%0d] = 0x%0x", $time, wb_adr_i, wb_dat_o);
+    @ (posedge wb_clk_i);
     #1; 
-    addr = 'hz;
-    cs = 0;
-    rw = 'hz;
+    wb_adr_i = 'hz;
+    wb_cyc_i = 0;
+    wb_stb_i = 0;
+    wb_we_i = 'hz;
   end
 endtask
 
@@ -889,18 +1019,21 @@ task write_register;
   input [7:0] reg_data;
 
   begin
-    @ (posedge clk);
+    @ (posedge wb_clk_i);
     #1; 
-    addr = reg_addr;
-    data_in = reg_data;
-    cs = 1;
-    rw = 0;
-    @ (posedge clk);
+    wb_adr_i = reg_addr;
+    wb_dat_i = reg_data;
+    wb_cyc_i = 1;
+    wb_stb_i = 1;
+    wb_we_i = 1;
+    wait (wb_ack_o);
+    @ (posedge wb_clk_i);
     #1; 
-    addr = 'hz;
-    data_in = 'hz;
-    cs = 0;
-    rw = 'hz;
+    wb_adr_i = 'hz;
+    wb_dat_i = 'hz;
+    wb_cyc_i = 0;
+    wb_stb_i = 0;
+    wb_we_i = 'hz;
   end
 endtask
 
@@ -930,7 +1063,6 @@ task release_rx_buffer;
   begin
     write_register(8'd1, 8'h4);
     $display("(%0t) Rx buffer released.", $time);
-    repeat (2) @ (posedge clk);   // Time to decrement all the counters
   end
 endtask
 
@@ -939,7 +1071,6 @@ task tx_request;
   begin
     write_register(8'd1, 8'h1);
     $display("(%0t) Tx requested.", $time);
-    repeat (2) @ (posedge clk);   // Time to decrement all the counters, etc.
   end
 endtask
 

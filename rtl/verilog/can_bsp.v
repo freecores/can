@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.20  2003/02/10 16:02:11  mohor
+// CAN is working according to the specification. WB interface and more
+// registers (status, IRQ, ...) needs to be added.
+//
 // Revision 1.19  2003/02/09 18:40:29  mohor
 // Overload fixed. Hard synchronization also enabled at the last bit of
 // interframe.
@@ -79,10 +83,14 @@
 // CRC checking fixed (when bitstuff occurs at the end of a CRC sequence).
 //
 // Revision 1.11  2003/01/15 14:40:23  mohor
-// RX state machine fixed to receive "remote request" frames correctly. No data bytes are written to fifo when such frames are received.
+// RX state machine fixed to receive "remote request" frames correctly.
+// No data bytes are written to fifo when such frames are received.
 //
 // Revision 1.10  2003/01/15 13:16:47  mohor
-// When a frame with "remote request" is received, no data is stored to fifo, just the frame information (identifier, ...). Data length that is stored is the received data length and not the actual data length that is stored to fifo.
+// When a frame with "remote request" is received, no data is stored to
+// fifo, just the frame information (identifier, ...). Data length that
+// is stored is the received data length and not the actual data length
+// that is stored to fifo.
 //
 // Revision 1.9  2003/01/14 12:19:35  mohor
 // rx_fifo is now working.
