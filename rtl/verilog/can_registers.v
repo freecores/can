@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.34  2004/11/18 12:39:43  igorm
+// Fixes for compatibility after the SW reset.
+//
 // Revision 1.33  2004/10/25 11:44:38  igorm
 // Interrupt is always cleared for one clock after the irq register is read.
 // This fixes problems when CPU is using IRQs that are edge triggered.
@@ -1237,7 +1240,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     irq_n <= 1'b1;
-  else if (read_irq_reg)
+  else if (read_irq_reg || release_buffer)
     irq_n <=#Tp 1'b1;
   else if (irq)
     irq_n <=#Tp 1'b0;
