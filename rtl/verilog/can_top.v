@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.37  2003/06/27 20:56:15  simons
+// Virtual silicon ram instances added.
+//
 // Revision 1.36  2003/06/17 14:30:30  mohor
 // "chip select" signal cs_can_i is used only when not using WISHBONE
 // interface.
@@ -539,7 +542,9 @@ can_btl i_can_btl
   
   /* output from can_bsp module */
   .rx_idle(rx_idle),
-  .last_bit_of_inter(last_bit_of_inter)
+  .last_bit_of_inter(last_bit_of_inter),
+  .transmitting(transmitting),
+  .go_rx_inter(go_rx_inter)
   
 
 
@@ -599,6 +604,7 @@ can_bsp i_can_bsp
   /* output from can_bsp module */
   .rx_idle(rx_idle),
   .transmitting(transmitting),
+  .go_rx_inter(go_rx_inter),
   .last_bit_of_inter(last_bit_of_inter),
   .set_reset_mode(set_reset_mode),
   .node_bus_off(node_bus_off),

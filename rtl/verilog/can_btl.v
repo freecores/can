@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.20  2003/06/20 14:51:11  mohor
+// Previous change removed. When resynchronization occurs we go to seg1
+// stage. sync stage does not cause another start of seg1 stage.
+//
 // Revision 1.19  2003/06/20 14:28:20  mohor
 // When hard_sync or resync occure we need to go to seg1 segment. Going to
 // sync segment is in that case blocked.
@@ -146,11 +150,9 @@ module can_btl
   
   /* Output from can_bsp module */
   rx_idle,
-  last_bit_of_inter
-  
-  
-  
-
+  last_bit_of_inter,
+  transmitting,
+  go_rx_inter  
 
 );
 
@@ -175,6 +177,8 @@ input         triple_sampling;
 /* Output from can_bsp module */
 input         rx_idle;
 input         last_bit_of_inter;
+input         transmitting;
+input         go_rx_inter;
 
 /* Output signals from this module */
 output        sample_point;
@@ -189,7 +193,7 @@ reg     [6:0] clk_cnt;
 reg           clk_en;
 reg           clk_en_q;
 reg           sync_blocked;
-reg           resync_blocked;
+reg           hard_sync_blocked;
 reg           sampled_bit;
 reg           sampled_bit_q;
 reg     [4:0] quant_cnt;
@@ -201,10 +205,13 @@ reg           resync_latched;
 reg           sample_point;
 reg     [1:0] sample;
 reg           go_sync;
+reg           go_seg1;
+reg           go_seg2;
+reg           tx_point;
 
 wire          go_sync_unregistered;
-wire          go_seg1;
-wire          go_seg2;
+wire          go_seg1_unregistered;
+wire          go_seg2_unregistered;
 wire [8:0]    preset_cnt;
 wire          sync_window;
 wire          resync;
@@ -213,8 +220,8 @@ wire          quant_cnt_rst;
 
 
 assign preset_cnt = (baud_r_presc + 1'b1)<<1;        // (BRP+1)*2
-assign hard_sync  =   (rx_idle | last_bit_of_inter)  & (~rx) & sampled_bit & (~sync_blocked);  // Hard synchronization
-assign resync     =  (~rx_idle)                      & (~rx) & sampled_bit & (~sync_blocked) & (~resync_blocked);  // Re-synchronization
+assign hard_sync  =   (rx_idle | last_bit_of_inter)    & (~rx) & sampled_bit & (~hard_sync_blocked);  // Hard synchronization
+assign resync     =  (~rx_idle) & (~last_bit_of_inter) & (~rx) & sampled_bit & (~sync_blocked) & (~(transmitting & seg1));       // Re-synchronization
 
 
 /* Generating general enable signal that defines baud rate. */
@@ -253,8 +260,8 @@ end
 
 /* Changing states */
  assign go_sync_unregistered = clk_en & (seg2 & (~hard_sync) & (~resync) & ((quant_cnt[2:0] == time_segment2)));
- assign go_seg1 = clk_en_q & ((sync & (~seg1)) | hard_sync | (resync & seg2 & sync_window) | (resync_latched & sync_window));
- assign go_seg2 = clk_en_q & (seg1 & (~hard_sync) & (quant_cnt == (time_segment1 + delay)));
+ assign go_seg1_unregistered = clk_en & (((sync | hard_sync) & (~seg1)) | (resync & seg2 & sync_window) | (resync_latched & sync_window));
+ assign go_seg2_unregistered = clk_en & (seg1 & (~hard_sync) & (quant_cnt == (time_segment1 + delay)));
 
 
 always @ (posedge clk or posedge rst)
@@ -263,6 +270,33 @@ begin
     go_sync <= 1'b0;
   else
     go_sync <=#Tp go_sync_unregistered;
+end
+
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    go_seg1 <= 1'b0;
+  else
+    go_seg1 <=#Tp go_seg1_unregistered;
+end
+
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    go_seg2 <= 1'b0;
+  else
+    go_seg2 <=#Tp go_seg2_unregistered;
+end
+
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    tx_point <= 1'b0;
+  else
+    tx_point <=#Tp go_sync_unregistered | (go_seg1_unregistered & (~(sync | hard_sync)));
 end
 
 
@@ -291,8 +325,6 @@ begin
     sync <=#Tp 1'b0;
 end
 
-
-assign tx_point = go_sync;
 
 /* Seg1 stage/segment (together with propagation segment which is 1 quant long) */
 always @ (posedge clk or posedge rst)
@@ -393,7 +425,7 @@ begin
     sync_blocked <=#Tp 1'b0;
   else if (clk_en_q)
     begin
-      if (hard_sync | resync)
+      if (resync)
         sync_blocked <=#Tp 1'b1;
       else if (seg2 & (quant_cnt[2:0] == time_segment2))
         sync_blocked <=#Tp 1'b0;
@@ -401,16 +433,15 @@ begin
 end
 
 
-/* Blocking resynchronization until reception starts (needed because after reset mode exits we are waiting for
-   end-of-frame and interframe. No resynchronization is needed meanwhile). */
+/* Blocking hard synchronization when occurs once or when we are transmitting a msg */
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    resync_blocked <=#Tp 1'b1;
-  else if (reset_mode)
-    resync_blocked <=#Tp 1'b1;
-  else if (hard_sync)
-    resync_blocked <=#Tp 1'b0;
+    hard_sync_blocked <=#Tp 1'b0;
+  else if (hard_sync | transmitting & tx_point)
+    hard_sync_blocked <=#Tp 1'b1;
+  else if (go_rx_inter)
+    hard_sync_blocked <=#Tp 1'b0;
 end
 
 

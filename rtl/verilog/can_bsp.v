@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.35  2003/06/27 20:56:12  simons
+// Virtual silicon ram instances added.
+//
 // Revision 1.34  2003/06/22 09:43:03  mohor
 // synthesis full_case parallel_case fixed.
 //
@@ -226,6 +229,7 @@ module can_bsp
 
   rx_idle,
   transmitting,
+  go_rx_inter,
   last_bit_of_inter,
   set_reset_mode,
   node_bus_off,
@@ -345,6 +349,7 @@ input         we_tx_err_cnt;
 
 output        rx_idle;
 output        transmitting;
+output        go_rx_inter;
 output        last_bit_of_inter;
 output        set_reset_mode;
 output        node_bus_off;
