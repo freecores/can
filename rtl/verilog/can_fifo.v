@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.14  2003/03/05 15:02:30  mohor
+// Xilinx RAM added.
+//
 // Revision 1.13  2003/03/01 22:53:33  mohor
 // Actel APA ram supported.
 //
@@ -161,6 +164,7 @@ reg     [3:0] len_cnt;
 reg     [6:0] fifo_cnt;
 reg     [6:0] info_cnt;
 reg           latch_overrun;
+reg           initialize_memories;
 
 wire    [3:0] length_info;
 wire          write_length_info;
@@ -199,10 +203,10 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     wr_info_pointer <= 0;
+  else if (write_length_info & (~info_full) | initialize_memories)
+    wr_info_pointer <=#Tp wr_info_pointer + 1'b1;
   else if (reset_mode)
     wr_info_pointer <=#Tp 0;
-  else if (write_length_info & (~info_full))
-    wr_info_pointer <=#Tp wr_info_pointer + 1'b1;
 end
 
 
@@ -306,6 +310,14 @@ begin
 end
 
 
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    initialize_memories <= 1;
+  else if (&wr_info_pointer)
+    initialize_memories <=#Tp 1'b0;
+end
+
 
 `ifdef ACTEL_APA_RAM
   actel_ram_64x8_sync fifo
@@ -327,9 +339,9 @@ end
     .DO      (length_info),
     .RCLOCK  (clk),
     .WCLOCK  (clk),
-    .DI      (len_cnt),
+    .DI      (len_cnt & {4{~initialize_memories}}),
     .PO      (),                       // parity not used
-    .WRB     (~(write_length_info & (~info_full))),
+    .WRB     (~(write_length_info & (~info_full) | initialize_memories)),
     .RDB     (1'b0),                   // always enabled
     .WADDR   (wr_info_pointer),
     .RADDR   (rd_info_pointer)
@@ -341,9 +353,9 @@ end
     .DO      (overrun),
     .RCLOCK  (clk),
     .WCLOCK  (clk),
-    .DI      (latch_overrun | (wr & fifo_full)),
+    .DI      ((latch_overrun | (wr & fifo_full)) & (~initialize_memories)),
     .PO      (),                       // parity not used
-    .WRB     (~(write_length_info & (~info_full))),
+    .WRB     (~(write_length_info & (~info_full) | initialize_memories)),
     .RDB     (1'b0),                   // always enabled
     .WADDR   (wr_info_pointer),
     .RADDR   (rd_info_pointer)
@@ -402,10 +414,10 @@ end
     .DOB(length_info),
     .ADDRA({4'h0, wr_info_pointer}),
     .CLKA(clk),
-    .DIA(len_cnt),
+    .DIA(len_cnt & {4{~initialize_memories}}),
     .ENA(1'b1),
     .RSTA(1'b0),
-    .WEA(write_length_info & (~info_full)),
+    .WEA(write_length_info & (~info_full) | initialize_memories),
     .ADDRB({4'h0, rd_info_pointer}),
     .CLKB(clk),
     .DIB(4'h0),
@@ -434,10 +446,10 @@ end
     .DOB(overrun),
     .ADDRA({6'h0, wr_info_pointer}),
     .CLKA(clk),
-    .DIA(latch_overrun | (wr & fifo_full)),
+    .DIA((latch_overrun | (wr & fifo_full)) & (~initialize_memories)),
     .ENA(1'b1),
     .RSTA(1'b0),
-    .WEA(write_length_info & (~info_full)),
+    .WEA(write_length_info & (~info_full) | initialize_memories),
     .ADDRB({6'h0, rd_info_pointer}),
     .CLKB(clk),
     .DIB(1'h0),
@@ -445,8 +457,6 @@ end
     .RSTB(1'b0),
     .WEB(1'b0)
   );
-
-
 
 
 `else
@@ -464,9 +474,10 @@ end
   // writing length_fifo
   always @ (posedge clk)
   begin
-    if (write_length_info & (~info_full))
-      length_fifo[wr_info_pointer] <=#Tp len_cnt;
+    if (write_length_info & (~info_full) | initialize_memories))
+      length_fifo[wr_info_pointer] <=#Tp len_cnt & {4{~initialize_memories}};
   end
+
 
   // reading length_fifo
   assign length_info = length_fifo[rd_info_pointer];
@@ -474,8 +485,8 @@ end
   // overrun_info
   always @ (posedge clk)
   begin
-    if (write_length_info & (~info_full))
-      overrun_info[wr_info_pointer] <=#Tp latch_overrun | (wr & fifo_full);
+    if (write_length_info & (~info_full) | initialize_memories)
+      overrun_info[wr_info_pointer] <=#Tp (latch_overrun | (wr & fifo_full)) & (~initialize_memories);
   end
   
   
