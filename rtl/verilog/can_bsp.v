@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.40  2003/07/16 15:10:17  mohor
+// Fixed according to the linter.
+//
 // Revision 1.39  2003/07/16 13:12:46  mohor
 // Fixed according to the linter.
 //
@@ -641,6 +644,8 @@ wire          bit_err_exc5;
 wire          error_flag_over;
 wire          overload_flag_over;
 
+wire    [5:0] limited_tx_cnt_ext;
+wire    [5:0] limited_tx_cnt_std;
 
 assign go_rx_idle     =                   sample_point &  sampled_bit & last_bit_of_inter | bus_free & (~node_bus_off);
 assign go_rx_id1      =                   sample_point &  (~sampled_bit) & (rx_idle | last_bit_of_inter);
@@ -1665,16 +1670,20 @@ begin
     end
 end
 
-assign rst_tx_pointer = ((~bit_de_stuff_tx) & tx_point & (~rx_data) &   extended_mode  &   r_tx_data_0[0]   & tx_pointer == 6'd38                       ) |   // arbitration + control for extended format
-                        ((~bit_de_stuff_tx) & tx_point & (~rx_data) &   extended_mode  & (~r_tx_data_0[0])  & tx_pointer == 6'd18                       ) |   // arbitration + control for extended format
-                        ((~bit_de_stuff_tx) & tx_point & (~rx_data) & (~extended_mode)                      & tx_pointer == 6'd18                       ) |   // arbitration + control for standard format
-                        ((~bit_de_stuff_tx) & tx_point &   rx_data  &   extended_mode                       & tx_pointer == ((tx_data_0[3:0]<<3) - 1'b1)) |   // data       (overflow is OK here)
-                        ((~bit_de_stuff_tx) & tx_point &   rx_data  & (~extended_mode)                      & tx_pointer == ((tx_data_1[3:0]<<3) - 1'b1)) |   // data       (overflow is OK here)
-                        (                     tx_point &   rx_crc_lim                                                                                   ) |   // crc
-                        (go_rx_idle                                                                                                                     ) |   // at the end
-                        (reset_mode                                                                                                                     ) |
-                        (overload_frame                                                                                                                 ) |
-                        (error_frame                                                                                                                    ) ;
+
+assign limited_tx_cnt_ext = tx_data_0[3] ? 6'h3f : ((tx_data_0[2:0] <<3) - 1'b1);
+assign limited_tx_cnt_std = tx_data_1[3] ? 6'h3f : ((tx_data_1[2:0] <<3) - 1'b1);
+
+assign rst_tx_pointer = ((~bit_de_stuff_tx) & tx_point & (~rx_data) &   extended_mode  &   r_tx_data_0[0]   & tx_pointer == 6'd38             ) |   // arbitration + control for extended format
+                        ((~bit_de_stuff_tx) & tx_point & (~rx_data) &   extended_mode  & (~r_tx_data_0[0])  & tx_pointer == 6'd18             ) |   // arbitration + control for extended format
+                        ((~bit_de_stuff_tx) & tx_point & (~rx_data) & (~extended_mode)                      & tx_pointer == 6'd18             ) |   // arbitration + control for standard format
+                        ((~bit_de_stuff_tx) & tx_point &   rx_data  &   extended_mode                       & tx_pointer == limited_tx_cnt_ext) |   // data       (overflow is OK here)
+                        ((~bit_de_stuff_tx) & tx_point &   rx_data  & (~extended_mode)                      & tx_pointer == limited_tx_cnt_std) |   // data       (overflow is OK here)
+                        (                     tx_point &   rx_crc_lim                                                                         ) |   // crc
+                        (go_rx_idle                                                                                                           ) |   // at the end
+                        (reset_mode                                                                                                           ) |
+                        (overload_frame                                                                                                       ) |
+                        (error_frame                                                                                                          ) ;
 
 always @ (posedge clk or posedge rst)
 begin
