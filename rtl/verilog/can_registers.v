@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.22  2003/03/20 16:58:50  mohor
+// unix.
+//
 // Revision 1.20  2003/03/11 16:31:05  mohor
 // Mux used for clkout to avoid "gated clocks warning".
 //
@@ -480,9 +483,9 @@ can_register_asyn #(3, 0) MODE_REG_EXT
 );
 
 assign reset_mode             = mode[0];
-assign listen_only_mode       = mode_ext[1];
-assign self_test_mode         = mode_ext[2];
-assign acceptance_filter_mode = mode_ext[3];
+assign listen_only_mode       = extended_mode & mode_ext[1];
+assign self_test_mode         = extended_mode & mode_ext[2];
+assign acceptance_filter_mode = extended_mode & mode_ext[3];
 
 assign receive_irq_en_basic  = mode_basic[1];
 assign transmit_irq_en_basic = mode_basic[2];
