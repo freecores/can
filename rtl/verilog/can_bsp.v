@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.10  2003/01/15 13:16:47  mohor
+// When a frame with "remote request" is received, no data is stored to fifo, just the frame information (identifier, ...). Data length that is stored is the received data length and not the actual data length that is stored to fifo.
+//
 // Revision 1.9  2003/01/14 12:19:35  mohor
 // rx_fifo is now working.
 //
@@ -256,10 +259,17 @@ reg           rx_ack;
 reg           rx_ack_lim;
 reg           rx_eof;
 
+reg           rtr1;
+reg           ide;
+reg           rtr2;
+reg    [14:0] crc_in;
+
 reg           crc_enable;
 
 reg     [2:0] eof_cnt;
 wire   [14:0] calculated_crc;
+wire          remote_rq;
+wire [3:0]    limited_data_len;
 
 assign go_rx_idle     =                   sample_point &  rx_eof  & (eof_cnt == 6);
 assign go_rx_id1      =                   sample_point &  rx_idle & (~sampled_bit);
@@ -270,9 +280,9 @@ assign go_rx_rtr2     = (~bit_de_stuff) & sample_point &  rx_id2  & (bit_cnt == 
 assign go_rx_r1       = (~bit_de_stuff) & sample_point &  rx_rtr2;
 assign go_rx_r0       = (~bit_de_stuff) & sample_point & (rx_ide  & (~sampled_bit) | rx_r1);
 assign go_rx_dlc      = (~bit_de_stuff) & sample_point &  rx_r0;
-assign go_rx_data     = (~bit_de_stuff) & sample_point &  rx_dlc  & (bit_cnt == 3) & (sampled_bit | (|data_len[2:0]));
-assign go_rx_crc      = (~bit_de_stuff) & sample_point & (rx_dlc  & (bit_cnt == 3) & (~sampled_bit) & (~(|data_len[2:0])) |
-                                                          rx_data & (bit_cnt == ((data_len<<3) - 1'b1)));
+assign go_rx_data     = (~bit_de_stuff) & sample_point &  rx_dlc  & (bit_cnt == 3) &  (sampled_bit   |   (|data_len[2:0])) & (~remote_rq);
+assign go_rx_crc      = (~bit_de_stuff) & sample_point & (rx_dlc  & (bit_cnt == 3) & ((~sampled_bit) & (~(|data_len[2:0])) | remote_rq) |
+                                                          rx_data & (bit_cnt == ((limited_data_len<<3) - 1'b1)));
 assign go_rx_crc_lim  =                   sample_point &  rx_crc  & (bit_cnt == 14);
 assign go_rx_ack      =                   sample_point &  rx_crc_lim;
 assign go_rx_ack_lim  =                   sample_point &  rx_ack;
@@ -283,6 +293,9 @@ assign rst_crc_enable = go_rx_crc;
 
 assign bit_de_stuff_set   = go_rx_id1;
 assign bit_de_stuff_reset = go_rx_crc_lim;
+
+assign remote_rq = ((~ide) & rtr1) | (ide & rtr2);
+assign limited_data_len = (data_len < 8)? data_len : 4'h8;
 
 
 // Rx idle state
@@ -464,13 +477,6 @@ begin
     rx_eof <=#Tp 1'b1;
 end
 
-
-
-
-reg rtr1;
-reg ide;
-reg rtr2;
-reg [14:0] crc_in;
 
 // ID register
 always @ (posedge clk or posedge rst)
@@ -762,15 +768,13 @@ reg [7:0]   data_for_fifo;  // Multiplexed data that is stored to 64-byte fifo
 
 wire [2:0]  header_len;
 wire        storing_header;
-wire [3:0]  limited_data_len;
+wire [3:0]  limited_data_len_minus1;
 wire        reset_wr_fifo;
-wire        remote_request; // When remote request comes, no data field is stored to fifo.
 
 assign header_len[2:0] = extended_mode ? (ide? (3'h5) : (3'h3)) : 3'h2;
 assign storing_header = header_cnt < header_len;
-assign remote_request = (extended_mode & rtr2) | ((~extended_mode) & rtr1); // When remote request is active, data length is 0.
-assign limited_data_len[3:0] = remote_request? 4'hf : ((data_len < 8)? (data_len -1'b1) : 4'h7);   // - 1 because counter counts from 0
-assign reset_wr_fifo = data_cnt == (limited_data_len + header_len);
+assign limited_data_len_minus1[3:0] = remote_rq? 4'hf : ((data_len < 8)? (data_len -1'b1) : 4'h7);   // - 1 because counter counts from 0
+assign reset_wr_fifo = data_cnt == (limited_data_len_minus1 + header_len);
 
 
 // Write enable signal for 64-byte rx fifo

@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.13  2003/01/15 13:16:42  mohor
+// When a frame with "remote request" is received, no data is stored to fifo, just the frame information (identifier, ...). Data length that is stored is the received data length and not the actual data length that is stored to fifo.
+//
 // Revision 1.12  2003/01/14 17:25:03  mohor
 // Addresses corrected to decimal values (previously hex).
 //
@@ -206,7 +209,7 @@ begin
     begin
 //      test_empty_fifo;    // test currently switched off
       test_full_fifo;     // test currently switched on
-//      send_frame;
+//      send_frame;         // test currently switched off
     end
 
 
@@ -584,10 +587,13 @@ task receive_frame;           // CAN IP core receives frames
     else              // Standard format
       data = {id[10:0], remote_trans_req, 1'b0, 1'b0, length};
 
-    if(length)    // Send data if length is > 0
+    if (~remote_trans_req)
       begin
-        for (cnt=1; cnt<=(2*length); cnt=cnt+1)  // data   (we are sending nibbles)
-          data = {data[113:0], cnt[3:0]};
+        if(length)    // Send data if length is > 0
+          begin
+            for (cnt=1; cnt<=(2*length); cnt=cnt+1)  // data   (we are sending nibbles)
+              data = {data[113:0], cnt[3:0]};
+          end
       end
 
     // Adding CRC
@@ -595,10 +601,20 @@ task receive_frame;           // CAN IP core receives frames
 
 
     // Calculating pointer that points to the bit that will be send
-    if(mode)          // Extended format
-      pointer = 53 + 8 * length;
-    else              // Standard format
-      pointer = 32 + 8 * length;
+    if (remote_trans_req)
+      begin
+        if(mode)          // Extended format
+          pointer = 53;
+        else              // Standard format
+          pointer = 32;
+      end
+    else
+      begin
+        if(mode)          // Extended format
+          pointer = 53 + 8 * length;
+        else              // Standard format
+          pointer = 32 + 8 * length;
+      end
 
     // This is how many bits we need to shift
     total_bits = pointer;
