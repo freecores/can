@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.17  2003/06/27 20:56:15  simons
+// Virtual silicon ram instances added.
+//
 // Revision 1.16  2003/06/18 23:03:44  mohor
 // Typo fixed.
 //
@@ -165,7 +168,6 @@ input         scanb_si;
 output        scanb_so;
 input         scanb_en;
 wire          scanb_s_0;
-wire          scanb_s_1;
 `endif
 
 `ifdef ACTEL_APA_RAM
@@ -173,6 +175,7 @@ wire          scanb_s_1;
 `ifdef XILINX_RAM
 `else
 `ifdef VIRTUALSILICON_RAM
+  reg           overrun_info[0:63];
 `else
   reg     [7:0] fifo [0:63];
   reg     [3:0] length_fifo[0:63];
@@ -534,35 +537,21 @@ end
         .scanb_rst  (scanb_rst),
         .scanb_clk  (scanb_clk),
         .scanb_si   (scanb_s_0),
-        .scanb_so   (scanb_s_1),
-        .scanb_en   (scanb_en)
-    `endif
-    );
-
-`ifdef PCI_BIST
-    vs_hdtp_64x1_bist overrun_fifo
-`else
-    vs_hdtp_64x1 overrun_fifo
-`endif
-    (
-        .RCK        (clk),
-        .WCK        (clk),
-        .RADR       (rd_info_pointer),
-        .WADR       (wr_info_pointer),
-        .DI         ((latch_overrun | (wr & fifo_full)) & (~initialize_memories)),
-        .DOUT       (overrun),
-        .REN        (1'b0),
-        .WEN        (~(write_length_info & (~info_full) | initialize_memories))
-    `ifdef PCI_BIST
-        ,
-        // debug chain signals
-        .scanb_rst  (scanb_rst),
-        .scanb_clk  (scanb_clk),
-        .scanb_si   (scanb_s_1),
         .scanb_so   (scanb_so),
         .scanb_en   (scanb_en)
     `endif
     );
+
+    // overrun_info
+    always @ (posedge clk)
+    begin
+      if (write_length_info & (~info_full) | initialize_memories)
+        overrun_info[wr_info_pointer] <=#Tp (latch_overrun | (wr & fifo_full)) & (~initialize_memories);
+    end
+    
+    
+    // reading overrun
+    assign overrun = overrun_info[rd_info_pointer];
 
 `else
   // writing data to fifo
