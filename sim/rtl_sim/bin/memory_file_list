@@ -1,7 +1,3 @@
-apa.v
-actel_ram_64x8_sync.v
-actel_ram_64x4_sync.v
-actel_ram_64x1_sync.v
 art_hstp_64x4_bist.v
 art_hstp_64x8_bist.v
 art_hsdp_64x8/art_hsdp_64x8.v

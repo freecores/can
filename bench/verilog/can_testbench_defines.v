@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.8  2003/02/18 00:17:44  mohor
+// Define CAN_CLOCK_DIVIDER_MODE not used any more. Deleted.
+//
 // Revision 1.7  2003/02/09 02:24:11  mohor
 // Bosch license warning added. Error counters finished. Overload frames
 // still need to be fixed.
@@ -80,7 +83,7 @@
 `define CAN_MODE_RESET                  1'h1    /* Reset mode */
 
 /* Bit Timing 0 register value */
-`define CAN_TIMING0_BRP                 6'h1    /* Baud rate prescaler (2*(value+1)) */
+`define CAN_TIMING0_BRP                 6'h0    /* Baud rate prescaler (2*(value+1)) */
 `define CAN_TIMING0_SJW                 2'h2    /* SJW (value+1) */
 
 /* Bit Timing 1 register value */

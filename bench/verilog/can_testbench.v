@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.36  2003/08/20 10:03:20  mohor
+// Artisan RAMs added.
+//
 // Revision 1.35  2003/06/17 15:14:48  mohor
 // cs_can_i is used only when WISHBONE interface is not used.
 //
@@ -287,11 +290,11 @@ assign tx = tx_oen? 1'bz : tx_i;
 `endif
 
 
-// Generate clock signal 24 MHz
+// Generate clock signal 25 MHz
 initial
 begin
   clk=0;
-  forever #21 clk = ~clk;
+  forever #20 clk = ~clk;
 end
 
 
@@ -391,13 +394,12 @@ begin
   // After exiting the reset mode sending bus free
   repeat (11) send_bit(1);
 
-//  test_synchronization;       // test currently switched off
+  test_synchronization;       // test currently switched off
 //  test_empty_fifo_ext;        // test currently switched off
 //  test_full_fifo_ext;         // test currently switched off
 //  send_frame_ext;             // test currently switched off
 //  test_empty_fifo;            // test currently switched off
-  test_full_fifo;             // test currently switched on
-//  send_frame;                 // test currently switched off
+//  test_full_fifo;             // test currently switched on
 //  bus_off_test;               // test currently switched off
 //  forced_bus_off;             // test currently switched off
 //  send_frame_basic;           // test currently switched off
@@ -1021,11 +1023,12 @@ task send_frame_basic;    // CAN IP core sends frames
     fork
 
       begin
-        #1500;
+        #1100;
         $display("\n\nStart receiving data from CAN bus");
         receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h1, 15'h30bb); // mode, rtr, id, length, crc
         receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h2, 15'h2da1); // mode, rtr, id, length, crc
         receive_frame(0, 0, {26'h00000ee, 3'h1}, 4'h0, 15'h6cea); // mode, rtr, id, length, crc
+        receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h2, 15'h2da1); // mode, rtr, id, length, crc
         receive_frame(0, 0, {26'h00000ee, 3'h1}, 4'h1, 15'h00c5); // mode, rtr, id, length, crc
         receive_frame(0, 0, {26'h00000ee, 3'h1}, 4'h2, 15'h7b4a); // mode, rtr, id, length, crc
       end
@@ -1035,10 +1038,22 @@ task send_frame_basic;    // CAN IP core sends frames
       end
 
       begin
-        // Transmitting acknowledge
-        wait (can_testbench.i_can_top.i_can_bsp.tx_state & can_testbench.i_can_top.i_can_bsp.rx_ack);
+        wait (can_testbench.i_can_top.i_can_bsp.go_tx)        // waiting for tx to start
+        wait (~can_testbench.i_can_top.i_can_bsp.need_to_tx)  // waiting for tx to finish
+        tx_request_command;                                   // start another tx
+      end
+
+      begin
+        // Transmitting acknowledge (for first packet)
+        wait (can_testbench.i_can_top.i_can_bsp.tx_state & can_testbench.i_can_top.i_can_bsp.rx_ack & can_testbench.i_can_top.i_can_bsp.tx_point);
         #1 rx = 0;
-        wait (can_testbench.i_can_top.i_can_bsp.rx_ack_lim);
+        wait (can_testbench.i_can_top.i_can_bsp.rx_ack_lim & can_testbench.i_can_top.i_can_bsp.tx_point);
+        #1 rx = 1;
+
+        // Transmitting acknowledge (for second packet)
+        wait (can_testbench.i_can_top.i_can_bsp.tx_state & can_testbench.i_can_top.i_can_bsp.rx_ack & can_testbench.i_can_top.i_can_bsp.tx_point);
+        #1 rx = 0;
+        wait (can_testbench.i_can_top.i_can_bsp.rx_ack_lim & can_testbench.i_can_top.i_can_bsp.tx_point);
         #1 rx = 1;
       end
 
@@ -1047,10 +1062,6 @@ task send_frame_basic;    // CAN IP core sends frames
 
     read_receive_buffer;
     release_rx_buffer_command;
-    release_rx_buffer_command;
-    read_receive_buffer;
-    release_rx_buffer_command;
-    read_receive_buffer;
     release_rx_buffer_command;
     read_receive_buffer;
     release_rx_buffer_command;
@@ -1161,9 +1172,9 @@ task send_frame_extended;    // CAN IP core sends basic or extended frames in ex
 
       begin
         // Transmitting acknowledge
-        wait (can_testbench.i_can_top.i_can_bsp.tx_state & can_testbench.i_can_top.i_can_bsp.rx_ack);
+        wait (can_testbench.i_can_top.i_can_bsp.tx_state & can_testbench.i_can_top.i_can_bsp.rx_ack & can_testbench.i_can_top.i_can_bsp.tx_point);
         #1 rx = 0;
-        wait (can_testbench.i_can_top.i_can_bsp.rx_ack_lim);
+        wait (can_testbench.i_can_top.i_can_bsp.rx_ack_lim & can_testbench.i_can_top.i_can_bsp.tx_point);
         #1 rx = 1;
       end
 
@@ -1833,6 +1844,14 @@ task test_synchronization;
     #1 rx=0;
     repeat (10*BRP) @ (posedge clk);
     #1 rx=1;
+    // Resynchronization early
+    repeat (11*BRP) @ (posedge clk);   // one frames too late
+    #1 rx=0;
+    repeat (10*BRP) @ (posedge clk);
+    #1 rx=1;
+
+    repeat (10*BRP) @ (posedge clk);
+    #1 rx=0;
     repeat (10*BRP) @ (posedge clk);
   end
 endtask
