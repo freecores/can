@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2003/03/12 04:19:13  mohor
+// 8051 interface added (besides WISHBONE interface). Selection is made in
+// can_defines.v file.
+//
 // Revision 1.5  2003/03/05 15:03:20  mohor
 // Xilinx RAM added.
 //
@@ -75,7 +79,7 @@
 // `define   CAN_WISHBONE_IF
 
 // Uncomment following line if you want to use CAN in Actel APA devices (embedded memory used)
-// `define   ACTEL_APA_RAM
+ `define   ACTEL_APA_RAM
 
 // Uncomment following line if you want to use CAN in Xilinx devices (embedded memory used)
 // `define   XILINX_RAM
