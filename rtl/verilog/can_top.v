@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.27  2003/03/12 05:56:33  mohor
+// Bidirectional port_0_i changed to port_0_io.
+// input cs_can changed to cs_can_i.
+//
 // Revision 1.26  2003/03/12 04:39:40  mohor
 // rd_i and wr_i are active high signals. If 8051 is connected, these two signals
 // need to be negated one level higher.
@@ -696,8 +700,9 @@ end
 
 
 `else
+
   // Latching address
-  always @ (posedge clk_i or posedge rst)
+  always @ (negedge clk_i or posedge rst)
   begin
     if (rst)
       addr_latched <= 8'h0;
@@ -722,7 +727,7 @@ end
   end
 
 
-  assign cs = (wr_i & (~wr_i_q)) | (rd_i & (~rd_i_q)) & cs_can_i;
+  assign cs = ((wr_i & (~wr_i_q)) | (rd_i & (~rd_i_q))) & cs_can_i;
 
 
   assign rst       = rst_i;
