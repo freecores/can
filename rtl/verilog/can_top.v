@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.22  2003/03/05 15:01:56  mohor
+// Top level signal names changed.
+//
 // Revision 1.21  2003/03/01 22:53:33  mohor
 // Actel APA ram supported.
 //
@@ -142,7 +145,6 @@ module can_top
   clk_i,
   rx_i,
   tx_o,
-  tx_oen,
   irq_o,
   clkout_o
 );
@@ -161,7 +163,6 @@ output       wb_ack_o;
 input        clk_i;
 input        rx_i;
 output       tx_o;
-output       tx_oen;
 output       irq_o;
 output       clkout_o;
 
@@ -571,9 +572,11 @@ can_bsp i_can_bsp
   /* End: Tx data registers */
   
   /* Tx signal */
-  .tx(tx_o),
+  .tx(tx_out),
   .tx_oen(tx_oen)
 );
+
+assign tx_o = tx_oen? 1'bz : tx_out;
 
 
 // Multiplexing wb_dat_o from registers and rx fifo

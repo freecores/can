@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.28  2003/03/05 15:00:49  mohor
+// Top level signal names changed.
+//
 // Revision 1.27  2003/03/01 22:48:26  mohor
 // Actel APA ram supported.
 //
@@ -170,12 +173,10 @@ reg   [7:0] wb_adr_i;
 reg         clk;
 reg         rx;
 wire        tx;
-wire        tx_oen;
 wire        wb_ack_o;
 wire        irq;
 wire        clkout;
 
-wire        tx_3st;
 wire        rx_and_tx;
 
 integer     start_tb;
@@ -202,12 +203,10 @@ can_top i_can_top
   .clk_i(clk),
   .rx_i(rx_and_tx),
   .tx_o(tx),
-  .tx_oen(tx_oen),
   .irq_o(irq),
   .clkout_o(clkout)
 );
 
-assign tx_3st = tx_oen? 1'bz : tx;
 
 
 // Generate wishbone clock signal 10 MHz
@@ -250,12 +249,12 @@ end
 // Generating delayed tx signal (CAN transciever delay)
 always
 begin
-  wait (tx_3st);
+  wait (tx);
   repeat (4*BRP) @ (posedge clk);   // 4 time quants delay
-  #1 delayed_tx = tx_3st;
-  wait (~tx_3st);
+  #1 delayed_tx = tx;
+  wait (~tx);
   repeat (4*BRP) @ (posedge clk);   // 4 time quants delay
-  #1 delayed_tx = tx_3st;
+  #1 delayed_tx = tx;
 end
 
 //assign rx_and_tx = rx & delayed_tx;   FIX ME !!!
