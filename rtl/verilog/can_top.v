@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.25  2003/03/12 04:17:36  mohor
+// 8051 interface added (besides WISHBONE interface). Selection is made in
+// can_defines.v file.
+//
 // Revision 1.24  2003/03/10 17:24:40  mohor
 // wire declaration added.
 //
@@ -152,8 +156,8 @@ module can_top
   `else
     rst_i,
     ale_i,
-    rd_i,   // active low
-    wr_i,   // active low
+    rd_i,
+    wr_i,
     port_0_i,
   `endif
   cs_can,
@@ -190,8 +194,8 @@ parameter Tp = 1;
 `else
   input        rst_i;
   input        ale_i;
-  input        rd_i;   // active low
-  input        wr_i;   // active low
+  input        rd_i;
+  input        wr_i;
   inout  [7:0] port_0_i;
   
   reg    [7:0] addr_latched;
@@ -714,14 +718,14 @@ end
   end
 
 
-  assign cs = ((~wr_i) & wr_i_q) | ((~rd_i) & rd_i_q) & cs_can;
+  assign cs = (wr_i & (~wr_i_q)) | (rd_i & (~rd_i_q)) & cs_can;
 
 
   assign rst      = rst_i;
-  assign we       = ~wr_i;
+  assign we       = wr_i;
   assign addr     = addr_latched;
   assign data_in  = port_0_i;
-  assign port_0_i = (cs_can & (~rd_i))? data_out : 8'hz;
+  assign port_0_i = (cs_can & rd_i)? data_out : 8'hz;
 
 `endif
 

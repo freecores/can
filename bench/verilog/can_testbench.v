@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.30  2003/03/12 04:16:40  mohor
+// 8051 interface added (besides WISHBONE interface). Selection is made in
+// can_defines.v file.
+//
 // Revision 1.29  2003/03/05 15:33:37  mohor
 // tx_o is now tristated signal. tx_oen and tx_o combined together.
 //
@@ -177,8 +181,8 @@ parameter BRP = 2*(`CAN_TIMING0_BRP + 1);
 `else
   reg         rst_i;
   reg         ale_i;
-  reg         rd_i;   // active low
-  reg         wr_i;   // active low
+  reg         rd_i;
+  reg         wr_i;
   wire  [7:0] port_0;
   wire  [7:0] port_0_i;
   reg   [7:0] port_0_o;
@@ -220,8 +224,8 @@ can_top i_can_top
 `else
   .rst_i(rst_i),
   .ale_i(ale_i),
-  .rd_i(rd_i),                // active low
-  .wr_i(wr_i),                // active low
+  .rd_i(rd_i),
+  .wr_i(wr_i),
   .port_0_i(port_0),
 `endif
   .cs_can(cs_can),
@@ -279,8 +283,8 @@ begin
   `else
     rst_i = 1'b0;
     ale_i = 1'b0;
-    rd_i  = 1'b1;   // active low
-    wr_i  = 1'b1;   // active low
+    rd_i  = 1'b0;
+    wr_i  = 1'b0;
     port_0_o = 8'h0;
     port_0_en = 0;
     port_free = 1;
@@ -1638,11 +1642,11 @@ task read_register;
       ale_i = 0;
       #90;            // 73 - 103 ns
       port_0_en = 0;
-      rd_i = 0;       // active low
+      rd_i = 1;
       #158;
       $display("(%0t) Reading register [%0d] = 0x%0x", $time, can_testbench.i_can_top.addr_latched, port_0_i);
       #1;
-      rd_i = 1;       // active low
+      rd_i = 0;
       cs_can = 0;
       port_free = 1;
     end
@@ -1692,9 +1696,9 @@ task write_register;
       ale_i = 0;
       #90;            // 73 - 103 ns
       port_0_o = reg_data;
-      wr_i = 0;       // active low
+      wr_i = 1;
       #158;
-      wr_i = 1;       // active low
+      wr_i = 0;
       port_0_en = 0;
       cs_can = 0;
       port_free = 1;
