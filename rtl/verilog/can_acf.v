@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2003/02/10 16:02:11  mohor
+// CAN is working according to the specification. WB interface and more
+// registers (status, IRQ, ...) needs to be added.
+//
 // Revision 1.5  2003/02/09 18:40:29  mohor
 // Overload fixed. Hard synchronization also enabled at the last bit of
 // interframe.
@@ -331,7 +335,7 @@ assign match_df_ext = (((id[21]  == acceptance_code_0[0] | acceptance_mask_0[0] 
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    id_ok <= 0;
+    id_ok <= 1'b0;
   else if (go_rx_crc_lim)                   // sample_point is already included in go_rx_crc_lim
     begin
       if (extended_mode)
@@ -355,7 +359,7 @@ begin
         id_ok <=#Tp match;
     end
   else if (reset_mode | go_rx_inter | go_error_frame)        // sample_point is already included in go_rx_inter
-    id_ok <=#Tp 0;
+    id_ok <=#Tp 1'b0;
 end
 
 

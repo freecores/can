@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.24  2003/07/10 15:32:28  mohor
+// Unused signal removed.
+//
 // Revision 1.23  2003/07/10 01:59:04  tadejm
 // Synchronization fixed. In some strange cases it didn't work according to
 // the VHDL reference model.
@@ -199,7 +202,7 @@ reg           sync_blocked;
 reg           hard_sync_blocked;
 reg           sampled_bit;
 reg           sampled_bit_q;
-reg     [4:0] quant_cnt;
+reg     [3:0] quant_cnt;
 reg     [3:0] delay;
 reg           sync;
 reg           seg1;
@@ -215,10 +218,9 @@ reg           tx_point;
 wire          go_sync_unregistered;
 wire          go_seg1_unregistered;
 wire          go_seg2_unregistered;
-wire [8:0]    preset_cnt;
+wire [7:0]    preset_cnt;
 wire          sync_window;
 wire          resync;
-wire          quant_cnt_rst;
 
 
 
@@ -231,9 +233,9 @@ assign resync     =  (~rx_idle) & (~not_first_bit_of_inter) & (~rx) & sampled_bi
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    clk_cnt <= 0;
+    clk_cnt <= 7'h0;
   else if (clk_cnt >= (preset_cnt-1'b1))
-    clk_cnt <=#Tp 0;
+    clk_cnt <=#Tp 7'h0;
   else
     clk_cnt <=#Tp clk_cnt + 1'b1;
 end
@@ -243,7 +245,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     clk_en  <= 1'b0;
-  else if (clk_cnt == (preset_cnt-1'b1))
+  else if ({1'b0, clk_cnt} == (preset_cnt-1'b1))
     clk_en  <=#Tp 1'b1;
   else
     clk_en  <=#Tp 1'b0;
@@ -270,7 +272,7 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    go_sync <= 1'b0;
+    go_sync <=#Tp 1'b0;
   else
     go_sync <=#Tp go_sync_unregistered;
 end
@@ -279,7 +281,7 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    go_seg1 <= 1'b0;
+    go_seg1 <=#Tp 1'b0;
   else
     go_seg1 <=#Tp go_seg1_unregistered;
 end
@@ -288,7 +290,7 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    go_seg2 <= 1'b0;
+    go_seg2 <=#Tp 1'b0;
   else
     go_seg2 <=#Tp go_seg2_unregistered;
 end
@@ -321,7 +323,7 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    sync <= 0;
+    sync <= 1'b0;
   else if (go_sync)
     sync <=#Tp 1'b1;
   else if (clk_en_q | go_seg1)
@@ -333,7 +335,7 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    seg1 <= 1;
+    seg1 <= 1'b1;
   else if (go_seg1)
     seg1 <=#Tp 1'b1;
   else if (go_seg2)
@@ -345,7 +347,7 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    seg2 <= 0;
+    seg2 <= 1'b0;
   else if (go_seg2)
     seg2 <=#Tp 1'b1;
   else if (go_sync | go_seg1)
@@ -354,14 +356,12 @@ end
 
 
 /* Quant counter */
-assign quant_cnt_rst = go_sync | go_seg1 | go_seg2;
-
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    quant_cnt <= 0;
-  else if (quant_cnt_rst)
-    quant_cnt <=#Tp 0;
+    quant_cnt <= 4'h0;
+  else if (go_sync | go_seg1 | go_seg2)
+    quant_cnt <=#Tp 4'h0;
   else if (clk_en_q)
     quant_cnt <=#Tp quant_cnt + 1'b1;
 end
@@ -371,11 +371,11 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    delay <= 0;
+    delay <= 4'h0;
   else if (resync & seg1 & (~transmitting))  // when transmitting 0 with positive error delay is set to 0
-    delay <=#Tp (quant_cnt > {3'h0, sync_jump_width})? (sync_jump_width + 1'b1) : (quant_cnt + 1'b1);
+    delay <=#Tp (quant_cnt > {2'h0, sync_jump_width})? ({2'h0, sync_jump_width} + 1'b1) : (quant_cnt + 1'b1);
   else if (go_sync | go_seg1)
-    delay <=#Tp 0;
+    delay <=#Tp 4'h0;
 end
 
 
@@ -398,15 +398,15 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     begin
-      sampled_bit <= 1;
-      sampled_bit_q <= 1;
-      sample_point <= 0;
+      sampled_bit <= 1'b1;
+      sampled_bit_q <= 1'b1;
+      sample_point <= 1'b0;
     end
   else if (clk_en_q & (~hard_sync))
     begin
       if (seg1 & (quant_cnt == (time_segment1 + delay)))
         begin
-          sample_point <=#Tp 1;
+          sample_point <=#Tp 1'b1;
           sampled_bit_q <=#Tp sampled_bit;
           if (triple_sampling)
             sampled_bit <=#Tp (sample[0] & sample[1]) | ( sample[0] & rx) | (sample[1] & rx);
@@ -415,7 +415,7 @@ begin
         end
     end
   else
-    sample_point <=#Tp 0;
+    sample_point <=#Tp 1'b0;
 end
 
 
@@ -430,7 +430,6 @@ begin
     begin
       if (resync)
         sync_blocked <=#Tp 1'b1;
-//      else if (seg2 & (quant_cnt[2:0] == time_segment2))
       else if (go_seg2)
         sync_blocked <=#Tp 1'b0;
     end
