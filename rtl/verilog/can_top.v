@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.33  2003/06/11 14:21:35  mohor
+// When switching to tx, sync stage is overjumped.
+//
 // Revision 1.32  2003/06/09 11:32:36  mohor
 // Ports added for the CAN_BIST.
 //
@@ -528,7 +531,6 @@ can_btl i_can_btl
   
   /* output from can_bsp module */
   .rx_idle(rx_idle),
-  .transmitting(transmitting),
   .overjump_sync_seg(overjump_sync_seg),
   .last_bit_of_inter(last_bit_of_inter)
   

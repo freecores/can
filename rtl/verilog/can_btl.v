@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.14  2003/06/13 14:55:11  mohor
+// Counters width changed.
+//
 // Revision 1.13  2003/06/11 14:21:35  mohor
 // When switching to tx, sync stage is overjumped.
 //
@@ -128,7 +131,6 @@ module can_btl
   
   /* Output from can_bsp module */
   rx_idle,
-  transmitting,
   overjump_sync_seg,
   last_bit_of_inter
   
@@ -158,7 +160,6 @@ input         triple_sampling;
 
 /* Output from can_bsp module */
 input         rx_idle;
-input         transmitting;
 input         overjump_sync_seg;
 input         last_bit_of_inter;
 
@@ -201,8 +202,8 @@ wire          quant_cnt_rst2;
 
 
 assign preset_cnt = (baud_r_presc + 1'b1)<<1;        // (BRP+1)*2
-assign hard_sync  =   (rx_idle | last_bit_of_inter)  & (~rx) & sampled_bit & (~sync_blocked) & (~transmitting);  // Hard synchronization
-assign resync     =  (~rx_idle)                      & (~rx) & sampled_bit & (~sync_blocked) & (~resync_blocked) & (~transmitting);  // Re-synchronization
+assign hard_sync  =   (rx_idle | last_bit_of_inter)  & (~rx) & sampled_bit & (~sync_blocked);  // Hard synchronization
+assign resync     =  (~rx_idle)                      & (~rx) & sampled_bit & (~sync_blocked) & (~resync_blocked);  // Re-synchronization
 
 
 /* Generating general enable signal that defines baud rate. */
