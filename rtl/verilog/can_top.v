@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.31  2003/03/26 11:19:46  mohor
+// CAN interrupt is active low.
+//
 // Revision 1.30  2003/03/20 17:01:17  mohor
 // unix.
 //
@@ -180,6 +183,16 @@ module can_top
   tx_o,
   irq_on,
   clkout_o
+  // Bist
+`ifdef CAN_BIST
+  ,
+  // debug chain signals
+  scanb_rst,      // bist scan reset
+  scanb_clk,      // bist scan clock
+  scanb_si,       // bist scan serial in
+  scanb_so,       // bist scan serial out
+  scanb_en        // bist scan shift enable
+`endif
 );
 
 parameter Tp = 1;
@@ -223,6 +236,15 @@ input        rx_i;
 output       tx_o;
 output       irq_on;
 output       clkout_o;
+
+// Bist
+`ifdef CAN_BIST
+input   scanb_rst;      // bist scan reset
+input   scanb_clk;      // bist scan clock
+input   scanb_si;       // bist scan serial in
+output  scanb_so;       // bist scan serial out
+input   scanb_en;       // bist scan shift enable
+`endif
 
 reg          data_out_fifo_selected;
 

@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.7  2003/03/20 16:51:55  mohor
+// *** empty log message ***
+//
 // Revision 1.6  2003/03/12 04:19:13  mohor
 // 8051 interface added (besides WISHBONE interface). Selection is made in
 // can_defines.v file.
@@ -83,3 +86,6 @@
 
 // Uncomment following line if you want to use CAN in Xilinx devices (embedded memory used)
 // `define   XILINX_RAM
+
+// Uncomment the following line when RAM BIST is needed (ASIC implementation)
+//`define CAN_BIST                    // Bist (for ASIC implementation)
