@@ -1,10 +1,14 @@
 #-- Synplicity, Inc.
-#-- Version 7.1        
+#-- Version 7.2        
 #-- Project file /projects/zoidberg/igorm/can/syn/synplicity/can.prj
-#-- Written on Wed Feb 19 15:01:04 2003
+#-- Written on Sat Mar  1 21:07:14 2003
 
 
 #add_file options
+add_file -verilog "$LIB/proasic/proasicplus.v"
+add_file -verilog "../../../memory/actel/ram_64x8_sync_async/actel_ram_64x8_sync_async.v"
+add_file -verilog "../../../memory/actel/ram_64x4_sync_async/actel_ram_64x4_sync_async.v"
+add_file -verilog "../../../memory/actel/ram_64x1_sync_async/actel_ram_64x1_sync_async.v"
 add_file -verilog "../../rtl/verilog/can_registers.v"
 add_file -verilog "../../rtl/verilog/can_bsp.v"
 add_file -verilog "../../rtl/verilog/can_btl.v"
@@ -19,8 +23,6 @@ add_file -verilog "../../rtl/verilog/can_acf.v"
 add_file -verilog "../../rtl/verilog/can_crc.v"
 add_file -verilog "../../rtl/verilog/can_ibo.v"
 
-#reporting options
-
 
 #implementation: "rev_1"
 impl -add rev_1
@@ -28,6 +30,7 @@ impl -add rev_1
 #device options
 set_option -technology PA
 set_option -part APA150
+set_option -speed_grade Std
 
 #compilation/mapping options
 set_option -default_enum_encoding default
@@ -53,7 +56,6 @@ set_option -write_apr_constraint 1
 project -result_file "rev_1/can_top.edn"
 
 #implementation attributes
-set_option -vlog_std v95
 set_option -compiler_compatible 0
 set_option -include_path "../../rtl/verilog/;../../bench/verilog/"
 impl -active "rev_1"

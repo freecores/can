@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.26  2003/02/19 14:43:17  mohor
+// CAN core finished. Host interface added. Registers finished.
+// Synchronization to the wishbone finished.
+//
 // Revision 1.25  2003/02/18 00:19:39  mohor
 // Temporary backup version (still fully operable).
 //
@@ -232,7 +236,7 @@ begin
   wb_rst_i = 1;
   extended_mode = 0;
   #200 wb_rst_i = 0;
-  #200 initialize_fifo;
+//  #200 initialize_fifo;
   #200 start_tb = 1;
   tx_bypassed = 0;
 end
@@ -306,15 +310,16 @@ begin
 //  test_full_fifo_ext;         // test currently switched off
 //  send_frame_ext;             // test currently switched off
 //  test_empty_fifo;            // test currently switched off
-//  test_full_fifo;             // test currently switched off
+  test_full_fifo;             // test currently switched on
 //  send_frame;                 // test currently switched off
 //  bus_off_test;               // test currently switched off
 //  forced_bus_off;             // test currently switched off
 //  send_frame_basic;           // test currently switched off
 //  send_frame_extended;        // test currently switched off
-  self_reception_request;       // test currently switched on
+//  self_reception_request;       // test currently switched off
 //  manual_frame_basic;         // test currently switched off
 //  manual_frame_ext;           // test currently switched off
+
   $display("CAN Testbench finished !");
   $stop;
 end
@@ -386,16 +391,17 @@ task manual_frame_basic;    // Testbench sends a basic format frame
     write_register(8'd18, 8'h00); // data byte 7
     write_register(8'd19, 8'h00); // data byte 8
 
-    tx_bypassed = 0;    // When this signal is on, tx is not looped back to the rx.
+    tx_bypassed = 1;    // When this signal is on, tx is not looped back to the rx.
     
     fork
       begin
-        tx_request_command;
-//        self_reception_request_command;
+//        tx_request_command;
+        self_reception_request_command;
       end
 
       begin
         #2200;
+
 
         repeat (1)
         begin
@@ -449,6 +455,7 @@ task manual_frame_basic;    // Testbench sends a basic format frame
           send_bit(1);  // INTER
           send_bit(1);  // INTER
         end // repeat
+
 
 
       end
@@ -928,7 +935,7 @@ task send_frame_basic;    // CAN IP core sends frames
     fork
 
       begin
-        #2500;
+        #1500;
         $display("\n\nStart receiving data from CAN bus");
         receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h1, 15'h30bb); // mode, rtr, id, length, crc
         receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h2, 15'h2da1); // mode, rtr, id, length, crc
@@ -1313,48 +1320,45 @@ task test_full_fifo;
     // Enable irqs (basic mode)
     write_register(8'd0, 8'h1e);
 
-    release_rx_buffer_command;
     $display("\n\n");
-    read_receive_buffer;
-    fifo_info;
 
-    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h0, 15'h4edd); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h0, 15'h2372); // mode, rtr, id, length, crc
     fifo_info;
-    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h1, 15'h1ccf); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h1, 15'h30bb); // mode, rtr, id, length, crc
     fifo_info;
-    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h2, 15'h73f4); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h2, 15'h2da1); // mode, rtr, id, length, crc
     fifo_info;
-    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h3, 15'h7bcb); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h3, 15'h56a9); // mode, rtr, id, length, crc
     fifo_info;
-    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h4, 15'h37da); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h4, 15'h3124); // mode, rtr, id, length, crc
     fifo_info;
-    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h5, 15'h7e15); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h5, 15'h6944); // mode, rtr, id, length, crc
     fifo_info;
-    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h6, 15'h39cf); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h6, 15'h5182); // mode, rtr, id, length, crc
     fifo_info;
-    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h7, 15'h085c); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h7, 15'h391d); // mode, rtr, id, length, crc
     fifo_info;
-    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h8, 15'h57a0); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h8, 15'h70e0); // mode, rtr, id, length, crc
     fifo_info;
-    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h8, 15'h57a0); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h8, 15'h70e0); // mode, rtr, id, length, crc
     fifo_info;
-$display("FIFO should be full now");
+    $display("FIFO should be full now");
 
     // Following one is accepted with overrun
-    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h8, 15'h57a0); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h8, 15'h70e0); // mode, rtr, id, length, crc
     fifo_info;
 
     release_rx_buffer_command;
     fifo_info;
 
     // Space just enough for the following frame.
-    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h0, 15'h4edd); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h0, 15'h2372); // mode, rtr, id, length, crc
     fifo_info;
 
     // Following accepted with overrun
-    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h8, 15'h57a0); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h8, 15'h70e0); // mode, rtr, id, length, crc
     fifo_info;
-    read_overrun_info(0, 15);
+//    read_overrun_info(0, 15);
 
     release_rx_buffer_command;
     release_rx_buffer_command;
@@ -1362,9 +1366,9 @@ $display("FIFO should be full now");
     release_rx_buffer_command;
     read_receive_buffer;
     fifo_info;
-    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h8, 15'h57a0); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h8, 15'h70e0); // mode, rtr, id, length, crc
     fifo_info;
-    read_overrun_info(0, 15);
+//    read_overrun_info(0, 15);
     $display("\n\n");
 
     release_rx_buffer_command;
@@ -1461,14 +1465,14 @@ task test_full_fifo_ext;
     fifo_info;
     receive_frame(1, 0, 29'h14d60246, 4'h7, 15'h1730); // mode, rtr, id, length, crc
     fifo_info;
-    read_overrun_info(0, 10);
+//    read_overrun_info(0, 10);
 
     release_rx_buffer_command;
     release_rx_buffer_command;
     fifo_info;
     receive_frame(1, 0, 29'h14d60246, 4'h8, 15'h2f7a); // mode, rtr, id, length, crc
     fifo_info;
-    read_overrun_info(0, 15);
+//    read_overrun_info(0, 15);
     $display("\n\n");
 
     release_rx_buffer_command;
@@ -1503,7 +1507,7 @@ task test_full_fifo_ext;
 endtask
 
 
-
+/*
 task initialize_fifo;
   integer i;
   begin
@@ -1521,8 +1525,8 @@ task initialize_fifo;
     $display("(%0t) Fifo initialized", $time);
   end
 endtask
-
-
+*/
+/*
 task read_overrun_info;
   input [4:0] start_addr;
   input [4:0] end_addr;
@@ -1535,7 +1539,7 @@ task read_overrun_info;
       end
   end
 endtask
-
+*/
 
 task fifo_info;   // Displaying how many packets and how many bytes are in fifo. Not working when wr_info_pointer is smaller than rd_info_pointer.
   begin
@@ -1600,19 +1604,20 @@ endtask
 task read_receive_buffer;
   integer i;
   begin
+    $display("\n\n(%0t)", $time);
     if(extended_mode)   // Extended mode
       begin
         for (i=8'd16; i<=8'd28; i=i+1)
           read_register(i);
-        if (can_testbench.i_can_top.i_can_bsp.i_can_fifo.overrun_info[can_testbench.i_can_top.i_can_bsp.i_can_fifo.rd_info_pointer])
-          $display("\nWARNING: This packet was received with overrun.");
+        if (can_testbench.i_can_top.i_can_bsp.i_can_fifo.overrun)
+          $display("\nWARNING: Above packet was received with overrun.");
       end
     else
       begin
         for (i=8'd20; i<=8'd29; i=i+1)
           read_register(i);
-        if (can_testbench.i_can_top.i_can_bsp.i_can_fifo.overrun_info[can_testbench.i_can_top.i_can_bsp.i_can_fifo.rd_info_pointer])
-          $display("\nWARNING: This packet was received with overrun.");
+        if (can_testbench.i_can_top.i_can_bsp.i_can_fifo.overrun)
+          $display("\nWARNING: Above packet was received with overrun.");
       end
   end
 endtask

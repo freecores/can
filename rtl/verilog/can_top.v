@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.20  2003/02/19 15:09:02  mohor
+// Incomplete sensitivity list fixed.
+//
 // Revision 1.19  2003/02/19 15:04:14  mohor
 // Typo fixed.
 //
@@ -472,6 +475,7 @@ can_bsp i_can_bsp
   .addr(wb_adr_i),
   .data_in(wb_dat_i),
   .data_out(data_out_fifo),
+  .fifo_selected(data_out_fifo_selected),
 
   /* Mode register */
   .reset_mode(reset_mode),
@@ -581,7 +585,7 @@ end
 
 always @ (posedge clk)
 begin
-  if (cs & (~wb_we_i))
+  if (wb_cyc_i & (~wb_we_i))
     begin
       if (data_out_fifo_selected)
         wb_dat_o <=#Tp data_out_fifo;

@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.12  2003/02/19 14:44:03  mohor
+// CAN core finished. Host interface added. Registers finished.
+// Synchronization to the wishbone finished.
+//
 // Revision 1.11  2003/02/14 20:17:01  mohor
 // Several registers added. Not finished, yet.
 //
@@ -106,6 +110,7 @@ module can_fifo
   data_in,
   addr,
   data_out,
+  fifo_selected,
 
   reset_mode,
   release_buffer,
@@ -126,27 +131,32 @@ input   [7:0] addr;
 input         reset_mode;
 input         release_buffer;
 input         extended_mode;
+input         fifo_selected;
 
 output  [7:0] data_out;
 output        overrun;
 output        info_empty;
 output  [6:0] info_cnt;
 
+`ifdef ACTEL_APA_RAM
+`else
+  reg     [7:0] fifo [0:63];
+  reg     [3:0] length_fifo[0:63];
+  reg           overrun_info[0:63];
+`endif
 
-reg     [7:0] fifo [0:63];
 reg     [5:0] rd_pointer;
 reg     [5:0] wr_pointer;
 reg     [5:0] read_address;
-reg     [3:0] length_info[0:63];
 reg     [5:0] wr_info_pointer;
 reg     [5:0] rd_info_pointer;
-reg           overrun_info[0:63];
 reg           wr_q;
 reg     [3:0] len_cnt;
 reg     [6:0] fifo_cnt;
 reg     [6:0] info_cnt;
 reg           latch_overrun;
 
+wire    [3:0] length_info;
 wire          write_length_info;
 wire          fifo_empty;
 wire          fifo_full;
@@ -190,24 +200,6 @@ begin
 end
 
 
-// length_info
-always @ (posedge clk)
-begin
-  if (write_length_info & (~info_full))
-    length_info[wr_info_pointer] <=#Tp len_cnt;
-end
-
-
-// overrun_info
-always @ (posedge clk)
-begin
-  if (write_length_info & (~info_full))
-    overrun_info[wr_info_pointer] <=#Tp latch_overrun | (wr & fifo_full);
-end
-
-
-// reading overrun
-assign overrun = overrun_info[rd_info_pointer];
 
 // rd_info_pointer
 always @ (posedge clk or posedge rst)
@@ -227,7 +219,7 @@ begin
   if (rst)
     rd_pointer <= 0;
   else if (release_buffer & (~fifo_empty))
-    rd_pointer <=#Tp rd_pointer + length_info[rd_info_pointer];
+    rd_pointer <=#Tp rd_pointer + length_info;
   else if (reset_mode)
     rd_pointer <=#Tp 0;
 end
@@ -265,9 +257,9 @@ begin
   else if (wr & (~release_buffer) & (~fifo_full))
     fifo_cnt <=#Tp fifo_cnt + 1'b1;
   else if ((~wr) & release_buffer & (~fifo_empty))
-    fifo_cnt <=#Tp fifo_cnt - length_info[rd_info_pointer];
+    fifo_cnt <=#Tp fifo_cnt - length_info;
   else if (wr & release_buffer & (~fifo_full) & (~fifo_empty))
-    fifo_cnt <=#Tp fifo_cnt - length_info[rd_info_pointer] + 1'b1;
+    fifo_cnt <=#Tp fifo_cnt - length_info + 1'b1;
   else if (reset_mode)
     fifo_cnt <=#Tp 0;
 end
@@ -276,7 +268,7 @@ assign fifo_full = fifo_cnt == 64;
 assign fifo_empty = fifo_cnt == 0;
 
 
-// Counting data in length_info and overrun_info fifo
+// Counting data in length_fifo and overrun_info fifo
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
@@ -294,15 +286,6 @@ assign info_full = info_cnt == 64;
 assign info_empty = info_cnt == 0;
 
 
-// writing data to fifo
-always @ (posedge clk)
-begin
-  if (wr & (~fifo_full))
-    fifo[wr_pointer] <=#Tp data_in;
-end
-
-
-
 // Selecting which address will be used for reading data from rx fifo
 always @ (extended_mode or rd_pointer or addr)
 begin
@@ -318,7 +301,83 @@ end
 
 
 
-assign data_out = fifo[read_address];
+`ifdef ACTEL_APA_RAM
+  actel_ram_64x8_sync fifo
+  (
+    .DO      (data_out),
+    .RCLOCK  (clk),
+    .WCLOCK  (clk),
+    .DI      (data_in),
+    .PO      (),                       // parity not used
+    .WRB     (~(wr & (~fifo_full))),
+    .RDB     (~fifo_selected),
+    .WADDR   (wr_pointer),
+    .RADDR   (read_address)
+  );
+
+
+  actel_ram_64x4_sync info_fifo
+  (
+    .DO      (length_info),
+    .RCLOCK  (clk),
+    .WCLOCK  (clk),
+    .DI      (len_cnt),
+    .PO      (),                       // parity not used
+    .WRB     (~(write_length_info & (~info_full))),
+    .RDB     (1'b0),                   // always enabled
+    .WADDR   (wr_info_pointer),
+    .RADDR   (rd_info_pointer)
+  );
+
+
+  actel_ram_64x1_sync overrun_fifo
+  (
+    .DO      (overrun),
+    .RCLOCK  (clk),
+    .WCLOCK  (clk),
+    .DI      (latch_overrun | (wr & fifo_full)),
+    .PO      (),                       // parity not used
+    .WRB     (~(write_length_info & (~info_full))),
+    .RDB     (1'b0),                   // always enabled
+    .WADDR   (wr_info_pointer),
+    .RADDR   (rd_info_pointer)
+  );
+`else
+  // writing data to fifo
+  always @ (posedge clk)
+  begin
+    if (wr & (~fifo_full))
+      fifo[wr_pointer] <=#Tp data_in;
+  end
+
+  // reading from fifo
+  assign data_out = fifo[read_address];
+
+
+  // writing length_fifo
+  always @ (posedge clk)
+  begin
+    if (write_length_info & (~info_full))
+      length_fifo[wr_info_pointer] <=#Tp len_cnt;
+  end
+
+  // reading length_fifo
+  assign length_info = length_fifo[rd_info_pointer];
+
+  // overrun_info
+  always @ (posedge clk)
+  begin
+    if (write_length_info & (~info_full))
+      overrun_info[wr_info_pointer] <=#Tp latch_overrun | (wr & fifo_full);
+  end
+  
+  
+  // reading overrun
+  assign overrun = overrun_info[rd_info_pointer];
+
+
+`endif
+
 
 
 

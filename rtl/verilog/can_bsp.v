@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.27  2003/02/20 00:26:02  mohor
+// When a dominant bit was detected at the third bit of the intermission and
+// node had a message to transmit, bit_stuff error could occur. Fixed.
+//
 // Revision 1.26  2003/02/19 23:21:54  mohor
 // When bit error occured while active error flag was transmitted, counter was
 // not incremented.
@@ -162,6 +166,7 @@ module can_bsp
   addr,
   data_in,
   data_out,
+  fifo_selected,
   
 
 
@@ -274,6 +279,7 @@ input         hard_sync;
 input   [7:0] addr;
 input   [7:0] data_in;
 output  [7:0] data_out;
+input         fifo_selected;
 
 
 input         reset_mode;
@@ -1319,6 +1325,7 @@ can_fifo i_can_fifo
   .data_in(data_for_fifo),
   .addr(addr),
   .data_out(data_out),
+  .fifo_selected(fifo_selected),
 
   .reset_mode(reset_mode),
   .release_buffer(release_buffer),

@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2003/02/09 02:24:33  mohor
+// Bosch license warning added. Error counters finished. Overload frames
+// still need to be fixed.
+//
 // Revision 1.2  2002/12/27 00:12:52  mohor
 // Header changed, testbench improved to send a frame (crc still missing).
 //
@@ -59,3 +63,6 @@
 //
 //
 
+
+// Uncomment following line if you want to use CAN in Actel APA devices (embedded memory used)
+//`define   ACTEL_APA_RAM
