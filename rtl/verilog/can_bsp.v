@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.41  2003/07/18 15:23:31  tadejm
+// Tx and rx length are limited to 8 bytes regardless to the DLC value.
+//
 // Revision 1.40  2003/07/16 15:10:17  mohor
 // Fixed according to the linter.
 //
@@ -1999,7 +2002,7 @@ begin
     bus_free_cnt_en <= 1'b0;
   else if ((~reset_mode) & reset_mode_q | node_bus_off_q & (~reset_mode))
     bus_free_cnt_en <=#Tp 1'b1;
-  else if (sample_point &  (bus_free_cnt==4'd10) & (~node_bus_off))
+  else if (sample_point & sampled_bit & (bus_free_cnt==4'd10) & (~node_bus_off))
     bus_free_cnt_en <=#Tp 1'b0;
 end
 
