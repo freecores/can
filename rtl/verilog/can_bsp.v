@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.13  2003/01/15 21:59:45  mohor
+// Data is stored to fifo at the end of ack stage.
+//
 // Revision 1.12  2003/01/15 21:05:11  mohor
 // CRC checking fixed (when bitstuff occurs at the end of a CRC sequence).
 //
@@ -275,9 +278,11 @@ reg           crc_enable;
 reg     [2:0] eof_cnt;
 wire   [14:0] calculated_crc;
 wire          remote_rq;
-wire [3:0]    limited_data_len;
+wire    [3:0] limited_data_len;
+reg           form_error;
+wire          set_form_error;
 
-assign go_rx_idle     =                   sample_point &  rx_eof  & (eof_cnt == 6);
+assign go_rx_idle     =                   sample_point &  rx_eof  & (eof_cnt == 5);   // Receiver ignores last (7th) bit of the end-of-frame.
 assign go_rx_id1      =                   sample_point &  rx_idle & (~sampled_bit);
 assign go_rx_rtr1     = (~bit_de_stuff) & sample_point &  rx_id1  & (bit_cnt == 10);
 assign go_rx_ide      = (~bit_de_stuff) & sample_point &  rx_rtr1;
@@ -692,6 +697,25 @@ begin
     crc_error <=#Tp 0;
 end
 
+
+// Conditions for form error
+assign set_form_error = sample_point & ( (~bit_de_stuff) & rx_ide     &   sampled_bit & (~rtr1) |
+                                                           rx_crc_lim & (~sampled_bit)          |
+                                                           rx_ack_lim & (~sampled_bit)          |
+                                                           rx_eof     & (~sampled_bit)
+                                       );
+
+
+// Form error 
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    form_error <= 1'b0;
+  else if (reset_mode | form_error)
+    form_error <=#Tp 1'b0;
+  else if (set_form_error)
+    form_error <=#Tp 1'b1;
+end
 
 
 // Instantiation of the RX CRC module

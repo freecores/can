@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.15  2003/01/15 21:05:06  mohor
+// CRC checking fixed (when bitstuff occurs at the end of a CRC sequence).
+//
 // Revision 1.14  2003/01/15 14:40:16  mohor
 // RX state machine fixed to receive "remote request" frames correctly. No data bytes are written to fifo when such frames are received.
 //
@@ -449,7 +452,6 @@ task test_full_fifo;
     read_receive_buffer;
     fifo_info;
 
-
   end
 endtask
 
@@ -741,13 +743,11 @@ task receive_frame;           // CAN IP core receives frames
         if (stuff_cnt == 5)
           begin
             stuff_cnt = 1;
-            total_bits = total_bits + 1;      //    ??????   Check this
+            total_bits = total_bits + 1;
             stuff = 1;
             send_bit(~data[pointer+1]);
             previous_bit = ~data[pointer+1];
           end
-//        else if (data[pointer] == previous_bit)
-//          stuff_cnt <= stuff_cnt + 1;
         else
           begin
             if (data[pointer] == previous_bit)
@@ -756,18 +756,14 @@ task receive_frame;           // CAN IP core receives frames
               stuff_cnt <= 1;
             
             stuff = 0;
-            send_bit(data[pointer]);        // Bit stuffing comes here !!!
+            send_bit(data[pointer]);
             previous_bit = data[pointer];
             pointer = pointer - 1;
           end
       end
 
-    
     // Nothing send after the data (just recessive bit)
-    repeat (13) send_bit(1);         // CRC delimiter + ack + ack delimiter + EOF   !!! Check what is the minimum value for which core works ok
-
-
-
+    repeat (10) send_bit(1);         // CRC delimiter + ack + ack delimiter + EOF = 1 + 1 + 1 + 7
   end
 endtask
 
@@ -825,6 +821,15 @@ begin
     $display("(%0t)overrun", $time);
 end
 */
+
+
+// form error monitor
+always @ (posedge clk)
+begin
+  if (can_testbench.i_can_top.i_can_bsp.form_error)
+    $display("\n\n(%0t) ERROR: form_error\n\n", $time);
+end
+//
 
 
 endmodule
