@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.8  2003/06/09 11:32:36  mohor
+// Ports added for the CAN_BIST.
+//
 // Revision 1.7  2003/03/20 16:51:55  mohor
 // *** empty log message ***
 //
@@ -86,6 +89,9 @@
 
 // Uncomment following line if you want to use CAN in Xilinx devices (embedded memory used)
 // `define   XILINX_RAM
+
+// Uncomment following line if you want to use CAN in Xilinx devices (embedded memory used)
+// `define   VIRTUALSILICON_RAM
 
 // Uncomment the following line when RAM BIST is needed (ASIC implementation)
 //`define CAN_BIST                    // Bist (for ASIC implementation)

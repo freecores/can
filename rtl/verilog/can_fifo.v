@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.16  2003/06/18 23:03:44  mohor
+// Typo fixed.
+//
 // Revision 1.15  2003/06/11 09:37:05  mohor
 // overrun and length_info fifos are initialized at the end of reset.
 //
@@ -128,6 +131,14 @@ module can_fifo
   info_empty,
   info_cnt
 
+`ifdef CAN_BIST
+  ,
+  scanb_rst,
+  scanb_clk,
+  scanb_si,
+  scanb_so,
+  scanb_en
+`endif
 );
 
 parameter Tp = 1;
@@ -147,13 +158,26 @@ output        overrun;
 output        info_empty;
 output  [6:0] info_cnt;
 
+`ifdef CAN_BIST
+input         scanb_rst;
+input         scanb_clk;
+input         scanb_si;
+output        scanb_so;
+input         scanb_en;
+wire          scanb_s_0;
+wire          scanb_s_1;
+`endif
+
 `ifdef ACTEL_APA_RAM
 `else
 `ifdef XILINX_RAM
 `else
+`ifdef VIRTUALSILICON_RAM
+`else
   reg     [7:0] fifo [0:63];
   reg     [3:0] length_fifo[0:63];
   reg           overrun_info[0:63];
+`endif
 `endif
 `endif
 
@@ -463,6 +487,84 @@ end
 
 
 `else
+`ifdef VIRTUALSILICON_RAM
+
+`ifdef PCI_BIST
+    vs_hdtp_64x8_bist fifo
+`else
+    vs_hdtp_64x8 fifo
+`endif
+    (
+        .RCK        (clk),
+        .WCK        (clk),
+        .RADR       (read_address),
+        .WADR       (wr_pointer),
+        .DI         (data_in),
+        .DOUT       (data_out),
+        .REN        (~fifo_selected),
+        .WEN        (~(wr & (~fifo_full)))
+    `ifdef PCI_BIST
+        ,
+        // debug chain signals
+        .scanb_rst  (scanb_rst),
+        .scanb_clk  (scanb_clk),
+        .scanb_si   (scanb_si),
+        .scanb_so   (scanb_s_0),
+        .scanb_en   (scanb_en)
+    `endif
+    );
+
+`ifdef PCI_BIST
+    vs_hdtp_64x4_bist info_fifo
+`else
+    vs_hdtp_64x4 info_fifo
+`endif
+    (
+        .RCK        (clk),
+        .WCK        (clk),
+        .RADR       (rd_info_pointer),
+        .WADR       (wr_info_pointer),
+        .DI         (len_cnt & {4{~initialize_memories}}),
+        .DOUT       (length_info),
+        .REN        (1'b0),
+        .WEN        (~(write_length_info & (~info_full) | initialize_memories))
+    `ifdef PCI_BIST
+        ,
+        // debug chain signals
+        .scanb_rst  (scanb_rst),
+        .scanb_clk  (scanb_clk),
+        .scanb_si   (scanb_s_0),
+        .scanb_so   (scanb_s_1),
+        .scanb_en   (scanb_en)
+    `endif
+    );
+
+`ifdef PCI_BIST
+    vs_hdtp_64x1_bist overrun_fifo
+`else
+    vs_hdtp_64x1 overrun_fifo
+`endif
+    (
+        .RCK        (clk),
+        .WCK        (clk),
+        .RADR       (rd_info_pointer),
+        .WADR       (wr_info_pointer),
+        .DI         ((latch_overrun | (wr & fifo_full)) & (~initialize_memories)),
+        .DOUT       (overrun),
+        .REN        (1'b0),
+        .WEN        (~(write_length_info & (~info_full) | initialize_memories))
+    `ifdef PCI_BIST
+        ,
+        // debug chain signals
+        .scanb_rst  (scanb_rst),
+        .scanb_clk  (scanb_clk),
+        .scanb_si   (scanb_s_1),
+        .scanb_so   (scanb_so),
+        .scanb_en   (scanb_en)
+    `endif
+    );
+
+`else
   // writing data to fifo
   always @ (posedge clk)
   begin
@@ -497,6 +599,7 @@ end
   assign overrun = overrun_info[rd_info_pointer];
 
 
+`endif
 `endif
 `endif
 

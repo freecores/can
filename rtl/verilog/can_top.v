@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.36  2003/06/17 14:30:30  mohor
+// "chip select" signal cs_can_i is used only when not using WISHBONE
+// interface.
+//
 // Revision 1.35  2003/06/16 13:57:58  mohor
 // tx_point generated one clk earlier. rx_i registered. Data corrected when
 // using extended mode.
@@ -653,6 +657,16 @@ can_bsp i_can_bsp
   /* Tx signal */
   .tx(tx_out),
   .tx_oen(tx_oen)
+
+`ifdef CAN_BIST
+  ,
+  /* BIST signals */
+  .scanb_rst(scanb_rst),
+  .scanb_clk(scanb_clk),
+  .scanb_si(scanb_si),
+  .scanb_so(scanb_so),
+  .scanb_en(scanb_en)
+`endif
 );
 
 assign tx_o = tx_oen? 1'bz : tx_out;

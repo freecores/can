@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.34  2003/06/22 09:43:03  mohor
+// synthesis full_case parallel_case fixed.
+//
 // Revision 1.33  2003/06/21 12:16:30  mohor
 // paralel_case and full_case compiler directives added to case statements.
 //
@@ -284,6 +287,15 @@ module can_bsp
   tx,
   tx_oen
 
+  /* Bist */
+`ifdef CAN_BIST
+  ,
+  scanb_rst,
+  scanb_clk,
+  scanb_si,
+  scanb_so,
+  scanb_en
+`endif
 );
 
 parameter Tp = 1;
@@ -394,6 +406,15 @@ input   [7:0] tx_data_12;
 /* Tx signal */
 output        tx;
 output        tx_oen;
+
+/* Bist */
+`ifdef CAN_BIST
+input         scanb_rst;
+input         scanb_clk;
+input         scanb_si;
+output        scanb_so;
+input         scanb_en;
+`endif
 
 reg           reset_mode_q;
 reg     [5:0] bit_cnt;
@@ -1350,6 +1371,15 @@ can_fifo i_can_fifo
   .overrun(overrun),
   .info_empty(info_empty),
   .info_cnt(rx_message_counter)
+
+`ifdef CAN_BIST
+  ,
+  .scanb_rst(scanb_rst),
+  .scanb_clk(scanb_clk),
+  .scanb_si(scanb_si),
+  .scanb_so(scanb_so),
+  .scanb_en(scanb_en)
+`endif
 );
 
 
