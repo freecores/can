@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.26  2003/02/19 23:21:54  mohor
+// When bit error occured while active error flag was transmitted, counter was
+// not incremented.
+//
 // Revision 1.25  2003/02/19 14:44:03  mohor
 // CAN core finished. Host interface added. Registers finished.
 // Synchronization to the wishbone finished.
@@ -391,6 +395,7 @@ reg           rx_ack;
 reg           rx_ack_lim;
 reg           rx_eof;
 reg           rx_inter;
+reg           go_early_tx_latched;
 
 reg           rtr1;
 reg           ide;
@@ -1520,10 +1525,11 @@ begin
 end
 
 
+
 always @ (posedge clk)
 begin
   if (tx_point)
-    tx_q <=#Tp tx;
+    tx_q <=#Tp tx & (~go_early_tx_latched);
 end
 
 
@@ -1632,6 +1638,19 @@ end
 
 assign go_early_tx = (~listen_only_mode) & need_to_tx & (~tx_state) & (~suspend) & sample_point & (~sampled_bit) & (rx_idle | last_bit_of_inter);
 assign go_tx       = (~listen_only_mode) & need_to_tx & (~tx_state) & (~suspend) & (go_early_tx | rx_idle);
+
+
+// go_early_tx latched (for proper bit_de_stuff generation)
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    go_early_tx_latched <= 1'b0;
+  else if (tx_point_q)
+    go_early_tx_latched <=#Tp 1'b0;
+  else if (go_early_tx)
+    go_early_tx_latched <=#Tp 1'b1;
+end
+
 
 
 // Tx state
