@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.35  2004/11/30 15:08:26  igorm
+// irq is cleared after the release_buffer command. This bug was entered with
+// changes for the edge triggered interrupts.
+//
 // Revision 1.34  2004/11/18 12:39:43  igorm
 // Fixes for compatibility after the SW reset.
 //
@@ -1117,7 +1121,7 @@ begin
     {1'h0, 5'd00} :  data_out = {3'b001, mode_basic[4:1], mode[0]};     // basic mode
     {1'h0, 5'd01} :  data_out = 8'hff;                                  // basic mode
     {1'h0, 5'd02} :  data_out = status;                                 // basic mode
-    {1'h0, 5'd03} :  data_out = {4'hf, irq_reg[3:0]};                   // basic mode
+    {1'h0, 5'd03} :  data_out = {4'he, irq_reg[3:0]};                   // basic mode
     {1'h0, 5'd04} :  data_out = reset_mode? acceptance_code_0 : 8'hff;  // basic mode
     {1'h0, 5'd05} :  data_out = reset_mode? acceptance_mask_0 : 8'hff;  // basic mode
     {1'h0, 5'd06} :  data_out = reset_mode? bus_timing_0 : 8'hff;       // basic mode
