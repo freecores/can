@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.11  2003/01/14 12:19:29  mohor
+// rx_fifo is now working.
+//
 // Revision 1.10  2003/01/10 17:51:28  mohor
 // Temporary version (backup).
 //
@@ -145,42 +148,42 @@ begin
   wait(start_tb);
 
   // Set bus timing register 0
-  write_register(8'h6, {`CAN_TIMING0_SJW, `CAN_TIMING0_BRP});
+  write_register(8'd6, {`CAN_TIMING0_SJW, `CAN_TIMING0_BRP});
 
   // Set bus timing register 1
-  write_register(8'h7, {`CAN_TIMING1_SAM, `CAN_TIMING1_TSEG2, `CAN_TIMING1_TSEG1});
+  write_register(8'd7, {`CAN_TIMING1_SAM, `CAN_TIMING1_TSEG2, `CAN_TIMING1_TSEG1});
 
 
 
   // Set Clock Divider register
-  write_register(8'h31, {`CAN_CLOCK_DIVIDER_MODE, 7'h0});    // Setting the normal mode (not extended)
+  write_register(8'd31, {`CAN_CLOCK_DIVIDER_MODE, 7'h0});    // Setting the normal mode (not extended)
  
   // Set Acceptance Code and Acceptance Mask registers (their address differs for basic and extended mode
   if(`CAN_CLOCK_DIVIDER_MODE)   // Extended mode
     begin
       // Set Acceptance Code and Acceptance Mask registers
-      write_register(8'h16, 8'ha6); // acceptance code 0
-      write_register(8'h17, 8'hb0); // acceptance code 1
-      write_register(8'h18, 8'h12); // acceptance code 2
-      write_register(8'h19, 8'h34); // acceptance code 3
-      write_register(8'h20, 8'h0); // acceptance mask 0
-      write_register(8'h21, 8'h0); // acceptance mask 1
-      write_register(8'h22, 8'h0); // acceptance mask 2
-      write_register(8'h23, 8'h0); // acceptance mask 3
+      write_register(8'd16, 8'ha6); // acceptance code 0
+      write_register(8'd17, 8'hb0); // acceptance code 1
+      write_register(8'd18, 8'h12); // acceptance code 2
+      write_register(8'd19, 8'h34); // acceptance code 3
+      write_register(8'd20, 8'h0); // acceptance mask 0
+      write_register(8'd21, 8'h0); // acceptance mask 1
+      write_register(8'd22, 8'h0); // acceptance mask 2
+      write_register(8'd23, 8'h0); // acceptance mask 3
     end
   else
     begin
       // Set Acceptance Code and Acceptance Mask registers
-//      write_register(8'h4, 8'ha6); // acceptance code
-      write_register(8'h4, 8'h08); // acceptance code
-      write_register(8'h5, 8'h00); // acceptance mask
+//      write_register(8'd4, 8'ha6); // acceptance code
+      write_register(8'd4, 8'h08); // acceptance code
+      write_register(8'd5, 8'h00); // acceptance mask
     end
   
   #10;
   repeat (1000) @ (posedge clk);
   
   // Switch-off reset mode
-  write_register(8'h0, {7'h0, ~(`CAN_MODE_RESET)});
+  write_register(8'd0, {7'h0, ~(`CAN_MODE_RESET)});
 
   repeat (BRP) @ (posedge clk);   // At least BRP clocks needed before bus goes to dominant level. Otherwise 1 quant difference is possible
                                   // This difference is resynchronized later.
@@ -413,7 +416,7 @@ task read_register;
     cs = 1;
     rw = 1;
     @ (posedge clk);
-    $display("(%0t) Reading register [0x%0x] = 0x%0x", $time, addr, data_out);
+    $display("(%0t) Reading register [%0d] = 0x%0x", $time, addr, data_out);
     #1; 
     addr = 'hz;
     cs = 0;
@@ -448,14 +451,14 @@ task read_receive_buffer;
   begin
     if(`CAN_CLOCK_DIVIDER_MODE)   // Extended mode
       begin
-        for (i=8'h16; i<=8'h28; i=i+1)
+        for (i=8'd16; i<=8'd28; i=i+1)
           read_register(i);
         if (can_testbench.i_can_top.i_can_bsp.i_can_fifo.overrun_info[can_testbench.i_can_top.i_can_bsp.i_can_fifo.rd_info_pointer])
           $display("\nWARNING: This packet was received with overrun.");
       end
     else
       begin
-        for (i=8'h20; i<=8'h29; i=i+1)
+        for (i=8'd20; i<=8'd29; i=i+1)
           read_register(i);
         if (can_testbench.i_can_top.i_can_bsp.i_can_fifo.overrun_info[can_testbench.i_can_top.i_can_bsp.i_can_fifo.rd_info_pointer])
           $display("\nWARNING: This packet was received with overrun.");
@@ -466,7 +469,7 @@ endtask
 
 task release_rx_buffer;
   begin
-    write_register(8'h1, 8'h4);
+    write_register(8'd1, 8'h4);
     $display("(%0t) Rx buffer released.", $time);
     repeat (2) @ (posedge clk);   // Time to decrement all the counters
   end
@@ -527,7 +530,6 @@ task send_frame;
   integer stuff_cnt;
   reg [117:0] data;
   reg         previous_bit;
-  reg xxx;
   reg stuff;
   begin
 
@@ -564,9 +566,6 @@ task send_frame;
 
     for (cnt=0; cnt<=total_bits; cnt=cnt+1)
       begin
-        
-        xxx = data[pointer];
-        
         if (stuff_cnt == 5)
           begin
             stuff_cnt = 1;

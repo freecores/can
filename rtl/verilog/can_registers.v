@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.7  2003/01/14 12:19:35  mohor
+// rx_fifo is now working.
+//
 // Revision 1.6  2003/01/10 17:51:34  mohor
 // Temporary version (backup).
 //
@@ -128,9 +131,24 @@ module can_registers
   /* Acceptance mask register */
   acceptance_mask_1,
   acceptance_mask_2,
-  acceptance_mask_3
+  acceptance_mask_3,
   /* End: This section is for EXTENDED mode */
   
+  /* Tx data registers. Holding identifier (basic mode), tx frame information (extended mode) and data */
+  tx_data_0,
+  tx_data_1,
+  tx_data_2,
+  tx_data_3,
+  tx_data_4,
+  tx_data_5,
+  tx_data_6,
+  tx_data_7,
+  tx_data_8,
+  tx_data_9,
+  tx_data_10,
+  tx_data_11,
+  tx_data_12
+  /* End: Tx data registers */
   
   
 
@@ -202,32 +220,61 @@ output  [7:0] acceptance_mask_3;
 
 /* End: This section is for EXTENDED mode */
 
+  /* Tx data registers. Holding identifier (basic mode), tx frame information (extended mode) and data */
+output  [7:0] tx_data_0;
+output  [7:0] tx_data_1;
+output  [7:0] tx_data_2;
+output  [7:0] tx_data_3;
+output  [7:0] tx_data_4;
+output  [7:0] tx_data_5;
+output  [7:0] tx_data_6;
+output  [7:0] tx_data_7;
+output  [7:0] tx_data_8;
+output  [7:0] tx_data_9;
+output  [7:0] tx_data_10;
+output  [7:0] tx_data_11;
+output  [7:0] tx_data_12;
+  /* End: Tx data registers */
 
 
 
 
-wire we_mode                  = cs & (~rw) & (addr == 8'h0);
-wire we_command               = cs & (~rw) & (addr == 8'h1);
-wire we_bus_timing_0          = cs & (~rw) & (addr == 8'h6) & reset_mode;
-wire we_bus_timing_1          = cs & (~rw) & (addr == 8'h7) & reset_mode;
-wire we_clock_divider_hi      = cs & (~rw) & (addr == 8'h31) & reset_mode;
-wire we_clock_divider_low     = cs & (~rw) & (addr == 8'h31);
+wire we_mode                  = cs & (~rw) & (addr == 8'd0);
+wire we_command               = cs & (~rw) & (addr == 8'd1);
+wire we_bus_timing_0          = cs & (~rw) & (addr == 8'd6) & reset_mode;
+wire we_bus_timing_1          = cs & (~rw) & (addr == 8'd7) & reset_mode;
+wire we_clock_divider_low     = cs & (~rw) & (addr == 8'd31);
+wire we_clock_divider_hi      = we_clock_divider_low & reset_mode;
+
 wire read = cs & rw;
 
 
 /* This section is for BASIC and EXTENDED mode */
-wire we_acceptance_code_0       = cs & (~rw) & reset_mode & ((~extended_mode) & (addr == 8'h4) | extended_mode & (addr == 8'h16));
-wire we_acceptance_mask_0       = cs & (~rw) & reset_mode & ((~extended_mode) & (addr == 8'h5) | extended_mode & (addr == 8'h20));
+wire we_acceptance_code_0       = cs & (~rw) &   reset_mode  & ((~extended_mode) & (addr == 8'd4)  | extended_mode & (addr == 8'd16));
+wire we_acceptance_mask_0       = cs & (~rw) &   reset_mode  & ((~extended_mode) & (addr == 8'd5)  | extended_mode & (addr == 8'd20));
+wire we_tx_data_0               = cs & (~rw) & (~reset_mode) & ((~extended_mode) & (addr == 8'd10) | extended_mode & (addr == 8'd16));
+wire we_tx_data_1               = cs & (~rw) & (~reset_mode) & ((~extended_mode) & (addr == 8'd11) | extended_mode & (addr == 8'd17));
+wire we_tx_data_2               = cs & (~rw) & (~reset_mode) & ((~extended_mode) & (addr == 8'd12) | extended_mode & (addr == 8'd18));
+wire we_tx_data_3               = cs & (~rw) & (~reset_mode) & ((~extended_mode) & (addr == 8'd13) | extended_mode & (addr == 8'd19));
+wire we_tx_data_4               = cs & (~rw) & (~reset_mode) & ((~extended_mode) & (addr == 8'd14) | extended_mode & (addr == 8'd20));
+wire we_tx_data_5               = cs & (~rw) & (~reset_mode) & ((~extended_mode) & (addr == 8'd15) | extended_mode & (addr == 8'd21));
+wire we_tx_data_6               = cs & (~rw) & (~reset_mode) & ((~extended_mode) & (addr == 8'd16) | extended_mode & (addr == 8'd22));
+wire we_tx_data_7               = cs & (~rw) & (~reset_mode) & ((~extended_mode) & (addr == 8'd17) | extended_mode & (addr == 8'd23));
+wire we_tx_data_8               = cs & (~rw) & (~reset_mode) & ((~extended_mode) & (addr == 8'd18) | extended_mode & (addr == 8'd24));
+wire we_tx_data_9               = cs & (~rw) & (~reset_mode) & ((~extended_mode) & (addr == 8'd19) | extended_mode & (addr == 8'd25));
+wire we_tx_data_10              = cs & (~rw) & (~reset_mode) & (                                     extended_mode & (addr == 8'd26));
+wire we_tx_data_11              = cs & (~rw) & (~reset_mode) & (                                     extended_mode & (addr == 8'd27));
+wire we_tx_data_12              = cs & (~rw) & (~reset_mode) & (                                     extended_mode & (addr == 8'd28));
 /* End: This section is for BASIC and EXTENDED mode */
 
 
 /* This section is for EXTENDED mode */
-wire we_acceptance_code_1     = cs & (~rw) & (addr == 8'h17) & reset_mode & extended_mode;
-wire we_acceptance_code_2     = cs & (~rw) & (addr == 8'h18) & reset_mode & extended_mode;
-wire we_acceptance_code_3     = cs & (~rw) & (addr == 8'h19) & reset_mode & extended_mode;
-wire we_acceptance_mask_1     = cs & (~rw) & (addr == 8'h21) & reset_mode & extended_mode;
-wire we_acceptance_mask_2     = cs & (~rw) & (addr == 8'h22) & reset_mode & extended_mode;
-wire we_acceptance_mask_3     = cs & (~rw) & (addr == 8'h23) & reset_mode & extended_mode;
+wire we_acceptance_code_1     = cs & (~rw) & (addr == 8'd17) & reset_mode & extended_mode;
+wire we_acceptance_code_2     = cs & (~rw) & (addr == 8'd18) & reset_mode & extended_mode;
+wire we_acceptance_code_3     = cs & (~rw) & (addr == 8'd19) & reset_mode & extended_mode;
+wire we_acceptance_mask_1     = cs & (~rw) & (addr == 8'd21) & reset_mode & extended_mode;
+wire we_acceptance_mask_2     = cs & (~rw) & (addr == 8'd22) & reset_mode & extended_mode;
+wire we_acceptance_mask_3     = cs & (~rw) & (addr == 8'd23) & reset_mode & extended_mode;
 /* End: This section is for EXTENDED mode */
 
 
@@ -349,9 +396,140 @@ can_register #(8) ACCEPTANCE_MASK_REG0
   .we(we_acceptance_mask_0),
   .clk(clk)
 );
-/* End: Acceptance code register */
-
+/* End: Acceptance mask register */
 /* End: This section is for BASIC and EXTENDED mode */
+
+
+/* Tx data 0 register. */
+can_register #(8) TX_DATA_REG0
+( .data_in(data_in),
+  .data_out(tx_data_0),
+  .we(we_tx_data_0),
+  .clk(clk)
+);
+/* End: Tx data 0 register. */
+
+
+/* Tx data 1 register. */
+can_register #(8) TX_DATA_REG1
+( .data_in(data_in),
+  .data_out(tx_data_1),
+  .we(we_tx_data_1),
+  .clk(clk)
+);
+/* End: Tx data 1 register. */
+
+
+/* Tx data 2 register. */
+can_register #(8) TX_DATA_REG2
+( .data_in(data_in),
+  .data_out(tx_data_2),
+  .we(we_tx_data_2),
+  .clk(clk)
+);
+/* End: Tx data 2 register. */
+
+
+/* Tx data 3 register. */
+can_register #(8) TX_DATA_REG3
+( .data_in(data_in),
+  .data_out(tx_data_3),
+  .we(we_tx_data_3),
+  .clk(clk)
+);
+/* End: Tx data 3 register. */
+
+
+/* Tx data 4 register. */
+can_register #(8) TX_DATA_REG4
+( .data_in(data_in),
+  .data_out(tx_data_4),
+  .we(we_tx_data_4),
+  .clk(clk)
+);
+/* End: Tx data 4 register. */
+
+
+/* Tx data 5 register. */
+can_register #(8) TX_DATA_REG5
+( .data_in(data_in),
+  .data_out(tx_data_5),
+  .we(we_tx_data_5),
+  .clk(clk)
+);
+/* End: Tx data 5 register. */
+
+
+/* Tx data 6 register. */
+can_register #(8) TX_DATA_REG6
+( .data_in(data_in),
+  .data_out(tx_data_6),
+  .we(we_tx_data_6),
+  .clk(clk)
+);
+/* End: Tx data 6 register. */
+
+
+/* Tx data 7 register. */
+can_register #(8) TX_DATA_REG7
+( .data_in(data_in),
+  .data_out(tx_data_7),
+  .we(we_tx_data_7),
+  .clk(clk)
+);
+/* End: Tx data 7 register. */
+
+
+/* Tx data 8 register. */
+can_register #(8) TX_DATA_REG8
+( .data_in(data_in),
+  .data_out(tx_data_8),
+  .we(we_tx_data_8),
+  .clk(clk)
+);
+/* End: Tx data 8 register. */
+
+
+/* Tx data 9 register. */
+can_register #(8) TX_DATA_REG9
+( .data_in(data_in),
+  .data_out(tx_data_9),
+  .we(we_tx_data_9),
+  .clk(clk)
+);
+/* End: Tx data 9 register. */
+
+
+/* Tx data 10 register. */
+can_register #(8) TX_DATA_REG10
+( .data_in(data_in),
+  .data_out(tx_data_10),
+  .we(we_tx_data_10),
+  .clk(clk)
+);
+/* End: Tx data 10 register. */
+
+
+/* Tx data 11 register. */
+can_register #(8) TX_DATA_REG11
+( .data_in(data_in),
+  .data_out(tx_data_11),
+  .we(we_tx_data_11),
+  .clk(clk)
+);
+/* End: Tx data 11 register. */
+
+
+/* Tx data 12 register. */
+can_register #(8) TX_DATA_REG12
+( .data_in(data_in),
+  .data_out(tx_data_12),
+  .we(we_tx_data_12),
+  .clk(clk)
+);
+/* End: Tx data 12 register. */
+
+
 
 
 
@@ -427,9 +605,6 @@ can_register #(8) ACCEPTANCE_MASK_REG3
 
 
 
-wire [7:0] fix_me = 8'h0;     // This wire is used in many exuations that are not final, yet. Fix them !!!
-
-
 
 // Reading data from registers
 always @ ( addr or read or extended_mode or mode or bus_timing_0 or bus_timing_1 or clock_divider
@@ -440,20 +615,25 @@ begin
       if (extended_mode)    // EXTENDED mode (Different register map depends on mode)
         begin
           case(addr)
-            8'h0  :  data_out <= mode;
-            8'h1  :  data_out <= 8'h0;
-            8'h6  :  data_out <= bus_timing_0;
-            8'h7  :  data_out <= bus_timing_1;
-            8'h16 :  data_out <= reset_mode? acceptance_code_0 : fix_me;    // + fix TX identifiers
-            8'h17 :  data_out <= reset_mode? acceptance_code_1 : fix_me;
-            8'h18 :  data_out <= reset_mode? acceptance_code_2 : fix_me;
-            8'h19 :  data_out <= reset_mode? acceptance_code_3 : fix_me;
-            8'h20 :  data_out <= reset_mode? acceptance_mask_0 : fix_me;
-            8'h21 :  data_out <= reset_mode? acceptance_mask_1 : fix_me;
-            8'h22 :  data_out <= reset_mode? acceptance_mask_2 : fix_me;
-            8'h23 :  data_out <= reset_mode? acceptance_mask_3 : fix_me;
+            8'd0  :  data_out <= mode;
+            8'd1  :  data_out <= 8'h0;
+            8'd6  :  data_out <= bus_timing_0;
+            8'd7  :  data_out <= bus_timing_1;
+            8'd16 :  data_out <= acceptance_code_0;
+            8'd17 :  data_out <= acceptance_code_1;
+            8'd18 :  data_out <= acceptance_code_2;
+            8'd19 :  data_out <= acceptance_code_3;
+            8'd20 :  data_out <= acceptance_mask_0;
+            8'd21 :  data_out <= acceptance_mask_1;
+            8'd22 :  data_out <= acceptance_mask_2;
+            8'd23 :  data_out <= acceptance_mask_3;
+            8'd24 :  data_out <= 8'h0;
+            8'd25 :  data_out <= 8'h0;
+            8'd26 :  data_out <= 8'h0;
+            8'd27 :  data_out <= 8'h0;
+            8'd28 :  data_out <= 8'h0;
     
-            8'h31 :  data_out <= {clock_divider[7:5], 1'b0, clock_divider[3:0]};
+            8'd31 :  data_out <= {clock_divider[7:5], 1'b0, clock_divider[3:0]};
     
             default: data_out <= 8'h0;
           endcase
@@ -461,14 +641,23 @@ begin
       else                  // BASIC mode
         begin
           case(addr)
-            8'h0  :  data_out <= mode;
-            8'h1  :  data_out <= 8'hff;
-            8'h4  :  data_out <= reset_mode? acceptance_code_0 : 8'hff;
-            8'h5  :  data_out <= reset_mode? acceptance_mask_0 : 8'hff;
-            8'h6  :  data_out <= reset_mode? bus_timing_0 : 8'hff;
-            8'h7  :  data_out <= reset_mode? bus_timing_1 : 8'hff;
-    
-            8'h31 :  data_out <= {clock_divider[7:5], 1'b0, clock_divider[3:0]};
+            8'd0  :  data_out <= mode;
+            8'd1  :  data_out <= 8'hff;
+            8'd4  :  data_out <= reset_mode? acceptance_code_0 : 8'hff;
+            8'd5  :  data_out <= reset_mode? acceptance_mask_0 : 8'hff;
+            8'd6  :  data_out <= reset_mode? bus_timing_0 : 8'hff;
+            8'd7  :  data_out <= reset_mode? bus_timing_1 : 8'hff;
+            8'd10 :  data_out <= reset_mode? 8'hff : tx_data_0;
+            8'd11 :  data_out <= reset_mode? 8'hff : tx_data_0;
+            8'd12 :  data_out <= reset_mode? 8'hff : tx_data_0;
+            8'd13 :  data_out <= reset_mode? 8'hff : tx_data_0;
+            8'd14 :  data_out <= reset_mode? 8'hff : tx_data_0;
+            8'd15 :  data_out <= reset_mode? 8'hff : tx_data_0;
+            8'd16 :  data_out <= reset_mode? 8'hff : tx_data_0;
+            8'd17 :  data_out <= reset_mode? 8'hff : tx_data_0;
+            8'd18 :  data_out <= reset_mode? 8'hff : tx_data_0;
+            8'd19 :  data_out <= reset_mode? 8'hff : tx_data_0;
+            8'd31 :  data_out <= {clock_divider[7:5], 1'b0, clock_divider[3:0]};
     
             default: data_out <= 8'h0;
           endcase

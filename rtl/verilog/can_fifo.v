@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2003/01/14 12:19:35  mohor
+// rx_fifo is now working.
+//
 // Revision 1.3  2003/01/09 21:54:45  mohor
 // rx fifo added. Not 100 % verified, yet.
 //
@@ -250,11 +253,11 @@ always @ (extended_mode or rd_pointer or addr)
 begin
   if (extended_mode)      // extended mode
     begin
-      read_address <= rd_pointer + (addr - 8'h16);
+      read_address <= rd_pointer + (addr - 8'd16);
     end
   else                    // normal mode
     begin
-      read_address <= rd_pointer + (addr - 8'h20);
+      read_address <= rd_pointer + (addr - 8'd20);
     end
 end
 

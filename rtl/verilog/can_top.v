@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.7  2003/01/10 17:51:34  mohor
+// Temporary version (backup).
+//
 // Revision 1.6  2003/01/09 21:54:45  mohor
 // rx fifo added. Not 100 % verified, yet.
 //
@@ -142,6 +145,21 @@ wire [7:0] acceptance_mask_2;
 wire [7:0] acceptance_mask_3;
 /* End: This section is for EXTENDED mode */
 
+/* Tx data registers. Holding identifier (basic mode), tx frame information (extended mode) and data */
+wire [7:0] tx_data_0;
+wire [7:0] tx_data_1;
+wire [7:0] tx_data_2;
+wire [7:0] tx_data_3;
+wire [7:0] tx_data_4;
+wire [7:0] tx_data_5;
+wire [7:0] tx_data_6;
+wire [7:0] tx_data_7;
+wire [7:0] tx_data_8;
+wire [7:0] tx_data_9;
+wire [7:0] tx_data_10;
+wire [7:0] tx_data_11;
+wire [7:0] tx_data_12;
+/* End: Tx data registers */
 
 
 /* Connecting can_registers module */
@@ -200,8 +218,24 @@ can_registers i_can_registers
   /* Acceptance mask register */
   .acceptance_mask_1(acceptance_mask_1),
   .acceptance_mask_2(acceptance_mask_2),
-  .acceptance_mask_3(acceptance_mask_3)
+  .acceptance_mask_3(acceptance_mask_3),
   /* End: This section is for EXTENDED mode */
+
+  /* Tx data registers. Holding identifier (basic mode), tx frame information (extended mode) and data */
+  .tx_data_0(tx_data_0),
+  .tx_data_1(tx_data_1),
+  .tx_data_2(tx_data_2),
+  .tx_data_3(tx_data_3),
+  .tx_data_4(tx_data_4),
+  .tx_data_5(tx_data_5),
+  .tx_data_6(tx_data_6),
+  .tx_data_7(tx_data_7),
+  .tx_data_8(tx_data_8),
+  .tx_data_9(tx_data_9),
+  .tx_data_10(tx_data_10),
+  .tx_data_11(tx_data_11),
+  .tx_data_12(tx_data_12)
+  /* End: Tx data registers */
 
 
 
@@ -317,7 +351,7 @@ can_bsp i_can_bsp
 // Multiplexing data_out from registers and rx fifo
 always @ (extended_mode or addr)
 begin
-  if (extended_mode & ((addr >= 8'h16) && (addr <= 8'h28)) | (~extended_mode) & ((addr >= 8'h20) && (addr <= 8'h29)))
+  if (extended_mode & (~reset_mode) & ((addr >= 8'd16) && (addr <= 8'd28)) | (~extended_mode) & ((addr >= 8'd20) && (addr <= 8'd29)))
     data_out_fifo_selected <= 1'b1;
   else
     data_out_fifo_selected <= 1'b0;
