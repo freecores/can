@@ -41,6 +41,11 @@ foreach filename ( `cat ../bin/sim_file_list` )
     echo "../../../bench/verilog/"$filename >> ncvlog.args
 end
 
+echo "../../../../bist/rtl/verilog/bist.v" >> ncvlog.args
+echo "../../../../bist/rtl/verilog/bist_dp_top.v" >> ncvlog.args
+echo "../../../../bist/rtl/verilog/bist_sp_top.v" >> ncvlog.args
+echo "../../../../bist/rtl/verilog/bist_tp_top.v" >> ncvlog.args
+
 ncvlog -f ncvlog.args
 
 echo "-MESSAGES"                             > ncelab.args

@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.35  2003/06/17 15:14:48  mohor
+// cs_can_i is used only when WISHBONE interface is not used.
+//
 // Revision 1.34  2003/03/26 11:25:39  mohor
 // CAN inturrupt is active low.
 //
@@ -209,6 +212,8 @@ reg         cs_can;
 reg         clk;
 reg         rx;
 wire        tx;
+wire        tx_i;
+wire        tx_oen;
 wire        irq;
 wire        clkout;
 
@@ -219,7 +224,6 @@ reg   [7:0] tmp_data;
 reg         delayed_tx;
 reg         tx_bypassed;
 reg         extended_mode;
-
 
 
 // Instantiate can_top module
@@ -245,11 +249,26 @@ can_top i_can_top
 `endif
   .clk_i(clk),
   .rx_i(rx_and_tx),
-  .tx_o(tx),
+  .tx_o(tx_i),
+  .tx_oen_o(tx_oen),
   .irq_on(irq),
   .clkout_o(clkout)
+
+  // Bist
+`ifdef CAN_BIST
+  ,
+  // debug chain signals
+  .scanb_rst(1'b1),      // bist scan reset
+  .scanb_clk(1'b0),      // bist scan clock
+  .scanb_si(1'b0),       // bist scan serial in
+  .scanb_so(),           // bist scan serial out
+  .scanb_en(1'b0)        // bist scan shift enable
+`endif
 );
 
+
+// Combining tx with the output enable signal.
+assign tx = tx_oen? 1'bz : tx_i;
 
 `ifdef CAN_WISHBONE_IF
   // Generate wishbone clock signal 10 MHz
