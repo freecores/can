@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.24  2003/10/17 05:55:20  markom
+// mbist signals updated according to newest convention
+//
 // Revision 1.23  2003/09/05 12:46:41  mohor
 // ALTERA_RAM supported.
 //
@@ -376,13 +379,14 @@ end
     .rdclock   (clk),
     .wrclock   (clk),
     .data      (data_in),
-    .wren      (~(wr & (~fifo_full))),
-    .rden      (~fifo_selected),
+    .wren      (wr & (~fifo_full)),
+    .rden      (fifo_selected),
     .wraddress (wr_pointer),
     .rdaddress (read_address)
   );
   defparam fifo.lpm_width = 8;
   defparam fifo.lpm_widthad = 6;
+  defparam fifo.lpm_numwords = 64;
 
 
 //  altera_ram_64x4_sync info_fifo
@@ -392,13 +396,13 @@ end
     .rdclock   (clk),
     .wrclock   (clk),
     .data      (len_cnt & {4{~initialize_memories}}),
-    .wren      (~(write_length_info & (~info_full) | initialize_memories)),
-    .rden      (1'b0),                   // always enabled
+    .wren      (write_length_info & (~info_full) | initialize_memories),
     .wraddress (wr_info_pointer),
     .rdaddress (rd_info_pointer)
   );
   defparam info_fifo.lpm_width = 4;
   defparam info_fifo.lpm_widthad = 6;
+  defparam info_fifo.lpm_numwords = 64;
 
 
 //  altera_ram_64x1_sync overrun_fifo
@@ -408,13 +412,13 @@ end
     .rdclock   (clk),
     .wrclock   (clk),
     .data      ((latch_overrun | (wr & fifo_full)) & (~initialize_memories)),
-    .wren      (~(write_length_info & (~info_full) | initialize_memories)),
-    .rden      (1'b0),                   // always enabled
+    .wren      (write_length_info & (~info_full) | initialize_memories),
     .wraddress (wr_info_pointer),
     .rdaddress (rd_info_pointer)
   );
   defparam overrun_fifo.lpm_width = 1;
   defparam overrun_fifo.lpm_widthad = 6;
+  defparam overrun_fifo.lpm_numwords = 64;
 
 `else
 `ifdef ACTEL_APA_RAM
