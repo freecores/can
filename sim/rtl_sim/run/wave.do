@@ -116,8 +116,8 @@ define variable nofilenames
 define variable nofullpathfilenames
 include bookmark with filenames
 include scope history without filenames
-define waveform window listpane 9
-define waveform window namepane 10
+define waveform window listpane 7.43
+define waveform window namepane 15.37
 define multivalueindication
 define pattern curpos dot
 define pattern cursor1 dot
@@ -296,6 +296,23 @@ add group \
       can_testbench.i_can_top.i_can_bsp.write_data_to_tmp_fifo \
 
 add group \
+    can_fifo \
+      can_testbench.i_can_top.i_can_bsp.i_can_fifo.clk \
+      can_testbench.i_can_top.i_can_bsp.i_can_fifo.data_in[7:0]'h \
+      can_testbench.i_can_top.i_can_bsp.i_can_fifo.data_out[7:0]'h \
+      can_testbench.i_can_top.i_can_bsp.i_can_fifo.info_pointer[2:0]'h \
+      can_testbench.i_can_top.i_can_bsp.i_can_fifo.len_cnt[3:0]'h \
+      can_testbench.i_can_top.i_can_bsp.i_can_fifo.rd \
+      can_testbench.i_can_top.i_can_bsp.i_can_fifo.rd_pointer[5:0]'h \
+      can_testbench.i_can_top.i_can_bsp.i_can_fifo.release_buffer \
+      can_testbench.i_can_top.i_can_bsp.i_can_fifo.reset_mode \
+      can_testbench.i_can_top.i_can_bsp.i_can_fifo.rst \
+      can_testbench.i_can_top.i_can_bsp.i_can_fifo.wr \
+      can_testbench.i_can_top.i_can_bsp.i_can_fifo.wr_pointer[5:0]'h \
+      can_testbench.i_can_top.i_can_bsp.i_can_fifo.wr_q \
+      can_testbench.i_can_top.i_can_bsp.i_can_fifo.write_length_info \
+
+add group \
     testbench \
       can_testbench.send_frame.cnt's \
       can_testbench.send_frame.crc[14:0]'h \
@@ -357,4 +374,5 @@ add group \
 
 
 deselect all
-open window designbrowser 1 geometry 56 117 855 550
+open window waveform 1 geometry 10 59 1592 1140
+zoom at 134418.91ns 0.01676840 0.00000000

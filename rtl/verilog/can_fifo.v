@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2003/01/09 14:46:58  mohor
+// Temporary files (backup).
+//
 // Revision 1.1  2003/01/08 02:10:55  mohor
 // Acceptance filter added.
 //
@@ -66,10 +69,12 @@ module can_fifo
   wr,
 
   data_in,
+  addr,
   data_out,
 
   reset_mode,
-  release_buffer
+  release_buffer,
+  extended_mode
 
 );
 
@@ -80,8 +85,10 @@ input         rst;
 input         rd;
 input         wr;
 input   [7:0] data_in;
+input   [7:0] addr;
 input         reset_mode;
 input         release_buffer;
+input         extended_mode;
 
 output  [7:0] data_out;
 
@@ -89,7 +96,7 @@ output  [7:0] data_out;
 reg     [7:0] fifo [0:63];
 reg     [5:0] rd_pointer;
 reg     [5:0] wr_pointer;
-
+reg     [5:0] read_address;
 reg     [3:0] length_info[0:31];
 reg     [4:0] wr_info_pointer;
 reg     [4:0] rd_info_pointer;
@@ -192,7 +199,24 @@ begin
     fifo[wr_pointer] <=#Tp data_in;
 end
 
-assign data_out = fifo[rd_pointer];
+
+
+// Selecting which address will be used for reading data from rx fifo
+always @ (extended_mode or rd_pointer or addr)
+begin
+  if (extended_mode)      // extended mode
+    begin
+      read_address <= rd_pointer + (addr - 8'h16);
+    end
+  else                    // normal mode
+    begin
+      read_address <= rd_pointer + (addr - 8'h20);
+    end
+end
+
+
+
+assign data_out = fifo[read_address];
 
 
 

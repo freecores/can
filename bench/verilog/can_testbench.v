@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.8  2003/01/08 02:09:43  mohor
+// Acceptance filter added.
+//
 // Revision 1.7  2002/12/28 04:13:53  mohor
 // Backup version.
 //
@@ -92,6 +95,7 @@ reg         cs, rw;
 reg   [7:0] addr;
 reg         rx;
 integer     start_tb;
+reg   [7:0] tmp_data;
 
 // Instantiate can_top module
 can_top i_can_top
@@ -138,6 +142,8 @@ begin
 
   // Set bus timing register 1
   write_register(8'h7, {`CAN_TIMING1_SAM, `CAN_TIMING1_TSEG2, `CAN_TIMING1_TSEG1});
+
+
 
   // Set Clock Divider register
   write_register(8'h31, {`CAN_CLOCK_DIVIDER_MODE, 7'h0});    // Setting the normal mode (not extended)
@@ -188,11 +194,40 @@ begin
   
 
   repeat (50000) @ (posedge clk);
+
+  read_register(8'h4);
+  read_register(8'h20);
+  read_register(8'h21);
+  read_register(8'h22);
+  read_register(8'h23);
+  read_register(8'h24);
+  read_register(8'h25);
+
+
   $display("CAN Testbench finished.");
   $stop;
 end
 
 
+
+
+task read_register;
+  input [7:0] reg_addr;
+
+  begin
+    @ (posedge clk);
+    #1; 
+    addr = reg_addr;
+    cs = 1;
+    rw = 1;
+    @ (posedge clk);
+    $display("(%0t) Reading register [0x%0x] = 0x%0x", $time, addr, data_out);
+    #1; 
+    addr = 'hz;
+    cs = 0;
+    rw = 'hz;
+  end
+endtask
 
 
 task write_register;

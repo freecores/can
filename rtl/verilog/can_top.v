@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2003/01/08 02:10:56  mohor
+// Acceptance filter added.
+//
 // Revision 1.4  2002/12/28 04:13:23  mohor
 // Backup version.
 //
@@ -84,6 +87,11 @@ output [7:0] data_out;
 input        cs, rw;
 input  [7:0] addr;
 input        rx;
+
+reg           data_out_fifo_selected;
+
+wire   [7:0] data_out_fifo;
+wire   [7:0] data_out_regs;
 
 
 /* Mode register */
@@ -139,7 +147,7 @@ can_registers i_can_registers
   .rw(rw),
   .addr(addr),
   .data_in(data_in),
-  .data_out(data_out),
+  .data_out(data_out_regs),
 
   /* Mode register */
   .reset_mode(reset_mode),
@@ -254,6 +262,9 @@ can_bsp i_can_bsp
   .hard_sync(hard_sync),
   .resync(resync),
 
+  .addr(addr),
+  .data_out(data_out_fifo),
+
   /* Mode register */
   .reset_mode(reset_mode),
   .acceptance_filter_mode(acceptance_filter_mode),
@@ -287,6 +298,16 @@ can_bsp i_can_bsp
 );
 
 
+// Multiplexing data_out from registers and rx fifo
+always @ (extended_mode or addr)
+begin
+  if (extended_mode & ((addr >= 8'h16) && (addr <= 8'h28)) | (~extended_mode) & ((addr >= 8'h20) && (addr <= 8'h29)))
+    data_out_fifo_selected <= 1'b1;
+  else
+    data_out_fifo_selected <= 1'b0;
+end
 
+
+assign data_out = data_out_fifo_selected ? data_out_fifo : data_out_regs;
 
 endmodule

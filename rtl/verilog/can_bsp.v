@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2003/01/09 14:46:58  mohor
+// Temporary files (backup).
+//
 // Revision 1.5  2003/01/08 13:30:31  mohor
 // Temp version.
 //
@@ -78,6 +81,10 @@ module can_bsp
   sampled_bit_q,
   hard_sync,
   resync,
+
+  addr,
+  data_out,
+
 
   /* Mode register */
   reset_mode,
@@ -119,6 +126,9 @@ input         sampled_bit;
 input         sampled_bit_q;
 input         hard_sync;
 input         resync;
+input   [7:0] addr;
+output  [7:0] data_out;
+
 
 input         reset_mode;
 input         acceptance_filter_mode;
@@ -803,10 +813,12 @@ can_fifo i_can_fifo
   .wr(wr_fifo),
 
   .data_in(data_for_fifo),
-  .data_out(),
+  .addr(addr),
+  .data_out(data_out),
 
   .reset_mode(reset_mode),
-  .release_buffer(1'b0)     // FIX ME
+  .release_buffer(1'b0),     // FIX ME
+  .extended_mode(extended_mode)
 
   
 );
