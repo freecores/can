@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.49  2004/10/25 06:37:51  igorm
+// Arbitration bug fixed.
+//
 // Revision 1.48  2004/05/12 15:58:41  igorm
 // Core improved to pass all tests with the Bosch VHDL Reference system.
 //
@@ -524,7 +527,6 @@ reg     [2:0] passive_cnt;
 reg           transmitting;
 
 reg           error_frame;
-reg           error_frame_q;
 reg           enable_error_cnt2;
 reg     [2:0] error_cnt1;
 reg     [2:0] error_cnt2;
@@ -540,6 +542,7 @@ reg           crc_err;
 
 reg           arbitration_lost;
 reg           arbitration_lost_q;
+reg           read_arbitration_lost_capture_reg_q;
 reg     [4:0] arbitration_lost_capture;
 reg           arbitration_cnt_en;
 reg           arbitration_blocked;
@@ -560,7 +563,6 @@ reg           finish_msg;
 
 reg     [8:0] rx_err_cnt;
 reg     [8:0] tx_err_cnt;
-reg           rx_err_cnt_blocked;
 reg     [3:0] bus_free_cnt;
 reg           bus_free_cnt_en;
 reg           bus_free;
@@ -575,7 +577,6 @@ reg           stuff_err_latched;
 reg           form_err_latched;
 reg           rule3_exc1_1;
 reg           rule3_exc1_2;
-reg           rule3_exc2;
 reg           suspend;
 reg           susp_cnt_en;
 reg     [2:0] susp_cnt;
@@ -1220,19 +1221,6 @@ begin
 end
 
 
-// Rule 3 exception 2 (Fault confinement).
-always @ (posedge clk or posedge rst)
-begin
-  if (rst)
-    rule3_exc2 <= 1'b0;
-  else if (reset_mode | error_flag_over)
-    rule3_exc2 <=#Tp 1'b0;
-  else if (transmitter & stuff_err & arbitration_field & sample_point & tx & (~sampled_bit))
-    rule3_exc2 <=#Tp 1'b1;
-end
-
-
-
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
@@ -1433,15 +1421,6 @@ begin
     error_frame <=#Tp 1'b0;
   else if (go_error_frame)
     error_frame <=#Tp 1'b1;
-end
-
-
-always @ (posedge clk or posedge rst)
-begin
-  if (rst)
-    error_frame_q <=#Tp 1'b0;
-  else if (sample_point)
-    error_frame_q <=#Tp error_frame;
 end
 
 
@@ -1897,9 +1876,15 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    arbitration_lost_q <=#Tp 1'b0;
+    begin
+      arbitration_lost_q <=#Tp 1'b0;
+      read_arbitration_lost_capture_reg_q <=#Tp 1'b0;
+    end
   else
-    arbitration_lost_q <=#Tp arbitration_lost;
+    begin
+      arbitration_lost_q <=#Tp arbitration_lost;
+      read_arbitration_lost_capture_reg_q <=#Tp read_arbitration_lost_capture_reg;
+    end
 end
 
 
@@ -1933,7 +1918,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     arbitration_lost_capture <= 5'h0;
-  else if (read_arbitration_lost_capture_reg)
+  else if (read_arbitration_lost_capture_reg_q)
     arbitration_lost_capture <=#Tp 5'h0;
   else if (sample_point & (~arbitration_blocked) & arbitration_cnt_en & (~bit_de_stuff))
     arbitration_lost_capture <=#Tp arbitration_lost_capture + 1'b1;
@@ -1999,18 +1984,6 @@ begin
         end
     end
 end
-
-
-always @ (posedge clk or posedge rst)
-begin
-  if (rst)
-    rx_err_cnt_blocked <= 1'b0;
-  else if (reset_mode | error_frame_ended | go_error_frame | go_overload_frame)
-    rx_err_cnt_blocked <=#Tp 1'b0;
-  else if (sample_point & (error_cnt1 == 3'd7))
-    rx_err_cnt_blocked <=#Tp 1'b1;
-end
-
 
 
 always @ (posedge clk or posedge rst)

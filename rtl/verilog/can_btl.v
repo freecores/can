@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.29  2004/05/12 15:58:41  igorm
+// Core improved to pass all tests with the Bosch VHDL Reference system.
+//
 // Revision 1.28  2004/02/08 14:25:26  mohor
 // Header changed.
 //
@@ -232,7 +235,7 @@ reg           sync_blocked;
 reg           hard_sync_blocked;
 reg           sampled_bit;
 reg           sampled_bit_q;
-reg     [3:0] quant_cnt;
+reg     [4:0] quant_cnt;
 reg     [3:0] delay;
 reg           sync;
 reg           seg1;
@@ -362,9 +365,9 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    quant_cnt <= 4'h0;
+    quant_cnt <= 5'h0;
   else if (go_sync | go_seg1 | go_seg2)
-    quant_cnt <=#Tp 4'h0;
+    quant_cnt <=#Tp 5'h0;
   else if (clk_en_q)
     quant_cnt <=#Tp quant_cnt + 1'b1;
 end
@@ -376,7 +379,7 @@ begin
   if (rst)
     delay <= 4'h0;
   else if (resync & seg1 & (~transmitting | transmitting & (tx_next_sp | (tx & (~rx)))))  // when transmitting 0 with positive error delay is set to 0
-    delay <=#Tp (quant_cnt > {2'h0, sync_jump_width})? ({2'h0, sync_jump_width} + 1'b1) : (quant_cnt + 1'b1);
+    delay <=#Tp (quant_cnt > {3'h0, sync_jump_width})? ({2'h0, sync_jump_width} + 1'b1) : (quant_cnt + 1'b1);
   else if (go_sync | go_seg1)
     delay <=#Tp 4'h0;
 end
