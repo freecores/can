@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.18  2003/02/19 14:44:03  mohor
+// CAN core finished. Host interface added. Registers finished.
+// Synchronization to the wishbone finished.
+//
 // Revision 1.17  2003/02/18 00:10:15  mohor
 // Most of the registers added. Registers "arbitration lost capture", "error code
 // capture" + few more still need to be added.
@@ -592,11 +596,11 @@ always @ (posedge clk or posedge wb_rst_i)
 begin
   if (wb_rst_i)
     begin
-      cs_sync1     <=# 1'b0;
-      cs_sync2     <=# 1'b0;
-      cs_sync3     <=# 1'b0;
-      cs_sync_rst1 <=# 1'b0;
-      cs_sync_rst2 <=# 1'b0;
+      cs_sync1     <= 1'b0;
+      cs_sync2     <= 1'b0;
+      cs_sync3     <= 1'b0;
+      cs_sync_rst1 <= 1'b0;
+      cs_sync_rst2 <= 1'b0;
     end
   else
     begin
