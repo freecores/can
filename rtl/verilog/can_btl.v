@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.16  2003/06/16 13:57:58  mohor
+// tx_point generated one clk earlier. rx_i registered. Data corrected when
+// using extended mode.
+//
 // Revision 1.15  2003/06/13 15:02:24  mohor
 // Synchronization is also needed when transmitting a message.
 //
@@ -129,11 +133,9 @@ module can_btl
   sampled_bit_q,
   tx_point,
   hard_sync,
-  go_seg1,
   
   /* Output from can_bsp module */
   rx_idle,
-  overjump_sync_seg,
   last_bit_of_inter
   
   
@@ -162,7 +164,6 @@ input         triple_sampling;
 
 /* Output from can_bsp module */
 input         rx_idle;
-input         overjump_sync_seg;
 input         last_bit_of_inter;
 
 /* Output signals from this module */
@@ -171,7 +172,6 @@ output        sampled_bit;
 output        sampled_bit_q;
 output        tx_point;
 output        hard_sync;
-output        go_seg1;
 
 
 
@@ -198,8 +198,7 @@ wire          go_seg2;
 wire [8:0]    preset_cnt;
 wire          sync_window;
 wire          resync;
-wire          quant_cnt_rst1;
-wire          quant_cnt_rst2;
+wire          quant_cnt_rst;
 
 
 
@@ -310,19 +309,14 @@ end
 
 
 /* Quant counter */
+assign quant_cnt_rst = go_sync | go_seg1 | go_seg2;
 
-//assign quant_cnt_rst1 = go_sync | go_seg1 & (~overjump_sync_seg) | go_seg2;
-//assign quant_cnt_rst2 = go_seg1 & overjump_sync_seg;
-assign quant_cnt_rst1 = go_sync | go_seg1 | go_seg2;
-assign quant_cnt_rst2 = 1'b0;
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
     quant_cnt <= 0;
-  else if (quant_cnt_rst1)
+  else if (quant_cnt_rst)
     quant_cnt <=#Tp 0;
-  else if (quant_cnt_rst2)
-    quant_cnt <=#Tp 1;
   else if (clk_en_q)
     quant_cnt <=#Tp quant_cnt + 1'b1;
 end
