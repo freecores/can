@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.16  2003/02/19 14:44:03  mohor
+// CAN core finished. Host interface added. Registers finished.
+// Synchronization to the wishbone finished.
+//
 // Revision 1.15  2003/02/18 00:10:15  mohor
 // Most of the registers added. Registers "arbitration lost capture", "error code
 // capture" + few more still need to be added.
@@ -743,7 +747,7 @@ end
 
 
 
-always @ (cd or clk or clkout_tmp)
+always @ (cd or clk or clkout_tmp or clock_off)
 begin
   if (clock_off)
     clkout <=#Tp 1'b1;
@@ -995,7 +999,7 @@ always @ ( addr or read or extended_mode or mode or bus_timing_0 or bus_timing_1
            reset_mode or tx_data_0 or tx_data_1 or tx_data_2 or tx_data_3 or tx_data_4 or 
            tx_data_5 or tx_data_6 or tx_data_7 or tx_data_8 or tx_data_9 or status or 
            error_warning_limit or rx_err_cnt or tx_err_cnt or irq_en_ext or irq_reg or mode_ext or
-           arbitration_lost_capture or rx_message_counter or mode_basic
+           arbitration_lost_capture or rx_message_counter or mode_basic or error_capture_code
          )
 begin
   if(read)  // read

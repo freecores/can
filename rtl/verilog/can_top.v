@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.19  2003/02/19 15:04:14  mohor
+// Typo fixed.
+//
 // Revision 1.18  2003/02/19 14:44:03  mohor
 // CAN core finished. Host interface added. Registers finished.
 // Synchronization to the wishbone finished.
@@ -167,6 +170,8 @@ reg          cs_sync3;
 reg          cs_ack1;
 reg          cs_ack2;
 reg          cs_ack3;
+reg          cs_sync_rst1;
+reg          cs_sync_rst2;
 
 wire   [7:0] data_out_fifo;
 wire   [7:0] data_out_regs;
@@ -588,10 +593,6 @@ end
 
 
 // Combining wb_cyc_i and wb_stb_i signals to cs signal. Than synchronizing to clk clock domain. 
-reg rst_blocked_ack;
-reg          cs_sync_rst1;
-reg          cs_sync_rst2;
-
 always @ (posedge clk or posedge wb_rst_i)
 begin
   if (wb_rst_i)
