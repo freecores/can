@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2003/02/10 16:02:11  mohor
+// CAN is working according to the specification. WB interface and more
+// registers (status, IRQ, ...) needs to be added.
+//
 // Revision 1.2  2003/02/09 02:24:33  mohor
 // Bosch license warning added. Error counters finished. Overload frames
 // still need to be fixed.
@@ -89,7 +93,7 @@ assign crc_tmp = {crc[13:0], 1'b0};
 always @ (posedge clk)
 begin
   if(initialize)
-    crc <= #Tp 0;
+    crc <= #Tp 15'h0;
   else if (enable)
     begin
       if (crc_next)
