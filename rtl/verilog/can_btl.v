@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.12  2003/02/14 20:17:01  mohor
+// Several registers added. Not finished, yet.
+//
 // Revision 1.11  2003/02/09 18:40:29  mohor
 // Overload fixed. Hard synchronization also enabled at the last bit of
 // interframe.
@@ -118,11 +121,12 @@ module can_btl
   sampled_bit_q,
   tx_point,
   hard_sync,
-  resync,
+  go_seg1,
   
   /* Output from can_bsp module */
   rx_idle,
   transmitting,
+  overjump_sync_seg,
   last_bit_of_inter
   
   
@@ -152,6 +156,7 @@ input         triple_sampling;
 /* Output from can_bsp module */
 input         rx_idle;
 input         transmitting;
+input         overjump_sync_seg;
 input         last_bit_of_inter;
 
 /* Output signals from this module */
@@ -161,7 +166,7 @@ output        sampled_bit;
 output        sampled_bit_q;
 output        tx_point;
 output        hard_sync;
-output        resync;
+output        go_seg1;
 
 
 
@@ -185,7 +190,7 @@ wire          go_seg1;
 wire          go_seg2;
 wire [8:0]    preset_cnt;
 wire          sync_window;
-
+wire          resync;
 
 
 assign preset_cnt = (baud_r_presc + 1'b1)<<1;        // (BRP+1)*2
@@ -281,8 +286,10 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     quant_cnt <= 0;
-  else if (go_sync | go_seg1 | go_seg2)
+  else if (go_sync | go_seg1 & (~overjump_sync_seg) | go_seg2)
     quant_cnt <=#Tp 0;
+  else if (go_seg1 & overjump_sync_seg)
+    quant_cnt <=#Tp 1;
   else if (clk_en)
     quant_cnt <=#Tp quant_cnt + 1'b1;
 end

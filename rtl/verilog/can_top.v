@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.32  2003/06/09 11:32:36  mohor
+// Ports added for the CAN_BIST.
+//
 // Revision 1.31  2003/03/26 11:19:46  mohor
 // CAN interrupt is active low.
 //
@@ -341,12 +344,12 @@ wire         sampled_bit;
 wire         sampled_bit_q;
 wire         tx_point;
 wire         hard_sync;
-wire         resync;
-
+wire         go_seg1;
 
 /* output from can_bsp module */
 wire         rx_idle;
 wire         transmitting;
+wire         overjump_sync_seg;
 wire         last_bit_of_inter;
 wire         set_reset_mode;
 wire         node_bus_off;
@@ -520,12 +523,13 @@ can_btl i_can_btl
   .sampled_bit_q(sampled_bit_q),
   .tx_point(tx_point),
   .hard_sync(hard_sync),
-  .resync(resync),
+  .go_seg1(go_seg1),
 
   
   /* output from can_bsp module */
   .rx_idle(rx_idle),
   .transmitting(transmitting),
+  .overjump_sync_seg(overjump_sync_seg),
   .last_bit_of_inter(last_bit_of_inter)
   
 
@@ -545,6 +549,7 @@ can_bsp i_can_bsp
   .sampled_bit_q(sampled_bit_q),
   .tx_point(tx_point),
   .hard_sync(hard_sync),
+  .go_seg1(go_seg1),
 
   .addr(addr),
   .data_in(data_in),
@@ -586,6 +591,7 @@ can_bsp i_can_bsp
   /* output from can_bsp module */
   .rx_idle(rx_idle),
   .transmitting(transmitting),
+  .overjump_sync_seg(overjump_sync_seg),
   .last_bit_of_inter(last_bit_of_inter),
   .set_reset_mode(set_reset_mode),
   .node_bus_off(node_bus_off),

@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.28  2003/03/01 22:53:33  mohor
+// Actel APA ram supported.
+//
 // Revision 1.27  2003/02/20 00:26:02  mohor
 // When a dominant bit was detected at the third bit of the intermission and
 // node had a message to transmit, bit_stuff error could occur. Fixed.
@@ -162,6 +165,7 @@ module can_bsp
   sampled_bit_q,
   tx_point,
   hard_sync,
+  go_seg1,
 
   addr,
   data_in,
@@ -204,6 +208,7 @@ module can_bsp
 
   rx_idle,
   transmitting,
+  overjump_sync_seg,
   last_bit_of_inter,
   set_reset_mode,
   node_bus_off,
@@ -276,6 +281,7 @@ input         sampled_bit;
 input         sampled_bit_q;
 input         tx_point;
 input         hard_sync;
+input         go_seg1;
 input   [7:0] addr;
 input   [7:0] data_in;
 output  [7:0] data_out;
@@ -314,6 +320,7 @@ input         we_tx_err_cnt;
 
 output        rx_idle;
 output        transmitting;
+output        overjump_sync_seg;
 output        last_bit_of_inter;
 output        set_reset_mode;
 output        node_bus_off;
@@ -420,6 +427,8 @@ reg     [2:0] eof_cnt;
 reg     [2:0] passive_cnt;
 
 reg           transmitting;
+reg           transmitting_q;
+reg           overjump_sync_seg;
 
 reg           error_frame;
 reg           error_frame_q;
@@ -1697,6 +1706,28 @@ begin
   else if (reset_mode | go_rx_idle | (go_rx_id1 & (~tx_state)) | (arbitration_lost & tx_state))
     transmitting <=#Tp 1'b0;
 end
+
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    transmitting_q <= 1'b0;
+  else if (go_seg1)
+    transmitting_q <=#Tp transmitting;
+end
+
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    overjump_sync_seg <= 1'b0;
+  else if (transmitting & (~transmitting_q))
+    overjump_sync_seg <=#Tp 1'b1;
+  else
+    overjump_sync_seg <=#Tp 1'b0;
+end
+
+
 
 
 always @ (posedge clk or posedge rst)
