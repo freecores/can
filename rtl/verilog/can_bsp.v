@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.50  2004/10/27 18:51:36  igorm
+// Fixed synchronization problem in real hardware when 0xf is used for TSEG1.
+//
 // Revision 1.49  2004/10/25 06:37:51  igorm
 // Arbitration bug fixed.
 //
@@ -1626,6 +1629,8 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
+    tx <= 1'b1;
+  else if (reset_mode)
     tx <= 1'b1;
   else if (tx_point)
     tx <=#Tp tx_next;
