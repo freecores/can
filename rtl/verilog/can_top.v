@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.35  2003/06/16 13:57:58  mohor
+// tx_point generated one clk earlier. rx_i registered. Data corrected when
+// using extended mode.
+//
 // Revision 1.34  2003/06/13 15:02:24  mohor
 // Synchronization is also needed when transmitting a message.
 //
@@ -185,8 +189,8 @@ module can_top
     rd_i,
     wr_i,
     port_0_io,
+    cs_can_i,
   `endif
-  cs_can_i,
   clk_i,
   rx_i,
   tx_o,
@@ -205,6 +209,7 @@ module can_top
 );
 
 parameter Tp = 1;
+
 
 `ifdef CAN_WISHBONE_IF
   input        wb_clk_i;
@@ -227,19 +232,20 @@ parameter Tp = 1;
   reg          cs_ack3;
   reg          cs_sync_rst1;
   reg          cs_sync_rst2;
+  wire         cs_can_i;
 `else
   input        rst_i;
   input        ale_i;
   input        rd_i;
   input        wr_i;
   inout  [7:0] port_0_io;
+  input        cs_can_i;
   
   reg    [7:0] addr_latched;
   reg          wr_i_q;
   reg          rd_i_q;
 `endif
 
-input        cs_can_i;
 input        clk_i;
 input        rx_i;
 output       tx_o;
@@ -349,12 +355,10 @@ wire         sampled_bit;
 wire         sampled_bit_q;
 wire         tx_point;
 wire         hard_sync;
-wire         go_seg1;
 
 /* output from can_bsp module */
 wire         rx_idle;
 wire         transmitting;
-wire         overjump_sync_seg;
 wire         last_bit_of_inter;
 wire         set_reset_mode;
 wire         node_bus_off;
@@ -527,12 +531,10 @@ can_btl i_can_btl
   .sampled_bit_q(sampled_bit_q),
   .tx_point(tx_point),
   .hard_sync(hard_sync),
-  .go_seg1(go_seg1),
 
   
   /* output from can_bsp module */
   .rx_idle(rx_idle),
-  .overjump_sync_seg(overjump_sync_seg),
   .last_bit_of_inter(last_bit_of_inter)
   
 
@@ -552,7 +554,6 @@ can_bsp i_can_bsp
   .sampled_bit_q(sampled_bit_q),
   .tx_point(tx_point),
   .hard_sync(hard_sync),
-  .go_seg1(go_seg1),
 
   .addr(addr),
   .data_in(data_in),
@@ -594,7 +595,6 @@ can_bsp i_can_bsp
   /* output from can_bsp module */
   .rx_idle(rx_idle),
   .transmitting(transmitting),
-  .overjump_sync_seg(overjump_sync_seg),
   .last_bit_of_inter(last_bit_of_inter),
   .set_reset_mode(set_reset_mode),
   .node_bus_off(node_bus_off),
@@ -693,6 +693,9 @@ end
 
 
 `ifdef CAN_WISHBONE_IF
+
+  assign cs_can_i = 1'b1;
+
   // Combining wb_cyc_i and wb_stb_i signals to cs signal. Than synchronizing to clk_i clock domain. 
   always @ (posedge clk_i or posedge rst)
   begin
