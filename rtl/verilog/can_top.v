@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.14  2003/02/11 00:56:06  mohor
+// Wishbone interface added.
+//
 // Revision 1.13  2003/02/09 18:40:29  mohor
 // Overload fixed. Hard synchronization also enabled at the last bit of
 // interframe.
@@ -159,6 +162,7 @@ wire         sleep_mode;
 /* Command register */
 wire         release_buffer;
 wire         tx_request;
+wire         abort_tx;
 
 /* Bus Timing 0 register */
 wire   [5:0] baud_r_presc;
@@ -214,6 +218,22 @@ wire   [7:0] tx_data_12;
 
 wire         cs;
 
+/* Output signals from can_btl module */
+wire        clk_en;
+wire        sample_point;
+wire        sampled_bit;
+wire        sampled_bit_q;
+wire        tx_point;
+wire        hard_sync;
+wire        resync;
+
+
+/* output from can_bsp module */
+wire        rx_idle;
+wire        transmitting;
+wire        last_bit_of_inter;
+
+
 /* Connecting can_registers module */
 can_registers i_can_registers
 ( 
@@ -225,6 +245,9 @@ can_registers i_can_registers
   .data_in(wb_dat_i),
   .data_out(data_out_regs),
 
+  .sample_point(sample_point),
+  .transmitting(transmitting),
+
   /* Mode register */
   .reset_mode(reset_mode),
   .listen_only_mode(listen_only_mode),
@@ -234,7 +257,7 @@ can_registers i_can_registers
   /* Command register */
   .clear_data_overrun(),
   .release_buffer(release_buffer),
-  .abort_tx(),
+  .abort_tx(abort_tx),
   .tx_request(tx_request),
   .self_rx_request(),
 
@@ -297,20 +320,6 @@ can_registers i_can_registers
 );
 
 
-/* Output signals from can_btl module */
-wire        clk_en;
-wire        sample_point;
-wire        sampled_bit;
-wire        sampled_bit_q;
-wire        tx_point;
-wire        hard_sync;
-wire        resync;
-
-
-/* output from can_bsp module */
-wire        rx_idle;
-wire        transmitting;
-wire        last_bit_of_inter;
 
 
 
@@ -376,6 +385,7 @@ can_bsp i_can_bsp
   /* Command register */
   .release_buffer(release_buffer),
   .tx_request(tx_request),
+  .abort_tx(abort_tx),
 
   /* Clock Divider register */
   .extended_mode(extended_mode),

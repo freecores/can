@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.12  2003/02/11 00:56:06  mohor
+// Wishbone interface added.
+//
 // Revision 1.11  2003/02/09 02:24:33  mohor
 // Bosch license warning added. Error counters finished. Overload frames
 // still need to be fixed.
@@ -104,6 +107,9 @@ module can_registers
   addr,
   data_in,
   data_out,
+
+  sample_point,
+  transmitting,
 
   /* Mode register */
   reset_mode,
@@ -188,6 +194,8 @@ input   [7:0] data_in;
 output  [7:0] data_out;
 reg     [7:0] data_out;
 
+input         sample_point;
+input         transmitting;
 
 /* Mode register */
 output        reset_mode;
@@ -306,6 +314,11 @@ wire we_acceptance_mask_3     = cs & we & (addr == 8'd23) & reset_mode & extende
 
 /* Mode register */
 wire   [7:0] mode;
+wire         receive_irq_en_basic;
+wire         transmit_irq_en_basic;
+wire         error_irq_en_basic;
+wire         overrun_irq_en_basic;
+
 can_register_asyn #(8, 8'h1) MODE_REG
 ( .data_in(data_in),
   .data_out(mode),
@@ -318,18 +331,41 @@ assign reset_mode = mode[0];
 assign listen_only_mode = mode[1];
 assign acceptance_filter_mode = mode[3];
 assign sleep_mode = mode[4];
+
+assign receive_irq_en_basic = mode[1];
+assign transmit_irq_en_basic = mode[2];
+assign error_irq_en_basic = mode[3];
+assign overrun_irq_en_basic = mode[4];
 /* End Mode register */
 
 
 /* Command register */
 wire   [4:0] command;
-can_register_asyn_syn #(5, 5'h0) COMMAND_REG
-( .data_in(data_in[4:0]),
-  .data_out(command[4:0]),
+can_register_asyn_syn #(1, 1'h0) COMMAND_REG0
+( .data_in(data_in[0]),
+  .data_out(command[0]),
   .we(we_command),
   .clk(clk),
   .rst(rst),
-  .rst_sync(|command)
+  .rst_sync(tx_request & sample_point)
+);
+
+can_register_asyn_syn #(1, 1'h0) COMMAND_REG1
+( .data_in(data_in[1]),
+  .data_out(command[1]),
+  .we(we_command),
+  .clk(clk),
+  .rst(rst),
+  .rst_sync(abort_tx & ~transmitting)
+);
+
+can_register_asyn_syn #(3, 3'h0) COMMAND_REG
+( .data_in(data_in[4:2]),
+  .data_out(command[4:2]),
+  .we(we_command),
+  .clk(clk),
+  .rst(rst),
+  .rst_sync(|command[4:2])
 );
 
 assign self_rx_request = command[4];
@@ -340,7 +376,99 @@ assign tx_request = command[0];
 /* End Command register */
 
 
+/* Status register */
+/*
+wire   [7:0] status;
+can_register_asyn_syn #(1, 0) BUS_STATUS_REG_0
+( .data_in(),
+  .data_out(status[0]),
+  .we(),
+  .clk(clk)
+  .rst(rst),
+  .rst_sync()
+);
 
+can_register_asyn_syn #(1, 0) BUS_STATUS_REG_0
+( .data_in(),
+  .data_out(status[0]),
+  .we(),
+  .clk(clk)
+  .rst(rst),
+  .rst_sync()
+);
+
+can_register_asyn_syn #(1, 0) BUS_STATUS_REG_0
+( .data_in(),
+  .data_out(status[0]),
+  .we(),
+  .clk(clk)
+  .rst(rst),
+  .rst_sync()
+);
+
+can_register_asyn_syn #(1, 0) BUS_STATUS_REG_0
+( .data_in(),
+  .data_out(status[0]),
+  .we(),
+  .clk(clk)
+  .rst(rst),
+  .rst_sync()
+);
+
+can_register_asyn_syn #(1, 0) BUS_STATUS_REG_0
+( .data_in(),
+  .data_out(status[0]),
+  .we(),
+  .clk(clk)
+  .rst(rst),
+  .rst_sync()
+);
+
+can_register_asyn_syn #(1, 0) BUS_STATUS_REG_0
+( .data_in(),
+  .data_out(status[0]),
+  .we(),
+  .clk(clk)
+  .rst(rst),
+  .rst_sync()
+);
+
+can_register_asyn_syn #(1, 0) BUS_STATUS_REG_0
+( .data_in(),
+  .data_out(status[0]),
+  .we(),
+  .clk(clk)
+  .rst(rst),
+  .rst_sync()
+);
+
+can_register_asyn_syn #(1, 0) BUS_STATUS_REG_0
+( .data_in(),
+  .data_out(status[0]),
+  .we(),
+  .clk(clk)
+  .rst(rst),
+  .rst_sync()
+);
+
+can_register_asyn_syn #(1, 0) BUS_STATUS_REG_0
+( .data_in(),
+  .data_out(status[0]),
+  .we(),
+  .clk(clk)
+  .rst(rst),
+  .rst_sync()
+);
+
+can_register_asyn #(1, 0) BUS_STATUS_REG_7
+( .data_in(),
+  .data_out(status[7]),
+  .we(),
+  .clk(clk)
+  .rst(rst)
+);
+*/
+/* End Status register */
 
 
 /* Bus Timing 0 register */
