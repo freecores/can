@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.23  2003/04/15 15:31:24  mohor
+// Some features are supported in extended mode only (listen_only_mode...).
+//
 // Revision 1.22  2003/03/20 16:58:50  mohor
 // unix.
 //
@@ -379,7 +382,6 @@ reg           node_error_passive_q;
 reg           transmit_buffer_status;
 reg           single_shot_transmission;
 
-reg     [7:0] data_out_tmp;
 
 // Some interrupts exist in basic mode and in extended mode. Since they are in different registers they need to be multiplexed.
 wire          data_overrun_irq_en;
@@ -1018,76 +1020,68 @@ begin
       if (extended_mode)    // EXTENDED mode (Different register map depends on mode)
         begin
           case(addr)
-            8'd0  :  data_out_tmp <= {4'b0000, mode_ext[3:1], mode[0]};
-            8'd1  :  data_out_tmp <= 8'h0;
-            8'd2  :  data_out_tmp <= status;
-            8'd3  :  data_out_tmp <= irq_reg;
-            8'd4  :  data_out_tmp <= irq_en_ext;
-            8'd6  :  data_out_tmp <= bus_timing_0;
-            8'd7  :  data_out_tmp <= bus_timing_1;
-            8'd11 :  data_out_tmp <= {3'h0, arbitration_lost_capture[4:0]};
-            8'd12 :  data_out_tmp <= error_capture_code;
-            8'd13 :  data_out_tmp <= error_warning_limit;
-            8'd14 :  data_out_tmp <= rx_err_cnt;
-            8'd15 :  data_out_tmp <= tx_err_cnt;
-            8'd16 :  data_out_tmp <= acceptance_code_0;
-            8'd17 :  data_out_tmp <= acceptance_code_1;
-            8'd18 :  data_out_tmp <= acceptance_code_2;
-            8'd19 :  data_out_tmp <= acceptance_code_3;
-            8'd20 :  data_out_tmp <= acceptance_mask_0;
-            8'd21 :  data_out_tmp <= acceptance_mask_1;
-            8'd22 :  data_out_tmp <= acceptance_mask_2;
-            8'd23 :  data_out_tmp <= acceptance_mask_3;
-            8'd24 :  data_out_tmp <= 8'h0;
-            8'd25 :  data_out_tmp <= 8'h0;
-            8'd26 :  data_out_tmp <= 8'h0;
-            8'd27 :  data_out_tmp <= 8'h0;
-            8'd28 :  data_out_tmp <= 8'h0;
-            8'd29 :  data_out_tmp <= {1'b0, rx_message_counter};
-            8'd31 :  data_out_tmp <= clock_divider;
+            8'd0  :  data_out <= {4'b0000, mode_ext[3:1], mode[0]};
+            8'd1  :  data_out <= 8'h0;
+            8'd2  :  data_out <= status;
+            8'd3  :  data_out <= irq_reg;
+            8'd4  :  data_out <= irq_en_ext;
+            8'd6  :  data_out <= bus_timing_0;
+            8'd7  :  data_out <= bus_timing_1;
+            8'd11 :  data_out <= {3'h0, arbitration_lost_capture[4:0]};
+            8'd12 :  data_out <= error_capture_code;
+            8'd13 :  data_out <= error_warning_limit;
+            8'd14 :  data_out <= rx_err_cnt;
+            8'd15 :  data_out <= tx_err_cnt;
+            8'd16 :  data_out <= acceptance_code_0;
+            8'd17 :  data_out <= acceptance_code_1;
+            8'd18 :  data_out <= acceptance_code_2;
+            8'd19 :  data_out <= acceptance_code_3;
+            8'd20 :  data_out <= acceptance_mask_0;
+            8'd21 :  data_out <= acceptance_mask_1;
+            8'd22 :  data_out <= acceptance_mask_2;
+            8'd23 :  data_out <= acceptance_mask_3;
+            8'd24 :  data_out <= 8'h0;
+            8'd25 :  data_out <= 8'h0;
+            8'd26 :  data_out <= 8'h0;
+            8'd27 :  data_out <= 8'h0;
+            8'd28 :  data_out <= 8'h0;
+            8'd29 :  data_out <= {1'b0, rx_message_counter};
+            8'd31 :  data_out <= clock_divider;
     
-            default: data_out_tmp <= 8'h0;
+            default: data_out <= 8'h0;
           endcase
         end
       else                  // BASIC mode
         begin
           case(addr)
-            8'd0  :  data_out_tmp <= {3'b001, mode_basic[4:1], mode[0]};
-            8'd1  :  data_out_tmp <= 8'hff;
-            8'd2  :  data_out_tmp <= status;
-            8'd3  :  data_out_tmp <= {4'hf, irq_reg[3:0]};
-            8'd4  :  data_out_tmp <= reset_mode? acceptance_code_0 : 8'hff;
-            8'd5  :  data_out_tmp <= reset_mode? acceptance_mask_0 : 8'hff;
-            8'd6  :  data_out_tmp <= reset_mode? bus_timing_0 : 8'hff;
-            8'd7  :  data_out_tmp <= reset_mode? bus_timing_1 : 8'hff;
-            8'd10 :  data_out_tmp <= reset_mode? 8'hff : tx_data_0;
-            8'd11 :  data_out_tmp <= reset_mode? 8'hff : tx_data_1;
-            8'd12 :  data_out_tmp <= reset_mode? 8'hff : tx_data_2;
-            8'd13 :  data_out_tmp <= reset_mode? 8'hff : tx_data_3;
-            8'd14 :  data_out_tmp <= reset_mode? 8'hff : tx_data_4;
-            8'd15 :  data_out_tmp <= reset_mode? 8'hff : tx_data_5;
-            8'd16 :  data_out_tmp <= reset_mode? 8'hff : tx_data_6;
-            8'd17 :  data_out_tmp <= reset_mode? 8'hff : tx_data_7;
-            8'd18 :  data_out_tmp <= reset_mode? 8'hff : tx_data_8;
-            8'd19 :  data_out_tmp <= reset_mode? 8'hff : tx_data_9;
-            8'd31 :  data_out_tmp <= clock_divider;
+            8'd0  :  data_out <= {3'b001, mode_basic[4:1], mode[0]};
+            8'd1  :  data_out <= 8'hff;
+            8'd2  :  data_out <= status;
+            8'd3  :  data_out <= {4'hf, irq_reg[3:0]};
+            8'd4  :  data_out <= reset_mode? acceptance_code_0 : 8'hff;
+            8'd5  :  data_out <= reset_mode? acceptance_mask_0 : 8'hff;
+            8'd6  :  data_out <= reset_mode? bus_timing_0 : 8'hff;
+            8'd7  :  data_out <= reset_mode? bus_timing_1 : 8'hff;
+            8'd10 :  data_out <= reset_mode? 8'hff : tx_data_0;
+            8'd11 :  data_out <= reset_mode? 8'hff : tx_data_1;
+            8'd12 :  data_out <= reset_mode? 8'hff : tx_data_2;
+            8'd13 :  data_out <= reset_mode? 8'hff : tx_data_3;
+            8'd14 :  data_out <= reset_mode? 8'hff : tx_data_4;
+            8'd15 :  data_out <= reset_mode? 8'hff : tx_data_5;
+            8'd16 :  data_out <= reset_mode? 8'hff : tx_data_6;
+            8'd17 :  data_out <= reset_mode? 8'hff : tx_data_7;
+            8'd18 :  data_out <= reset_mode? 8'hff : tx_data_8;
+            8'd19 :  data_out <= reset_mode? 8'hff : tx_data_9;
+            8'd31 :  data_out <= clock_divider;
     
-            default: data_out_tmp <= 8'h0;
+            default: data_out <= 8'h0;
           endcase
         end
     end
   else
-    data_out_tmp <= 8'h0;
+    data_out <= 8'h0;
 end
 
-
-always @ (posedge clk or posedge rst)
-begin
-  if (rst)
-    data_out <= 0;
-  else if (read)
-    data_out <=#Tp data_out_tmp;
-end
 
 // Some interrupts exist in basic mode and in extended mode. Since they are in different registers they need to be multiplexed.
 assign data_overrun_irq_en  = extended_mode ? data_overrun_irq_en_ext  : overrun_irq_en_basic;
