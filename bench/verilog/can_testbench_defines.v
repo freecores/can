@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2003/01/08 02:09:44  mohor
+// Acceptance filter added.
+//
 // Revision 1.3  2002/12/28 04:13:53  mohor
 // Backup version.
 //
@@ -71,4 +74,4 @@
 `define CAN_TIMING1_SAM                 1'h0    // Triple sampling
 
 // Clock Divider register
-`define CAN_CLOCK_DIVIDER_MODE          1'h1    // Normal (not extended mode
+`define CAN_CLOCK_DIVIDER_MODE          1'h0    // 0 - Normal mode, 1 - Extended mode

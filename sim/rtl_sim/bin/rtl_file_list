@@ -8,3 +8,4 @@ can_top.v
 can_bsp.v
 can_crc.v
 can_acf.v
+can_fifo.v

@@ -116,8 +116,8 @@ define variable nofilenames
 define variable nofullpathfilenames
 include bookmark with filenames
 include scope history without filenames
-define waveform window listpane 9.97
-define waveform window namepane 10.99
+define waveform window listpane 9
+define waveform window namepane 10
 define multivalueindication
 define pattern curpos dot
 define pattern cursor1 dot
@@ -210,15 +210,22 @@ add group \
 
 add group \
     can_bsp \
+      can_testbench.i_can_top.i_can_bsp.acceptance_code_0[7:0]'h \
+      can_testbench.i_can_top.i_can_bsp.acceptance_code_1[7:0]'h \
+      can_testbench.i_can_top.i_can_bsp.acceptance_code_2[7:0]'h \
+      can_testbench.i_can_top.i_can_bsp.acceptance_code_3[7:0]'h \
+      can_testbench.i_can_top.i_can_bsp.acceptance_filter_mode \
+      can_testbench.i_can_top.i_can_bsp.acceptance_mask_0[7:0]'h \
+      can_testbench.i_can_top.i_can_bsp.acceptance_mask_1[7:0]'h \
+      can_testbench.i_can_top.i_can_bsp.acceptance_mask_2[7:0]'h \
+      can_testbench.i_can_top.i_can_bsp.acceptance_mask_3[7:0]'h \
       can_testbench.i_can_top.i_can_bsp.bit_cnt[5:0]'h \
       can_testbench.i_can_top.i_can_bsp.bit_de_stuff \
-      can_testbench.i_can_top.i_can_bsp.bit_de_stuff_set \
       can_testbench.i_can_top.i_can_bsp.bit_de_stuff_reset \
-      can_testbench.i_can_top.i_can_bsp.bit_stuff_cnt_en \
+      can_testbench.i_can_top.i_can_bsp.bit_de_stuff_set \
       can_testbench.i_can_top.i_can_bsp.bit_stuff_cnt[2:0]'h \
+      can_testbench.i_can_top.i_can_bsp.bit_stuff_cnt_en \
       can_testbench.i_can_top.i_can_bsp.byte_cnt[2:0]'h \
-      can_testbench.i_can_top.i_can_bsp.tmp_data[7:0]'h \
-      can_testbench.i_can_top.i_can_bsp.write_data_to_tmp_fifo \
       can_testbench.i_can_top.i_can_bsp.calculated_crc[14:0]'h \
       can_testbench.i_can_top.i_can_bsp.clk \
       can_testbench.i_can_top.i_can_bsp.crc_enable \
@@ -226,6 +233,7 @@ add group \
       can_testbench.i_can_top.i_can_bsp.crc_in[14:0]'h \
       can_testbench.i_can_top.i_can_bsp.data_len[3:0]'h \
       can_testbench.i_can_top.i_can_bsp.eof_cnt[2:0]'h \
+      can_testbench.i_can_top.i_can_bsp.extended_mode \
       can_testbench.i_can_top.i_can_bsp.go_crc_enable \
       can_testbench.i_can_top.i_can_bsp.go_rx_ack \
       can_testbench.i_can_top.i_can_bsp.go_rx_ack_lim \
@@ -242,13 +250,16 @@ add group \
       can_testbench.i_can_top.i_can_bsp.go_rx_r1 \
       can_testbench.i_can_top.i_can_bsp.go_rx_rtr1 \
       can_testbench.i_can_top.i_can_bsp.go_rx_rtr2 \
+      can_testbench.i_can_top.i_can_bsp.hard_sync \
       can_testbench.i_can_top.i_can_bsp.id[28:0]'h \
+      can_testbench.i_can_top.i_can_bsp.id_ok \
       can_testbench.i_can_top.i_can_bsp.ide \
+      can_testbench.i_can_top.i_can_bsp.no_data \
       can_testbench.i_can_top.i_can_bsp.reset_mode \
       can_testbench.i_can_top.i_can_bsp.reset_mode_q \
+      can_testbench.i_can_top.i_can_bsp.reset_wr_fifo_normal_mode \
+      can_testbench.i_can_top.i_can_bsp.resync \
       can_testbench.i_can_top.i_can_bsp.rst \
-      can_testbench.i_can_top.i_can_btl.rx \
-      can_testbench.i_can_top.i_can_bsp.bit_de_stuff \
       can_testbench.i_can_top.i_can_bsp.rst_crc_enable \
       can_testbench.i_can_top.i_can_bsp.rtr1 \
       can_testbench.i_can_top.i_can_bsp.rtr2 \
@@ -271,6 +282,18 @@ add group \
       can_testbench.i_can_top.i_can_bsp.sampled_bit \
       can_testbench.i_can_top.i_can_bsp.sampled_bit_q \
       can_testbench.i_can_top.i_can_bsp.stuff_error \
+      can_testbench.i_can_top.i_can_bsp.tmp_data[7:0]'h \
+      can_testbench.i_can_top.i_can_bsp.go_rx_ack_lim \
+      can_testbench.i_can_top.i_can_bsp.id_ok \
+      can_testbench.i_can_top.i_can_bsp.crc_error \
+      can_testbench.i_can_top.i_can_bsp.extended_mode \
+      can_testbench.i_can_top.i_can_bsp.header_cnt[2:0]'h \
+      can_testbench.i_can_top.i_can_bsp.data_cnt[3:0]'h \
+      can_testbench.i_can_top.i_can_bsp.data_for_fifo[7:0]'h \
+      can_testbench.i_can_top.i_can_bsp.wr_fifo \
+      can_testbench.i_can_top.i_can_bsp.storing_header \
+      can_testbench.i_can_top.i_can_bsp.header_len[2:0]'h \
+      can_testbench.i_can_top.i_can_bsp.write_data_to_tmp_fifo \
 
 add group \
     testbench \
@@ -281,9 +304,6 @@ add group \
       can_testbench.send_frame.len[3:0]'h \
       can_testbench.send_frame.length[3:0]'h \
       can_testbench.send_frame.mode \
-
-add group \
-    rx_crc \
 
 add group \
     can_registers \
@@ -337,5 +357,4 @@ add group \
 
 
 deselect all
-open window waveform 1 geometry 10 59 1592 1140
-zoom at 58404.15(0)ns 0.00012325 0.00000000
+open window designbrowser 1 geometry 56 117 855 550

@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2003/01/08 02:10:55  mohor
+// Acceptance filter added.
+//
 //
 //
 //
@@ -61,15 +64,13 @@ module can_fifo
 
   rd,
   wr,
-  wr_length_info,
 
   data_in,
   data_out,
 
   reset_mode,
-  release_buffer,
-  extended_mode
-  
+  release_buffer
+
 );
 
 parameter Tp = 1;
@@ -78,33 +79,86 @@ input         clk;
 input         rst;
 input         rd;
 input         wr;
-input         wr_length_info;
 input   [7:0] data_in;
 input         reset_mode;
 input         release_buffer;
-input         extended_mode;
 
-output  [7:0] data_in;
+output  [7:0] data_out;
 
 
 reg     [7:0] fifo [0:63];
 reg     [5:0] rd_pointer;
 reg     [5:0] wr_pointer;
-reg     [3:0] length_info[0:6];
-reg           overrun_info[0:6];
+
+reg     [3:0] length_info[0:31];
+reg     [4:0] wr_info_pointer;
+reg     [4:0] rd_info_pointer;
+reg           overrun_info[0:31];
+reg           wr_q;
+reg     [3:0] len_cnt;
+
+wire          write_length_info;
 
 
+assign write_length_info = (~wr) & wr_q;
 
-// length_info
+// Delayed write signal
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    length_info <= 0;
-  else if (wr_length_info)
-    length_info <=#Tp data_in;
+    wr_q <= 0;
   else if (reset_mode)
-    length_info <=#Tp 0;
+    wr_q <=#Tp 0;
+  else
+    wr_q <=#Tp wr;
 end
+
+
+// length counter
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    len_cnt <= 0;
+  else if (reset_mode | write_length_info)
+    len_cnt <=#Tp 1'b0;
+  else if (wr)
+    len_cnt <=#Tp len_cnt + 1'b1;
+end
+
+
+// wr_info_pointer
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    wr_info_pointer <= 0;
+  else if (reset_mode)
+    wr_info_pointer <=#Tp 0;
+  else if (write_length_info)
+    wr_info_pointer <=#Tp wr_info_pointer + 1'b1;
+end
+
+
+// length_info
+always @ (posedge clk)
+begin
+  if (write_length_info)
+    length_info[wr_info_pointer] <=#Tp len_cnt;
+end
+
+
+// rd_info_pointer
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    rd_info_pointer <= 0;
+  else if (reset_mode)
+    rd_info_pointer <=#Tp 0;
+  else if (release_buffer)
+    rd_info_pointer <=#Tp rd_info_pointer + 1'b1;
+end
+
+
+
 
 
 // rd_pointer
@@ -112,8 +166,8 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rd_pointer <= 0;
-  else if (rd)
-    rd_pointer <=#Tp rd_pointer + length_info;
+  else if (release_buffer)
+    rd_pointer <=#Tp rd_pointer + length_info[rd_info_pointer];
   else if (reset_mode)
     rd_pointer <=#Tp 0;
 end
@@ -125,7 +179,7 @@ begin
   if (rst)
     wr_pointer <= 0;
   else if (wr)
-    wr_pointer <=#Tp wd_pointer + 1'b1;
+    wr_pointer <=#Tp wr_pointer + 1'b1;
   else if (reset_mode)
     wr_pointer <=#Tp 0;
 end
@@ -138,7 +192,7 @@ begin
     fifo[wr_pointer] <=#Tp data_in;
 end
 
-
+assign data_out = fifo[rd_pointer];
 
 
 

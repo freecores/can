@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2003/01/08 02:10:55  mohor
+// Acceptance filter added.
+//
 // Revision 1.3  2002/12/27 00:12:52  mohor
 // Header changed, testbench improved to send a frame (crc still missing).
 //
@@ -432,18 +435,5 @@ end
 
 
 
-/*
-module can_register
-( data_in,
-  data_out,
-  we,
-  clk,
-  rst,
-  rst_sync
-);
-
-parameter WIDTH = 8; // default parameter of the register width
-parameter RESET_VALUE = 0;
-*/
 
 endmodule
