@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.47  2004/02/08 14:53:54  mohor
+// Header changed. Address latched to posedge. bus_off_on signal added.
+//
 // Revision 1.46  2003/10/17 05:55:20  markom
 // mbist signals updated according to newest convention
 //
@@ -300,7 +303,6 @@ input [`CAN_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift cont
 reg          data_out_fifo_selected;
 
 
-wire         irq_o;
 wire   [7:0] data_out_fifo;
 wire   [7:0] data_out_regs;
 
@@ -447,7 +449,7 @@ can_registers i_can_registers
   .addr(addr),
   .data_in(data_in),
   .data_out(data_out_regs),
-  .irq(irq_o),
+  .irq_n(irq_on),
 
   .sample_point(sample_point),
   .transmitting(transmitting),
@@ -555,7 +557,6 @@ can_registers i_can_registers
 );
 
 
-assign irq_on = ~irq_o;
 
 
 /* Connecting can_btl module */

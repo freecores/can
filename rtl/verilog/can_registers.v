@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.32  2004/05/12 15:58:41  igorm
+// Core improved to pass all tests with the Bosch VHDL Reference system.
+//
 // Revision 1.31  2003/09/25 18:55:49  mohor
 // Synchronization changed, error counters fixed.
 //
@@ -165,7 +168,7 @@ module can_registers
   addr,
   data_in,
   data_out,
-  irq,
+  irq_n,
 
   sample_point,
   transmitting,
@@ -290,7 +293,7 @@ input   [7:0] data_in;
 output  [7:0] data_out;
 reg     [7:0] data_out;
 
-output        irq;
+output        irq_n;
 
 input         sample_point;
 input         transmitting;
@@ -416,6 +419,7 @@ reg           node_error_passive_q;
 reg           transmit_buffer_status;
 reg           single_shot_transmission;
 reg           self_rx_request;
+reg           irq_n;
 
 // Some interrupts exist in basic mode and in extended mode. Since they are in different registers they need to be multiplexed.
 wire          data_overrun_irq_en;
@@ -424,6 +428,7 @@ wire          transmit_irq_en;
 wire          receive_irq_en;
 
 wire    [7:0] irq_reg;
+wire          irq;
 
 wire we_mode                  = cs & we & (addr == 8'd0);
 wire we_command               = cs & we & (addr == 8'd1);
@@ -1224,6 +1229,15 @@ assign irq_reg = {bus_error_irq, arbitration_lost_irq, error_passive_irq, 1'b0, 
 assign irq = data_overrun_irq | transmit_irq | receive_irq | error_irq | bus_error_irq | arbitration_lost_irq | error_passive_irq;
 
 
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    irq_n <= 1'b1;
+  else if (read_irq_reg)
+    irq_n <=#Tp 1'b1;
+  else if (irq)
+    irq_n <=#Tp 1'b0;
+end
 
 
 
