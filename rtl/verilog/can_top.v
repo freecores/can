@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.23  2003/03/05 15:33:13  mohor
+// tx_o is now tristated signal. tx_oen and tx_o combined together.
+//
 // Revision 1.22  2003/03/05 15:01:56  mohor
 // Top level signal names changed.
 //
@@ -297,7 +300,8 @@ wire   [4:0] arbitration_lost_capture;
 wire         node_error_passive;
 wire         node_error_active;
 wire   [6:0] rx_message_counter;
-
+wire         tx_out;
+wire         tx_oen;
 
 
 
