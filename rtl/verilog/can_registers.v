@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.33  2004/10/25 11:44:38  igorm
+// Interrupt is always cleared for one clock after the irq register is read.
+// This fixes problems when CPU is using IRQs that are edge triggered.
+//
 // Revision 1.32  2004/05/12 15:58:41  igorm
 // Core improved to pass all tests with the Bosch VHDL Reference system.
 //
@@ -542,7 +546,7 @@ can_register_asyn_syn #(1, 1'h0) COMMAND_REG0
   .we(we_command),
   .clk(clk),
   .rst(rst),
-  .rst_sync(command[0] & sample_point)
+  .rst_sync(command[0] & sample_point | reset_mode)
 );
 
 can_register_asyn_syn #(1, 1'h0) COMMAND_REG1
@@ -551,7 +555,7 @@ can_register_asyn_syn #(1, 1'h0) COMMAND_REG1
   .we(we_command),
   .clk(clk),
   .rst(rst),
-  .rst_sync(sample_point & (tx_request | (abort_tx & ~transmitting)))
+  .rst_sync(sample_point & (tx_request | (abort_tx & ~transmitting)) | reset_mode)
 );
 
 can_register_asyn_syn #(2, 2'h0) COMMAND_REG
@@ -560,7 +564,7 @@ can_register_asyn_syn #(2, 2'h0) COMMAND_REG
   .we(we_command),
   .clk(clk),
   .rst(rst),
-  .rst_sync(|command[3:2])
+  .rst_sync(|command[3:2] | reset_mode)
 );
 
 can_register_asyn_syn #(1, 1'h0) COMMAND_REG4
@@ -569,7 +573,7 @@ can_register_asyn_syn #(1, 1'h0) COMMAND_REG4
   .we(we_command),
   .clk(clk),
   .rst(rst),
-  .rst_sync(command[4] & sample_point)
+  .rst_sync(command[4] & sample_point | reset_mode)
 );
 
 
@@ -662,7 +666,7 @@ begin
     transmit_buffer_status <= 1'b1;
   else if (tx_request)
     transmit_buffer_status <=#Tp 1'b0;
-  else if (~need_to_tx)
+  else if (reset_mode || !need_to_tx)
     transmit_buffer_status <=#Tp 1'b1;
 end
 
@@ -673,7 +677,7 @@ begin
     overrun_status <= 1'b0;
   else if (overrun & (~overrun_q))
     overrun_status <=#Tp 1'b1;
-  else if (clear_data_overrun)
+  else if (reset_mode || clear_data_overrun)
     overrun_status <=#Tp 1'b0;
 end
 
@@ -682,7 +686,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     receive_buffer_status <= 1'b0;
-  else if (release_buffer)
+  else if (reset_mode || release_buffer)
     receive_buffer_status <=#Tp 1'b0;
   else if (~info_empty)
     receive_buffer_status <=#Tp 1'b1;
@@ -1145,7 +1149,7 @@ begin
     data_overrun_irq <= 1'b0;
   else if (overrun & (~overrun_q) & data_overrun_irq_en)
     data_overrun_irq <=#Tp 1'b1;
-  else if (read_irq_reg)
+  else if (reset_mode || read_irq_reg)
     data_overrun_irq <=#Tp 1'b0;
 end
 
@@ -1155,10 +1159,10 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     transmit_irq <= 1'b0;
+  else if (reset_mode || read_irq_reg)
+    transmit_irq <=#Tp 1'b0;
   else if (transmit_buffer_status & (~transmit_buffer_status_q) & transmit_irq_en)
     transmit_irq <=#Tp 1'b1;
-  else if (read_irq_reg)
-    transmit_irq <=#Tp 1'b0;
 end
 
 
@@ -1167,10 +1171,10 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     receive_irq <= 1'b0;
-  else if (release_buffer)
-    receive_irq <=#Tp 1'b0;
   else if ((~info_empty) & (~receive_irq) & receive_irq_en)
     receive_irq <=#Tp 1'b1;
+  else if (reset_mode || release_buffer)
+    receive_irq <=#Tp 1'b0;
 end
 
 
@@ -1193,7 +1197,7 @@ begin
     bus_error_irq <= 1'b0;
   else if (set_bus_error_irq & bus_error_irq_en)
     bus_error_irq <=#Tp 1'b1;
-  else if (read_irq_reg)
+  else if (reset_mode || read_irq_reg)
     bus_error_irq <=#Tp 1'b0;
 end
 
@@ -1205,7 +1209,7 @@ begin
     arbitration_lost_irq <= 1'b0;
   else if (set_arbitration_lost_irq & arbitration_lost_irq_en)
     arbitration_lost_irq <=#Tp 1'b1;
-  else if (read_irq_reg)
+  else if (reset_mode || read_irq_reg)
     arbitration_lost_irq <=#Tp 1'b0;
 end
 
@@ -1218,7 +1222,7 @@ begin
     error_passive_irq <= 1'b0;
   else if ((node_error_passive & (~node_error_passive_q) | (~node_error_passive) & node_error_passive_q & node_error_active) & error_passive_irq_en)
     error_passive_irq <=#Tp 1'b1;
-  else if (read_irq_reg)
+  else if (reset_mode || read_irq_reg)
     error_passive_irq <=#Tp 1'b0;
 end
 
@@ -1242,3 +1246,4 @@ end
 
 
 endmodule
+

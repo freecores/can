@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.26  2004/02/08 14:30:57  mohor
+// Header changed.
+//
 // Revision 1.25  2003/10/23 16:52:17  mohor
 // Active high/low problem when Altera devices are used. Bug fixed by
 // Rojhalat Ibrahim.
@@ -264,7 +267,7 @@ begin
   else if (write_length_info & (~info_full) | initialize_memories)
     wr_info_pointer <=#Tp wr_info_pointer + 1'b1;
   else if (reset_mode)
-    wr_info_pointer <=#Tp 6'h0;
+    wr_info_pointer <=#Tp rd_info_pointer;
 end
 
 
@@ -274,8 +277,6 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rd_info_pointer <= 6'h0;
-  else if (reset_mode)
-    rd_info_pointer <=#Tp 6'h0;
   else if (release_buffer & (~fifo_empty))
     rd_info_pointer <=#Tp rd_info_pointer + 1'b1;
 end
@@ -288,8 +289,6 @@ begin
     rd_pointer <= 5'h0;
   else if (release_buffer & (~fifo_empty))
     rd_pointer <=#Tp rd_pointer + {2'h0, length_info};
-  else if (reset_mode)
-    rd_pointer <=#Tp 5'h0;
 end
 
 
@@ -298,10 +297,10 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     wr_pointer <= 5'h0;
+  else if (reset_mode)
+    wr_pointer <=#Tp rd_pointer;
   else if (wr & (~fifo_full))
     wr_pointer <=#Tp wr_pointer + 1'b1;
-  else if (reset_mode)
-    wr_pointer <=#Tp 5'h0;
 end
 
 
@@ -322,14 +321,14 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     fifo_cnt <= 7'h0;
+  else if (reset_mode)
+    fifo_cnt <=#Tp 7'h0;
   else if (wr & (~release_buffer) & (~fifo_full))
     fifo_cnt <=#Tp fifo_cnt + 1'b1;
   else if ((~wr) & release_buffer & (~fifo_empty))
     fifo_cnt <=#Tp fifo_cnt - {3'h0, length_info};
   else if (wr & release_buffer & (~fifo_full) & (~fifo_empty))
     fifo_cnt <=#Tp fifo_cnt - {3'h0, length_info} + 1'b1;
-  else if (reset_mode)
-    fifo_cnt <=#Tp 7'h0;
 end
 
 assign fifo_full = fifo_cnt == 7'd64;
