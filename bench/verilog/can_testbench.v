@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.22  2003/02/11 00:57:19  mohor
+// Wishbone interface added.
+//
 // Revision 1.21  2003/02/09 18:40:23  mohor
 // Overload fixed. Hard synchronization also enabled at the last bit of
 // interframe.
@@ -161,6 +164,7 @@ integer     start_tb;
 reg   [7:0] tmp_data;
 reg         delayed_tx;
 reg         tx_bypassed;
+reg         wb_free;
 
 
 // Instantiate can_top module
@@ -208,6 +212,7 @@ begin
   wb_stb_i = 0;
   wb_we_i = 'hz;
   wb_adr_i = 'hz;
+  wb_free = 1;
   rx = 1;
   wb_rst_i = 1;
   #200 wb_rst_i = 0;
@@ -267,7 +272,7 @@ begin
     begin
       // Set Acceptance Code and Acceptance Mask registers
 //      write_register(8'd4, 8'ha6); // acceptance code
-      write_register(8'd4, 8'h08); // acceptance code
+      write_register(8'd4, 8'he8); // acceptance code
       write_register(8'd5, 8'h0f); // acceptance mask
     end
   
@@ -297,8 +302,8 @@ begin
   else
     begin
 //      test_empty_fifo;    // test currently switched off
-      test_full_fifo;     // test currently switched on
-//      send_frame;         // test currently switched off
+//      test_full_fifo;     // test currently switched off
+      send_frame;         // test currently switched on
 //      manual_frame;         // test currently switched off
     end
 
@@ -460,6 +465,7 @@ task manual_frame;    // Testbench sends a frame
         send_bit(1);  // INTER
     end // repeat
 
+    // Node is error passive now.
     repeat (20)
     begin
         send_bit(0);  // SOF
@@ -525,6 +531,7 @@ task manual_frame;    // Testbench sends a frame
         send_bit(1);  // SUSPEND
    end // repeat
 
+    // Node is bus-off now
     repeat (20)
     begin
         send_bit(0);  // SOF
@@ -581,7 +588,6 @@ task manual_frame;    // Testbench sends a frame
         send_bit(1);
     end // repeat
 
-    tx_request;
 
 
 
@@ -595,8 +601,8 @@ task manual_frame;    // Testbench sends a frame
     release_rx_buffer;
 
 
-
-
+//    #7300000;
+//    tx_request;
 
     read_receive_buffer;
     release_rx_buffer;
@@ -648,7 +654,6 @@ task send_frame;    // CAN IP core sends frames
     fork
       begin
         $display("\n\nStart receiving data from CAN bus");
-        receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h0, 15'h2372); // mode, rtr, id, length, crc
         receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h1, 15'h30bb); // mode, rtr, id, length, crc
         receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h2, 15'h2da1); // mode, rtr, id, length, crc
         receive_frame(0, 0, {26'h00000ee, 3'h1}, 4'h0, 15'h6cea); // mode, rtr, id, length, crc
@@ -668,6 +673,7 @@ task send_frame;    // CAN IP core sends frames
         wait (can_testbench.i_can_top.i_can_bsp.rx_ack_lim);
         #1 rx = 1;
       end
+
 
     join
 
@@ -996,6 +1002,8 @@ task read_register;
   input [7:0] reg_addr;
 
   begin
+    wait (wb_free);
+    wb_free = 0;
     @ (posedge wb_clk_i);
     #1; 
     wb_adr_i = reg_addr;
@@ -1010,6 +1018,7 @@ task read_register;
     wb_cyc_i = 0;
     wb_stb_i = 0;
     wb_we_i = 'hz;
+    wb_free = 1;
   end
 endtask
 
@@ -1019,6 +1028,8 @@ task write_register;
   input [7:0] reg_data;
 
   begin
+    wait (wb_free);
+    wb_free = 0;
     @ (posedge wb_clk_i);
     #1; 
     wb_adr_i = reg_addr;
@@ -1034,6 +1045,7 @@ task write_register;
     wb_cyc_i = 0;
     wb_stb_i = 0;
     wb_we_i = 'hz;
+    wb_free = 1;
   end
 endtask
 
@@ -1071,6 +1083,14 @@ task tx_request;
   begin
     write_register(8'd1, 8'h1);
     $display("(%0t) Tx requested.", $time);
+  end
+endtask
+
+
+task tx_abort;
+  begin
+    write_register(8'd1, 8'h2);
+    $display("(%0t) Tx abort requested.", $time);
   end
 endtask
 
@@ -1177,7 +1197,15 @@ task receive_frame;           // CAN IP core receives frames
     total_bits = pointer;
 
     // Waiting until previous msg is finished before sending another one
-    wait (~can_testbench.i_can_top.i_can_bsp.error_frame & ~can_testbench.i_can_top.i_can_bsp.rx_inter & ~can_testbench.i_can_top.i_can_bsp.tx_state);
+    if (arbitration_lost)           //  Arbitration lost. Another node is transmitting. We have to wait until it is finished.
+      wait ( (~can_testbench.i_can_top.i_can_bsp.error_frame) & 
+             (~can_testbench.i_can_top.i_can_bsp.rx_inter   ) & 
+             (~can_testbench.i_can_top.i_can_bsp.tx_state   )
+           );
+    else                            // We were transmitter of the previous frame. No need to wait for another node to finish transmission.
+      wait ( (~can_testbench.i_can_top.i_can_bsp.error_frame) & 
+             (~can_testbench.i_can_top.i_can_bsp.rx_inter   )
+           );
     arbitration_lost = 0;
     
     send_bit(0);                        // SOF
@@ -1186,44 +1214,40 @@ task receive_frame;           // CAN IP core receives frames
     fork 
 
     begin
-      while (~arbitration_lost)
+      for (cnt=0; cnt<=total_bits; cnt=cnt+1)
         begin
-          for (cnt=0; cnt<=total_bits; cnt=cnt+1)
+          if (stuff_cnt == 5)
             begin
-              if (stuff_cnt == 5)
-                begin
-                  stuff_cnt = 1;
-                  total_bits = total_bits + 1;
-                  stuff = 1;
-                  tmp = ~data[pointer+1];
-                  send_bit(~data[pointer+1]);
-                  previous_bit = ~data[pointer+1];
-                end
-              else
-                begin
-                  if (data[pointer] == previous_bit)
-                    stuff_cnt <= stuff_cnt + 1;
-                  else
-                    stuff_cnt <= 1;
-                  
-                  stuff = 0;
-                  tmp = data[pointer];
-                  send_bit(data[pointer]);
-                  previous_bit = data[pointer];
-                  pointer = pointer - 1;
-                end
-              if (arbitration_lost)
-                cnt=total_bits+1;         // Exit the for loop
+              stuff_cnt = 1;
+              total_bits = total_bits + 1;
+              stuff = 1;
+              tmp = ~data[pointer+1];
+              send_bit(~data[pointer+1]);
+              previous_bit = ~data[pointer+1];
             end
-            arbitration_lost = 1; // At the end we exit the while loop
-
-            // Nothing send after the data (just recessive bit)
-            repeat (13) send_bit(1);         // CRC delimiter + ack + ack delimiter + EOF + intermission= 1 + 1 + 1 + 7 + 3
+          else
+            begin
+              if (data[pointer] == previous_bit)
+                stuff_cnt <= stuff_cnt + 1;
+              else
+                stuff_cnt <= 1;
+              
+              stuff = 0;
+              tmp = data[pointer];
+              send_bit(data[pointer]);
+              previous_bit = data[pointer];
+              pointer = pointer - 1;
+            end
+          if (arbitration_lost)
+            cnt=total_bits+1;         // Exit the for loop
         end
+
+        // Nothing send after the data (just recessive bit)
+        repeat (13) send_bit(1);         // CRC delimiter + ack + ack delimiter + EOF + intermission= 1 + 1 + 1 + 7 + 3
     end
 
     begin
-      while (~arbitration_lost)
+      while (mode ? (cnt<32) : (cnt<12))
         begin
           #1 wait (can_testbench.i_can_top.sample_point);
           if (mode)
@@ -1287,10 +1311,13 @@ end
 // CRC monitor (used until proper CRC generation is used in testbench
 always @ (posedge clk)
 begin
-  if (can_testbench.i_can_top.i_can_bsp.crc_err)
-    $display("Calculated crc = 0x%0x, crc_in = 0x%0x", can_testbench.i_can_top.i_can_bsp.calculated_crc, can_testbench.i_can_top.i_can_bsp.crc_in);
+  if (can_testbench.i_can_top.i_can_bsp.rx_ack       &
+      can_testbench.i_can_top.i_can_bsp.sample_point & 
+      can_testbench.i_can_top.i_can_bsp.crc_err
+     )
+    $display("(*E) (%0t) ERROR: CRC error (Calculated crc = 0x%0x, crc_in = 0x%0x)", $time, can_testbench.i_can_top.i_can_bsp.calculated_crc, can_testbench.i_can_top.i_can_bsp.crc_in);
 end
-//
+
 
 
 
@@ -1309,9 +1336,17 @@ end
 always @ (posedge clk)
 begin
   if (can_testbench.i_can_top.i_can_bsp.form_err)
-    $display("\n\n(%0t) ERROR: form_error\n\n", $time);
+    $display("(*E) (%0t) ERROR: form_error", $time);
 end
-//
+
+
+
+// acknowledge error monitor
+always @ (posedge clk)
+begin
+  if (can_testbench.i_can_top.i_can_bsp.ack_err)
+    $display("(*E) (%0t) ERROR: acknowledge_error", $time);
+end
 
 
 endmodule
