@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.18  2003/06/27 22:14:23  simons
+// Overrun fifo implemented with FFs, because it is not possible to create such a memory.
+//
 // Revision 1.17  2003/06/27 20:56:15  simons
 // Virtual silicon ram instances added.
 //
@@ -492,7 +495,7 @@ end
 `else
 `ifdef VIRTUALSILICON_RAM
 
-`ifdef PCI_BIST
+`ifdef CAN_BIST
     vs_hdtp_64x8_bist fifo
 `else
     vs_hdtp_64x8 fifo
@@ -506,7 +509,7 @@ end
         .DOUT       (data_out),
         .REN        (~fifo_selected),
         .WEN        (~(wr & (~fifo_full)))
-    `ifdef PCI_BIST
+    `ifdef CAN_BIST
         ,
         // debug chain signals
         .scanb_rst  (scanb_rst),
@@ -517,7 +520,7 @@ end
     `endif
     );
 
-`ifdef PCI_BIST
+`ifdef CAN_BIST
     vs_hdtp_64x4_bist info_fifo
 `else
     vs_hdtp_64x4 info_fifo
@@ -531,7 +534,7 @@ end
         .DOUT       (length_info),
         .REN        (1'b0),
         .WEN        (~(write_length_info & (~info_full) | initialize_memories))
-    `ifdef PCI_BIST
+    `ifdef CAN_BIST
         ,
         // debug chain signals
         .scanb_rst  (scanb_rst),
