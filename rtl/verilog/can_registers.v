@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.18  2003/03/01 22:52:11  mohor
+// Data is latched on read.
+//
 // Revision 1.17  2003/02/19 15:09:02  mohor
 // Incomplete sensitivity list fixed.
 //
@@ -923,7 +926,6 @@ can_register #(8) TX_DATA_REG12
 /* This section is for EXTENDED mode */
 
 /* Acceptance code register 1 */
-wire [7:0] acceptance_code_1;
 can_register #(8) ACCEPTANCE_CODE_REG1
 ( .data_in(data_in),
   .data_out(acceptance_code_1),
@@ -934,7 +936,6 @@ can_register #(8) ACCEPTANCE_CODE_REG1
 
 
 /* Acceptance code register 2 */
-wire [7:0] acceptance_code_2;
 can_register #(8) ACCEPTANCE_CODE_REG2
 ( .data_in(data_in),
   .data_out(acceptance_code_2),
@@ -945,7 +946,6 @@ can_register #(8) ACCEPTANCE_CODE_REG2
 
 
 /* Acceptance code register 3 */
-wire [7:0] acceptance_code_3;
 can_register #(8) ACCEPTANCE_CODE_REG3
 ( .data_in(data_in),
   .data_out(acceptance_code_3),
@@ -956,7 +956,6 @@ can_register #(8) ACCEPTANCE_CODE_REG3
 
 
 /* Acceptance mask register 1 */
-wire [7:0] acceptance_mask_1;
 can_register #(8) ACCEPTANCE_MASK_REG1
 ( .data_in(data_in),
   .data_out(acceptance_mask_1),
@@ -967,7 +966,6 @@ can_register #(8) ACCEPTANCE_MASK_REG1
 
 
 /* Acceptance mask register 2 */
-wire [7:0] acceptance_mask_2;
 can_register #(8) ACCEPTANCE_MASK_REG2
 ( .data_in(data_in),
   .data_out(acceptance_mask_2),
@@ -978,7 +976,6 @@ can_register #(8) ACCEPTANCE_MASK_REG2
 
 
 /* Acceptance mask register 3 */
-wire [7:0] acceptance_mask_3;
 can_register #(8) ACCEPTANCE_MASK_REG3
 ( .data_in(data_in),
   .data_out(acceptance_mask_3),
