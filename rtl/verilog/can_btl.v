@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.19  2003/06/20 14:28:20  mohor
+// When hard_sync or resync occure we need to go to seg1 segment. Going to
+// sync segment is in that case blocked.
+//
 // Revision 1.18  2003/06/17 15:53:33  mohor
 // clk_cnt reduced from [8:0] to [6:0].
 //
@@ -249,7 +253,7 @@ end
 
 /* Changing states */
  assign go_sync_unregistered = clk_en & (seg2 & (~hard_sync) & (~resync) & ((quant_cnt[2:0] == time_segment2)));
- assign go_seg1 = clk_en_q & (sync | hard_sync | (resync & seg2 & sync_window) | (resync_latched & sync_window));
+ assign go_seg1 = clk_en_q & ((sync & (~seg1)) | hard_sync | (resync & seg2 & sync_window) | (resync_latched & sync_window));
  assign go_seg2 = clk_en_q & (seg1 & (~hard_sync) & (quant_cnt == (time_segment1 + delay)));
 
 
@@ -258,7 +262,7 @@ begin
   if (rst)
     go_sync <= 1'b0;
   else
-    go_sync <=#Tp go_sync_unregistered  & (~hard_sync) & (~resync);
+    go_sync <=#Tp go_sync_unregistered;
 end
 
 
