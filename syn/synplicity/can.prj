@@ -6,9 +6,9 @@
 
 #add_file options
 add_file -verilog "$LIB/proasic/proasicplus.v"
-add_file -verilog "../../../memory/actel/ram_64x8_sync_async/actel_ram_64x8_sync_async.v"
-add_file -verilog "../../../memory/actel/ram_64x4_sync_async/actel_ram_64x4_sync_async.v"
-add_file -verilog "../../../memory/actel/ram_64x1_sync_async/actel_ram_64x1_sync_async.v"
+add_file -verilog "../../../memory/actel/ram_64x8_sync/actel_ram_64x8_sync.v"
+add_file -verilog "../../../memory/actel/ram_64x4_sync/actel_ram_64x4_sync.v"
+add_file -verilog "../../../memory/actel/ram_64x1_sync/actel_ram_64x1_sync.v"
 add_file -verilog "../../rtl/verilog/can_registers.v"
 add_file -verilog "../../rtl/verilog/can_bsp.v"
 add_file -verilog "../../rtl/verilog/can_btl.v"
