@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.28  2004/02/08 14:25:26  mohor
+// Header changed.
+//
 // Revision 1.27  2003/09/30 00:55:13  mohor
 // Error counters fixed to be compatible with Bosch VHDL reference model.
 // Small synchronization changes.
@@ -222,8 +225,6 @@ output        sampled_bit_q;
 output        tx_point;
 output        hard_sync;
 
-
-
 reg     [6:0] clk_cnt;
 reg           clk_en;
 reg           clk_en_q;
@@ -250,10 +251,10 @@ wire          sync_window;
 wire          resync;
 
 
-
 assign preset_cnt = (baud_r_presc + 1'b1)<<1;        // (BRP+1)*2
 assign hard_sync  =   (rx_idle | rx_inter)    & (~rx) & sampled_bit & (~hard_sync_blocked);  // Hard synchronization
 assign resync     =  (~rx_idle) & (~rx_inter) & (~rx) & sampled_bit & (~sync_blocked);       // Re-synchronization
+
 
 
 /* Generating general enable signal that defines baud rate. */
@@ -303,9 +304,10 @@ begin
     tx_point <= 1'b0;
   else
     tx_point <=#Tp ~tx_point & seg2 & (  clk_en & (quant_cnt[2:0] == time_segment2)
-                                       | clk_en_q & (resync | hard_sync)
+                                       | (clk_en | clk_en_q) & (resync | hard_sync)
                                       );    // When transmitter we should transmit as soon as possible.
 end
+
 
 
 /* When early edge is detected outside of the SJW field, synchronization request is latched and performed when
@@ -403,6 +405,11 @@ begin
       sampled_bit_q <= 1'b1;
       sample_point <= 1'b0;
     end
+  else if (go_error_frame)
+    begin
+      sampled_bit_q <=#Tp sampled_bit;
+      sample_point <=#Tp 1'b0;
+    end
   else if (clk_en_q & (~hard_sync))
     begin
       if (seg1 & (quant_cnt == (time_segment1 + delay)))
@@ -457,7 +464,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     hard_sync_blocked <=#Tp 1'b0;
-  else if (hard_sync & clk_en_q | transmitting & transmitter & tx_point & (~tx_next))
+  else if (hard_sync & clk_en_q | (transmitting & transmitter | go_tx) & tx_point & (~tx_next))
     hard_sync_blocked <=#Tp 1'b1;
   else if (go_rx_inter | (rx_idle | rx_inter) & sample_point & sampled_bit)  // When a glitch performed synchronization
     hard_sync_blocked <=#Tp 1'b0;
@@ -468,3 +475,4 @@ end
 
 
 endmodule
+

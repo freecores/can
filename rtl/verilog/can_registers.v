@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.31  2003/09/25 18:55:49  mohor
+// Synchronization changed, error counters fixed.
+//
 // Revision 1.30  2003/07/16 15:19:34  mohor
 // Fixed according to the linter.
 // Case statement for data_out joined.
@@ -759,7 +762,6 @@ wire   [2:0] cd;
 reg    [2:0] clkout_div;
 reg    [2:0] clkout_cnt;
 reg          clkout_tmp;
-//reg          clkout;
 
 can_register_asyn #(1, 0) CLOCK_DIVIDER_REG_7
 ( .data_in(data_in[7]),
@@ -830,18 +832,6 @@ begin
 end
 
 
-/*
-//always @ (cd or clk or clkout_tmp or clock_off)
-always @ (cd or clkout_tmp or clock_off)
-begin
-  if (clock_off)
-    clkout <=#Tp 1'b1;
-//  else if (&cd)
-//    clkout <=#Tp clk;
-  else
-    clkout <=#Tp clkout_tmp;
-end
-*/
 assign clkout = clock_off ? 1'b1 : ((&cd)? clk : clkout_tmp);
 
 
