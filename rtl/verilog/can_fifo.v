@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.19  2003/07/03 09:30:44  mohor
+// PCI_BIST replaced with CAN_BIST.
+//
 // Revision 1.18  2003/06/27 22:14:23  simons
 // Overrun fifo implemented with FFs, because it is not possible to create such a memory.
 //
@@ -153,7 +156,7 @@ input         clk;
 input         rst;
 input         wr;
 input   [7:0] data_in;
-input   [7:0] addr;
+input   [5:0] addr;
 input         reset_mode;
 input         release_buffer;
 input         extended_mode;
@@ -211,9 +214,9 @@ assign write_length_info = (~wr) & wr_q;
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    wr_q <= 0;
+    wr_q <=#Tp 1'b0;
   else if (reset_mode)
-    wr_q <=#Tp 0;
+    wr_q <=#Tp 1'b0;
   else
     wr_q <=#Tp wr;
 end
@@ -223,9 +226,9 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    len_cnt <= 0;
+    len_cnt <= 4'h0;
   else if (reset_mode | write_length_info)
-    len_cnt <=#Tp 1'b0;
+    len_cnt <=#Tp 4'h0;
   else if (wr & (~fifo_full))
     len_cnt <=#Tp len_cnt + 1'b1;
 end
@@ -235,11 +238,11 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    wr_info_pointer <= 0;
+    wr_info_pointer <= 6'h0;
   else if (write_length_info & (~info_full) | initialize_memories)
     wr_info_pointer <=#Tp wr_info_pointer + 1'b1;
   else if (reset_mode)
-    wr_info_pointer <=#Tp 0;
+    wr_info_pointer <=#Tp 6'h0;
 end
 
 
@@ -248,9 +251,9 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    rd_info_pointer <= 0;
+    rd_info_pointer <= 6'h0;
   else if (reset_mode)
-    rd_info_pointer <=#Tp 0;
+    rd_info_pointer <=#Tp 6'h0;
   else if (release_buffer & (~fifo_empty))
     rd_info_pointer <=#Tp rd_info_pointer + 1'b1;
 end
@@ -260,11 +263,11 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    rd_pointer <= 0;
+    rd_pointer <= 5'h0;
   else if (release_buffer & (~fifo_empty))
-    rd_pointer <=#Tp rd_pointer + length_info;
+    rd_pointer <=#Tp rd_pointer + {2'h0, length_info};
   else if (reset_mode)
-    rd_pointer <=#Tp 0;
+    rd_pointer <=#Tp 5'h0;
 end
 
 
@@ -272,11 +275,11 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    wr_pointer <= 0;
+    wr_pointer <= 5'h0;
   else if (wr & (~fifo_full))
     wr_pointer <=#Tp wr_pointer + 1'b1;
   else if (reset_mode)
-    wr_pointer <=#Tp 0;
+    wr_pointer <=#Tp 5'h0;
 end
 
 
@@ -284,9 +287,9 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    latch_overrun <= 0;
+    latch_overrun <= 1'b0;
   else if (reset_mode | write_length_info)
-    latch_overrun <=#Tp 0;
+    latch_overrun <=#Tp 1'b0;
   else if (wr & fifo_full)
     latch_overrun <=#Tp 1'b1;
 end
@@ -296,26 +299,28 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    fifo_cnt <= 0;
+    fifo_cnt <= 7'h0;
   else if (wr & (~release_buffer) & (~fifo_full))
     fifo_cnt <=#Tp fifo_cnt + 1'b1;
   else if ((~wr) & release_buffer & (~fifo_empty))
-    fifo_cnt <=#Tp fifo_cnt - length_info;
+    fifo_cnt <=#Tp fifo_cnt - {3'h0, length_info};
   else if (wr & release_buffer & (~fifo_full) & (~fifo_empty))
-    fifo_cnt <=#Tp fifo_cnt - length_info + 1'b1;
+    fifo_cnt <=#Tp fifo_cnt - {3'h0, length_info} + 1'b1;
   else if (reset_mode)
-    fifo_cnt <=#Tp 0;
+    fifo_cnt <=#Tp 7'h0;
 end
 
-assign fifo_full = fifo_cnt == 64;
-assign fifo_empty = fifo_cnt == 0;
+assign fifo_full = fifo_cnt == 7'd64;
+assign fifo_empty = fifo_cnt == 7'd0;
 
 
 // Counting data in length_fifo and overrun_info fifo
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    info_cnt <= 0;
+    info_cnt <=#Tp 7'h0;
+  else if (reset_mode)
+    info_cnt <=#Tp 7'h0;
   else if (write_length_info ^ release_buffer)
     begin
       if (release_buffer & (~info_empty))
@@ -325,28 +330,24 @@ begin
     end
 end
         
-assign info_full = info_cnt == 64;
-assign info_empty = info_cnt == 0;
+assign info_full = info_cnt == 7'd64;
+assign info_empty = info_cnt == 7'd0;
 
 
 // Selecting which address will be used for reading data from rx fifo
 always @ (extended_mode or rd_pointer or addr)
 begin
   if (extended_mode)      // extended mode
-    begin
-      read_address <= rd_pointer + (addr - 8'd16);
-    end
+    read_address = rd_pointer + (addr - 6'd16);
   else                    // normal mode
-    begin
-      read_address <= rd_pointer + (addr - 8'd20);
-    end
+    read_address = rd_pointer + (addr - 6'd20);
 end
 
 
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    initialize_memories <= 1;
+    initialize_memories <= 1'b1;
   else if (&wr_info_pointer)
     initialize_memories <=#Tp 1'b0;
 end
