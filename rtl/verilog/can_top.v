@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.10  2003/01/31 01:13:38  mohor
+// backup.
+//
 // Revision 1.9  2003/01/15 13:16:48  mohor
 // When a frame with "remote request" is received, no data is stored to fifo, just the frame information (identifier, ...). Data length that is stored is the received data length and not the actual data length that is stored to fifo.
 //
@@ -102,7 +105,7 @@ input  [7:0] addr;
 input        rx;
 output       tx;
 
-reg           data_out_fifo_selected;
+reg          data_out_fifo_selected;
 
 wire   [7:0] data_out_fifo;
 wire   [7:0] data_out_regs;
@@ -115,58 +118,59 @@ wire         acceptance_filter_mode;
 wire         sleep_mode;
 
 /* Command register */
-wire          release_buffer;
+wire         release_buffer;
+wire         tx_request;
 
 /* Bus Timing 0 register */
-wire    [5:0] baud_r_presc;
-wire    [1:0] sync_jump_width;
+wire   [5:0] baud_r_presc;
+wire   [1:0] sync_jump_width;
 
 /* Bus Timing 1 register */
-wire    [3:0] time_segment1;
-wire    [2:0] time_segment2;
-wire          triple_sampling;
+wire   [3:0] time_segment1;
+wire   [2:0] time_segment2;
+wire         triple_sampling;
 
 /* Clock Divider register */
-wire          extended_mode;
-wire          rx_int_enable;
-wire          clock_off;
-wire    [2:0] cd;
+wire         extended_mode;
+wire         rx_int_enable;
+wire         clock_off;
+wire   [2:0] cd;
 
 /* This section is for BASIC and EXTENDED mode */
 /* Acceptance code register */
-wire [7:0] acceptance_code_0;
+wire   [7:0] acceptance_code_0;
 
 /* Acceptance mask register */
-wire [7:0] acceptance_mask_0;
+wire   [7:0] acceptance_mask_0;
 /* End: This section is for BASIC and EXTENDED mode */
 
 
 /* This section is for EXTENDED mode */
 /* Acceptance code register */
-wire [7:0] acceptance_code_1;
-wire [7:0] acceptance_code_2;
-wire [7:0] acceptance_code_3;
+wire   [7:0] acceptance_code_1;
+wire   [7:0] acceptance_code_2;
+wire   [7:0] acceptance_code_3;
 
 /* Acceptance mask register */
-wire [7:0] acceptance_mask_1;
-wire [7:0] acceptance_mask_2;
-wire [7:0] acceptance_mask_3;
+wire   [7:0] acceptance_mask_1;
+wire   [7:0] acceptance_mask_2;
+wire   [7:0] acceptance_mask_3;
 /* End: This section is for EXTENDED mode */
 
 /* Tx data registers. Holding identifier (basic mode), tx frame information (extended mode) and data */
-wire [7:0] tx_data_0;
-wire [7:0] tx_data_1;
-wire [7:0] tx_data_2;
-wire [7:0] tx_data_3;
-wire [7:0] tx_data_4;
-wire [7:0] tx_data_5;
-wire [7:0] tx_data_6;
-wire [7:0] tx_data_7;
-wire [7:0] tx_data_8;
-wire [7:0] tx_data_9;
-wire [7:0] tx_data_10;
-wire [7:0] tx_data_11;
-wire [7:0] tx_data_12;
+wire   [7:0] tx_data_0;
+wire   [7:0] tx_data_1;
+wire   [7:0] tx_data_2;
+wire   [7:0] tx_data_3;
+wire   [7:0] tx_data_4;
+wire   [7:0] tx_data_5;
+wire   [7:0] tx_data_6;
+wire   [7:0] tx_data_7;
+wire   [7:0] tx_data_8;
+wire   [7:0] tx_data_9;
+wire   [7:0] tx_data_10;
+wire   [7:0] tx_data_11;
+wire   [7:0] tx_data_12;
 /* End: Tx data registers */
 
 
@@ -191,7 +195,7 @@ can_registers i_can_registers
   .clear_data_overrun(),
   .release_buffer(release_buffer),
   .abort_tx(),
-  .tx_request(),
+  .tx_request(tx_request),
   .self_rx_request(),
 
   /* Bus Timing 0 register */
@@ -329,6 +333,7 @@ can_bsp i_can_bsp
   
   /* Command register */
   .release_buffer(release_buffer),
+  .tx_request(tx_request),
 
   /* Clock Divider register */
   .extended_mode(extended_mode),

@@ -116,8 +116,8 @@ define variable nofilenames
 define variable nofullpathfilenames
 include bookmark with filenames
 include scope history without filenames
-define waveform window listpane 8
-define waveform window namepane 12
+define waveform window listpane 6.99
+define waveform window namepane 12.96
 define multivalueindication
 define pattern curpos dot
 define pattern cursor1 dot
@@ -217,9 +217,16 @@ add group \
 
 add group \
     testbench \
+      can_testbench.receive_frame.arbitration_lost \
+      can_testbench.receive_frame.tmp \
+      can_testbench.receive_frame.cnt's \
+      can_testbench.receive_frame.mode \
+      can_testbench.receive_frame.pointer's \
+      can_testbench.receive_frame.total_bits's \
 
 add group \
     can_bsp \
+      can_testbench.receive_frame.arbitration_lost \
       can_testbench.i_can_top.i_can_bsp.acknowledge_error \
       can_testbench.i_can_top.i_can_bsp.bit_error \
       can_testbench.i_can_top.i_can_bsp.crc_error \
@@ -229,10 +236,19 @@ add group \
       can_testbench.i_can_top.i_can_bsp.stuff_error \
       can_testbench.i_can_top.i_can_btl.hard_sync \
       can_testbench.i_can_top.i_can_btl.resync \
+      can_testbench.rx \
       can_testbench.i_can_top.rx \
       can_testbench.i_can_top.tx \
       can_testbench.i_can_top.i_can_bsp.sample_point \
       can_testbench.i_can_top.i_can_bsp.tx_point \
+      can_testbench.i_can_top.i_can_bsp.basic_chain[18:0]'h \
+      can_testbench.i_can_top.i_can_bsp.basic_chain_data[63:0]'h \
+      can_testbench.i_can_top.i_can_bsp.extended_chain_std[18:0]'h \
+      can_testbench.i_can_top.i_can_bsp.extended_chain_ext[38:0]'h \
+      can_testbench.i_can_top.i_can_bsp.extended_chain_data[63:0]'h \
+      can_testbench.i_can_top.i_can_bsp.extended_mode \
+      can_testbench.i_can_top.i_can_bsp.tx_pointer[5:0]'h \
+      can_testbench.i_can_top.i_can_bsp.rst_tx_pointer \
       can_testbench.i_can_top.i_can_bsp.acknowledge_error \
       can_testbench.i_can_top.i_can_bsp.addr[7:0]'h \
       can_testbench.i_can_top.i_can_bsp.bit_cnt[5:0]'h \
@@ -244,6 +260,7 @@ add group \
       can_testbench.i_can_top.i_can_bsp.bit_stuff_cnt_en \
       can_testbench.i_can_top.i_can_bsp.byte_cnt[2:0]'h \
       can_testbench.i_can_top.i_can_bsp.calculated_crc[14:0]'h \
+      can_testbench.i_can_top.i_can_bsp.r_calculated_crc[15:0]'h \
       can_testbench.i_can_top.i_can_bsp.crc_in[14:0]'h \
       can_testbench.i_can_top.i_can_bsp.clk \
       can_testbench.i_can_top.i_can_bsp.crc_enable \
@@ -260,12 +277,29 @@ add group \
       can_testbench.i_can_top.i_can_bsp.error_frame_ended \
       can_testbench.i_can_top.i_can_bsp.rtr1 \
       can_testbench.i_can_top.i_can_bsp.rtr2 \
+      can_testbench.i_can_top.i_can_bsp.priority_lost \
+      can_testbench.i_can_top.i_can_bsp.bit_de_stuff_tx \
+      can_testbench.i_can_top.i_can_bsp.bit_stuff_cnt_tx[2:0]'h \
+      can_testbench.i_can_top.i_can_bsp.bit_stuff_cnt_en \
+      can_testbench.i_can_top.i_can_bsp.bit_de_stuff_set \
+      can_testbench.i_can_top.i_can_bsp.bit_de_stuff_reset \
+      can_testbench.i_can_top.i_can_btl.hard_sync \
+      can_testbench.i_can_top.i_can_btl.resync \
+      can_testbench.i_can_top.rx \
+      can_testbench.i_can_top.i_can_bsp.tx_pointer[5:0]'h \
+      can_testbench.i_can_top.tx \
+      can_testbench.i_can_top.i_can_bsp.tx_q \
+      can_testbench.i_can_top.i_can_bsp.tx_bit \
+      can_testbench.i_can_top.i_can_bsp.sample_point \
+      can_testbench.i_can_top.i_can_bsp.tx_point \
       can_testbench.i_can_top.i_can_bsp.rx_ack \
       can_testbench.i_can_top.i_can_bsp.rx_ack_lim \
       can_testbench.i_can_top.i_can_bsp.rx_crc \
       can_testbench.i_can_top.i_can_bsp.rx_crc_lim \
       can_testbench.i_can_top.i_can_bsp.rx_data \
       can_testbench.i_can_top.i_can_bsp.rx_dlc \
+      can_testbench.i_can_top.i_can_bsp.finish_msg \
+      can_testbench.i_can_top.i_can_bsp.tx_state \
       can_testbench.i_can_top.i_can_bsp.rx_eof \
       can_testbench.i_can_top.i_can_bsp.rx_id1 \
       can_testbench.i_can_top.i_can_bsp.rx_id2 \
@@ -278,6 +312,11 @@ add group \
       can_testbench.i_can_top.i_can_bsp.rx_rtr2 \
       can_testbench.i_can_top.i_can_bsp.extended_mode \
       can_testbench.i_can_top.i_can_bsp.form_error \
+      can_testbench.i_can_top.i_can_bsp.go_early_tx \
+      can_testbench.i_can_top.i_can_bsp.go_tx \
+      can_testbench.i_can_top.i_can_bsp.need_to_tx \
+      can_testbench.i_can_top.i_can_bsp.tx_request \
+      can_testbench.i_can_top.i_can_bsp.tx_state \
       can_testbench.i_can_top.i_can_bsp.go_crc_enable \
       can_testbench.i_can_top.i_can_bsp.go_error_frame \
       can_testbench.i_can_top.i_can_bsp.go_rx_ack \
@@ -456,4 +495,5 @@ add register  Default \
     fontsize 12 \
 
 
-open window designbrowser 1 geometry 370 210 855 550
+open window waveform 1 geometry 10 59 1592 1140
+zoom at 0(0)ns 0.00001477 0.00000000

@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.15  2003/01/31 01:13:37  mohor
+// backup.
+//
 // Revision 1.14  2003/01/16 13:36:19  mohor
 // Form error supported. When receiving messages, last bit of the end-of-frame
 // does not generate form error. Receiver goes to the idle mode one bit sooner.
@@ -118,6 +121,7 @@ module can_bsp
 
   /* Command register */
   release_buffer,
+  tx_request,
 
   /* Clock Divider register */
   extended_mode,
@@ -185,6 +189,7 @@ input         extended_mode;
 
 /* Command register */
 input         release_buffer;
+input         tx_request;
 
 output        rx_idle;
 output        transmitting;
@@ -236,9 +241,12 @@ reg     [5:0] bit_cnt;
 reg     [3:0] data_len;
 reg    [28:0] id;
 reg     [2:0] bit_stuff_cnt;
+reg     [2:0] bit_stuff_cnt_tx;
 reg           stuff_error;
+reg           tx_point_q;
 
 wire          bit_de_stuff;
+wire          bit_de_stuff_tx;
 
 
 /* Rx state machine */
@@ -266,6 +274,9 @@ wire          rst_crc_enable;
 
 wire          bit_de_stuff_set;
 wire          bit_de_stuff_reset;
+
+wire          go_early_tx;
+wire          go_tx;
 
 reg           rx_idle;
 reg           rx_id1;
@@ -298,9 +309,9 @@ reg           crc_enable;
 
 reg     [2:0] eof_cnt;
 wire   [14:0] calculated_crc;
+wire   [15:0] r_calculated_crc;
 wire          remote_rq;
 wire    [3:0] limited_data_len;
-//reg           form_error;
 wire          form_error;
 wire          set_form_error;
 reg           transmitting;
@@ -312,13 +323,36 @@ reg     [2:0] error_cnt2;
 reg           tx;
 reg           crc_error;
 
+reg           priority_lost;
+reg           tx_q;
+
 wire          error_frame_ended;
 wire          bit_error = 0; // FIX ME !!!
-wire          acknowledge_error = 0; // FIX ME !!!
-wire          need_to_tx = 0; // When the CAN core has something to transmit and a dominant bit is sampled at the third bit
-                              // of intermission, it starts reading the identifier (and transmitting its own). // FIX ME !!!
+wire          acknowledge_error;
+reg           need_to_tx; // When the CAN core has something to transmit and a dominant bit is sampled at the third bit
+                          // of intermission, it starts reading the identifier (and transmitting its own). // FIX ME !!!
 wire          overload_needed = 0;  // When receiver is busy, it needs to send overload frame. Only 2 overload frames are allowed to
                                     // be send in a row. Counter?   FIX ME
+
+wire          id_ok;        // If received ID matches ID set in registers
+wire          no_byte0;     // There is no byte 0 (RTR bit set to 1 or DLC field equal to 0). Signal used for acceptance filter.
+wire          no_byte1;     // There is no byte 1 (RTR bit set to 1 or DLC field equal to 1). Signal used for acceptance filter.
+reg     [3:0] data_cnt;     // Counting the data bytes that are written to FIFO
+reg     [2:0] header_cnt;   // Counting header length
+reg           wr_fifo;      // Write data and header to 64-byte fifo
+reg     [7:0] data_for_fifo;// Multiplexed data that is stored to 64-byte fifo
+
+reg     [5:0] tx_pointer;
+reg           tx_bit;
+reg           tx_state;
+reg           finish_msg;
+
+wire    [2:0] header_len;
+wire          storing_header;
+wire    [3:0] limited_data_len_minus1;
+wire          reset_wr_fifo;
+wire          no_error;
+
 
 assign go_rx_idle     =                   sample_point &  sampled_bit & rx_inter & (bit_cnt == 2);  // Look the following line for TX
 //assign go_rx_id1      =                   sample_point &  (~sampled_bit) & (rx_idle | rx_inter & (bit_cnt == 2) & need_to_tx);
@@ -347,7 +381,8 @@ assign go_overload_frame = ((sample_point &  rx_eof  & (eof_cnt == 6)) | error_f
                              sample_point & (~sampled_bit) & (error_cnt2 == 7)
                             ;
 
-assign go_crc_enable  = hard_sync;
+
+assign go_crc_enable  = hard_sync | go_tx;
 assign rst_crc_enable = go_rx_crc;
 
 assign bit_de_stuff_set   = go_rx_id1;
@@ -355,6 +390,9 @@ assign bit_de_stuff_reset = go_rx_crc_lim | reset_mode | go_error_frame;
 
 assign remote_rq = ((~ide) & rtr1) | (ide & rtr2);
 assign limited_data_len = (data_len < 8)? data_len : 4'h8;
+
+assign acknowledge_error = rx_ack & sample_point & sampled_bit & tx_state;
+
 
 
 // Rx idle state
@@ -709,7 +747,27 @@ begin
 end
 
 
+// bit_stuff_cnt_tx
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    bit_stuff_cnt_tx <= 1;
+  else if (bit_de_stuff_reset)
+    bit_stuff_cnt_tx <=#Tp 1;
+  else if (tx_point_q & bit_stuff_cnt_en)
+    begin
+      if (bit_stuff_cnt_tx == 5)
+        bit_stuff_cnt_tx <=#Tp 1;
+      else if (tx == tx_q)
+        bit_stuff_cnt_tx <=#Tp bit_stuff_cnt_tx + 1'b1;
+      else
+        bit_stuff_cnt_tx <=#Tp 1;
+    end
+end
+
+
 assign bit_de_stuff = bit_stuff_cnt == 5;
+assign bit_de_stuff_tx = bit_stuff_cnt_tx == 5;
 
 
 
@@ -751,38 +809,24 @@ begin
     crc_error <= 0;
   else if (go_rx_ack)
     crc_error <=#Tp crc_in != calculated_crc;
-  else if (reset_mode | go_rx_idle | error_frame)   // CRC error might reset itself
+  else if (reset_mode | go_rx_idle | error_frame)
     crc_error <=#Tp 0;
 end
 
 
 // Conditions for form error
-//assign set_form_error = sample_point & ( (~bit_de_stuff) & rx_ide     &   sampled_bit & (~rtr1) |
 assign     form_error = sample_point & ( (~bit_de_stuff) & rx_ide     &   sampled_bit & (~rtr1) |
                                                            rx_crc_lim & (~sampled_bit)          |
                                                            rx_ack_lim & (~sampled_bit)          |
                                                            rx_eof     & (~sampled_bit)
                                        );
 
-/*
-// Form error 
-always @ (posedge clk or posedge rst)
-begin
-  if (rst)
-    form_error <= 1'b0;
-  else if (reset_mode | go_rx_idle | error_frame)
-    form_error <=#Tp 1'b0;
-  else if (set_form_error)
-    form_error <=#Tp 1'b1;
-end
-*/
 
 // Instantiation of the RX CRC module
 can_crc i_can_crc_rx 
 (
   .clk(clk),
-//  .data(sampled_bit & (~rx_crc)),     // Zeros are shifted in for calculation when we are in crc stage
-  .data(sampled_bit ),     // Zeros are shifted in for calculation when we are in crc stage
+  .data(sampled_bit),
   .enable(crc_enable & sample_point & (~bit_de_stuff)),
   .initialize(rx_eof),
   .crc(calculated_crc)
@@ -790,9 +834,6 @@ can_crc i_can_crc_rx
 
 
 
-wire          id_ok;        // If received ID matches ID set in registers
-wire          no_byte0;     // There is no byte 0 (RTR bit set to 1 or DLC field equal to 0). Signal used for acceptance filter.
-wire          no_byte1;     // There is no byte 1 (RTR bit set to 1 or DLC field equal to 1). Signal used for acceptance filter.
 
 assign no_byte0 = rtr1 | (data_len<1);
 assign no_byte1 = rtr1 | (data_len<2);
@@ -848,22 +889,11 @@ can_acf i_can_acf
 
 
 
-reg [3:0]   data_cnt;       // Counting the data bytes that are written to FIFO
-reg [2:0]   header_cnt;     // Counting header length
-reg         wr_fifo;        // Write data and header to 64-byte fifo
-reg [7:0]   data_for_fifo;  // Multiplexed data that is stored to 64-byte fifo
-
-
-wire [2:0]  header_len;
-wire        storing_header;
-wire [3:0]  limited_data_len_minus1;
-wire        reset_wr_fifo;
-wire        no_error;
 
 assign header_len[2:0] = extended_mode ? (ide? (3'h5) : (3'h3)) : 3'h2;
 assign storing_header = header_cnt < header_len;
 assign limited_data_len_minus1[3:0] = remote_rq? 4'hf : ((data_len < 8)? (data_len -1'b1) : 4'h7);   // - 1 because counter counts from 0
-assign reset_wr_fifo = data_cnt == (limited_data_len_minus1 + header_len);
+assign reset_wr_fifo = (data_cnt == (limited_data_len_minus1 + header_len)) | reset_mode;
 assign no_error = (~crc_error) & (~form_error) & (~stuff_error);
 
 
@@ -875,7 +905,8 @@ begin
     wr_fifo <= 1'b0;
   else if (reset_wr_fifo)
     wr_fifo <=#Tp 1'b0;
-  else if (go_rx_inter & id_ok & (~error_frame_ended))
+  else if (go_rx_inter & id_ok & (~error_frame_ended))    // FIX ME !!! Look following line
+//  else if (go_rx_inter & id_ok & (~error_frame_ended) & (~tx_state))  FIX ME !!! This line is the correct one. The above line is for easier debugging only.
     wr_fifo <=#Tp 1'b1;
 end
 
@@ -977,9 +1008,9 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     transmitting <= 1'b0;
-  else if (go_rx_idle | reset_mode)
+  else if (go_rx_idle | reset_mode | priority_lost)
     transmitting <=#Tp 1'b0;
-  else if (~no_error)
+  else if (~no_error | go_tx)
     transmitting <=#Tp 1'b1;
 end
 
@@ -1031,33 +1062,207 @@ begin
 end
 
 
-wire node_error_passive = 1;
+wire node_error_passive = 1;    // FIX ME
+
+wire [18:0] basic_chain;
+wire [63:0] basic_chain_data;
+wire [18:0] extended_chain_std;
+wire [38:0] extended_chain_ext;
+wire [63:0] extended_chain_data;
+
+wire        rst_tx_pointer;
+
+wire  [7:0] r_tx_data_0;
+wire  [7:0] r_tx_data_1;
+wire  [7:0] r_tx_data_2;
+wire  [7:0] r_tx_data_3;
+wire  [7:0] r_tx_data_4;
+wire  [7:0] r_tx_data_5;
+wire  [7:0] r_tx_data_6;
+wire  [7:0] r_tx_data_7;
+wire  [7:0] r_tx_data_8;
+wire  [7:0] r_tx_data_9;
+wire  [7:0] r_tx_data_10;
+wire  [7:0] r_tx_data_11;
+wire  [7:0] r_tx_data_12;
+
+
 
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
     tx <= 1'b1;
-  else if (reset_mode | error_frame_ended)
+  else if (reset_mode | error_frame_ended)                                      // Reset
     tx <=#Tp 1'b1;
-  else if (tx_point & error_frame)
+  else if (tx_point)
     begin
-      if (error_cnt1 < 6)
+      if (tx_state)                                                             // Transmitting message
+        tx <=#Tp ((~bit_de_stuff_tx) & tx_bit) | (bit_de_stuff_tx & (~tx_q));
+      else if ((~tx_state) & rx_ack & no_error)                                 // Acknowledge
+        tx <=#Tp 1'b0;
+      else if (error_frame)                                                     // Transmitting error frame
         begin
-          if (node_error_passive)
+          if (error_cnt1 < 6)
+            begin
+              if (node_error_passive)
+                tx <=#Tp 1'b1;
+              else
+                tx <=#Tp 1'b0;
+            end
+          else if (error_cnt2 < 7)
             tx <=#Tp 1'b1;
-          else
-            tx <=#Tp 1'b0;
         end
-      else if (error_cnt2 < 7)
+      else
         tx <=#Tp 1'b1;
     end
 end
 
 
+always @ (posedge clk)
+begin
+  if (tx_point)
+    tx_q <=#Tp tx;
+end
+
+
+/* Delayed tx point */
+always @ (posedge clk)
+begin
+  tx_point_q <=#Tp tx_point;
+end
+
+
+/* Changing bit order from [7:0] to [0:7] */
+can_ibo i_ibo_tx_data_0  (.di(tx_data_0),  .do(r_tx_data_0));
+can_ibo i_ibo_tx_data_1  (.di(tx_data_1),  .do(r_tx_data_1));
+can_ibo i_ibo_tx_data_2  (.di(tx_data_2),  .do(r_tx_data_2));
+can_ibo i_ibo_tx_data_3  (.di(tx_data_3),  .do(r_tx_data_3));
+can_ibo i_ibo_tx_data_4  (.di(tx_data_4),  .do(r_tx_data_4));
+can_ibo i_ibo_tx_data_5  (.di(tx_data_5),  .do(r_tx_data_5));
+can_ibo i_ibo_tx_data_6  (.di(tx_data_6),  .do(r_tx_data_6));
+can_ibo i_ibo_tx_data_7  (.di(tx_data_7),  .do(r_tx_data_7));
+can_ibo i_ibo_tx_data_8  (.di(tx_data_8),  .do(r_tx_data_8));
+can_ibo i_ibo_tx_data_9  (.di(tx_data_9),  .do(r_tx_data_9));
+can_ibo i_ibo_tx_data_10 (.di(tx_data_10), .do(r_tx_data_10));
+can_ibo i_ibo_tx_data_11 (.di(tx_data_11), .do(r_tx_data_11));
+can_ibo i_ibo_tx_data_12 (.di(tx_data_12), .do(r_tx_data_12));
+
+/* Changing bit order from [14:0] to [0:14] */
+can_ibo i_calculated_crc0 (.di(calculated_crc[14:7]), .do(r_calculated_crc[7:0]));
+can_ibo i_calculated_crc1 (.di({calculated_crc[6:0], 1'b0}), .do(r_calculated_crc[15:8]));
+
+
+assign basic_chain = {r_tx_data_1[7:4], 2'h0, r_tx_data_1[3:0], r_tx_data_0[7:0], 1'b0};
+assign basic_chain_data = {r_tx_data_9, r_tx_data_8, r_tx_data_7, r_tx_data_6, r_tx_data_5, r_tx_data_4, r_tx_data_3, r_tx_data_2};
+assign extended_chain_std = {r_tx_data_0[7:4], 2'h0, r_tx_data_0[1], r_tx_data_2[2:0], r_tx_data_1[7:0], 1'b0};
+assign extended_chain_ext = {r_tx_data_0[7:4], 2'h0, r_tx_data_0[1], r_tx_data_4[4:0], r_tx_data_3[7:0], r_tx_data_2[7:3], 1'b1, 1'b1, r_tx_data_2[2:0], r_tx_data_1[7:0], 1'b0};
+assign extended_chain_data = {r_tx_data_12, r_tx_data_11, r_tx_data_10, r_tx_data_9, r_tx_data_8, r_tx_data_7, r_tx_data_6, r_tx_data_5};
+
+always @ (extended_mode or rx_data or tx_pointer or extended_chain_data or rx_crc or r_calculated_crc or
+          r_tx_data_0   or extended_chain_ext or extended_chain_std or basic_chain_data or basic_chain or
+          finish_msg)
+begin
+  if (extended_mode)
+    begin
+      if (rx_data)  // data stage
+        tx_bit = extended_chain_data[tx_pointer];
+      else if (rx_crc)
+        tx_bit = r_calculated_crc[tx_pointer];
+      else if (finish_msg)
+        tx_bit = 1'b1;
+      else
+        begin
+          if (r_tx_data_0[0])    // Extended frame
+            tx_bit = extended_chain_ext[tx_pointer];
+          else
+            tx_bit = extended_chain_std[tx_pointer];
+        end
+    end
+  else  // Basic mode
+    begin
+      if (rx_data)  // data stage
+        tx_bit = basic_chain_data[tx_pointer];
+      else if (rx_crc)
+        tx_bit = r_calculated_crc[tx_pointer];
+      else if (finish_msg)
+        tx_bit = 1'b1;
+      else
+        tx_bit = basic_chain[tx_pointer];
+    end
+end
+
+
+assign rst_tx_pointer = ((~bit_de_stuff_tx) & tx_point & (~rx_data) &   extended_mode  & tx_pointer == 38                      ) |   // arbitration + control for extended format
+                        ((~bit_de_stuff_tx) & tx_point & (~rx_data) & (~extended_mode) & tx_pointer == 18                      ) |   // arbitration + control for standard format
+                        ((~bit_de_stuff_tx) & tx_point &   rx_data  &   extended_mode  & tx_pointer == (8 * tx_data_0[3:0] - 1)) |   // data
+                        ((~bit_de_stuff_tx) & tx_point &   rx_data  & (~extended_mode) & tx_pointer == (8 * tx_data_1[3:0] - 1)) |   // data
+                        (                     tx_point &   rx_crc_lim                                                          ) |   // crc
+                        (go_rx_idle                                                                                            ) |   // at the end
+                        (reset_mode                                                                                            ) |
+                        (error_frame                                                                                           ) ;   // FIX ME (not sure this is ok)
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    tx_pointer <= 'h0;
+  else if (rst_tx_pointer)
+    tx_pointer <=#Tp 'h0;
+  else if (go_early_tx | (tx_point & tx_state & (~bit_de_stuff_tx)))
+    tx_pointer <=#Tp tx_pointer + 1'b1;
+end
+
+
+wire rst_need_to_tx = go_rx_inter & (~error_frame & (~priority_lost));    // FIX ME !!! When there is no error until the end-of-frame, tx is ok (finished).
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    need_to_tx <= 1'b0;
+  else if (rst_need_to_tx)
+    need_to_tx <=#Tp 'h0;
+  else if (tx_request)
+    need_to_tx <=#Tp 1'b1;
+end
 
 
 
+assign go_early_tx      = need_to_tx & (~tx_state) & sample_point & (~sampled_bit) & (rx_idle | rx_inter & (bit_cnt == 2));
+assign go_tx            = need_to_tx & (~tx_state) & sample_point & (go_early_tx | sampled_bit & rx_idle);
 
+
+// Tx state
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    tx_state <= 1'b0;
+  else if (go_rx_inter | error_frame | priority_lost)
+    tx_state <=#Tp 1'b0;
+  else if (go_tx)
+    tx_state <=#Tp 1'b1;
+end
+
+
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    finish_msg <= 1'b0;
+  else if (go_rx_idle | error_frame | reset_mode)
+    finish_msg <=#Tp 1'b0;
+  else if (go_rx_crc_lim)
+    finish_msg <=#Tp 1'b1;
+end
+
+
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    priority_lost <= 1'b0;
+  else if (go_rx_idle | error_frame | reset_mode)
+    priority_lost <=#Tp 1'b0;
+  else if (tx_state & sample_point & tx & (rx_id1 | rx_rtr1 | rx_id2 | rx_ide | rx_id2 | rx_rtr2))
+    priority_lost <=#Tp (~sampled_bit);
+end
 
 
 

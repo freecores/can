@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.17  2003/01/31 01:13:31  mohor
+// backup.
+//
 // Revision 1.16  2003/01/16 13:36:14  mohor
 // Form error supported. When receiving messages, last bit of the end-of-frame
 // does not generate form error. Receiver goes to the idle mode one bit sooner.
@@ -214,8 +217,8 @@ begin
     begin
       // Set Acceptance Code and Acceptance Mask registers
 //      write_register(8'd4, 8'ha6); // acceptance code
-      write_register(8'd4, 8'h08); // acceptance code
-      write_register(8'd5, 8'h00); // acceptance mask
+      write_register(8'd4, 8'he8); // acceptance code
+      write_register(8'd5, 8'h0f); // acceptance mask
     end
   
   #10;
@@ -249,7 +252,6 @@ begin
     end
 
 
-
   $display("CAN Testbench finished !");
   $stop;
 end
@@ -279,8 +281,8 @@ task send_frame;    // CAN IP core sends frames
       end
     else
       begin
-        write_register(8'd10, 8'h12); // Writing ID[10:3] = 0x12
-        write_register(8'd11, 8'h04); // Writing ID[3:0] = 0x0, rtr = 0, length = 4
+        write_register(8'd10, 8'hea); // Writing ID[10:3] = 0xea
+        write_register(8'd11, 8'h18); // Writing ID[3:0] = 0x0, rtr = 1, length = 8
         write_register(8'd12, 8'h56); // data byte 1
         write_register(8'd13, 8'h78); // data byte 2
         write_register(8'd14, 8'h9a); // data byte 3
@@ -290,6 +292,47 @@ task send_frame;    // CAN IP core sends frames
         write_register(8'd18, 8'h0f); // data byte 7
         write_register(8'd19, 8'hed); // data byte 8
       end
+
+  
+    fork
+      begin
+        $display("\n\nStart receiving data from CAN bus");
+        receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h0, 15'h2372); // mode, rtr, id, length, crc
+        receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h1, 15'h30bb); // mode, rtr, id, length, crc
+        receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h2, 15'h2da1); // mode, rtr, id, length, crc
+        receive_frame(0, 0, {26'h00000ee, 3'h1}, 4'h0, 15'h6cea); // mode, rtr, id, length, crc
+        receive_frame(0, 0, {26'h00000ee, 3'h1}, 4'h1, 15'h00c5); // mode, rtr, id, length, crc
+        receive_frame(0, 0, {26'h00000ee, 3'h1}, 4'h2, 15'h7b4a); // mode, rtr, id, length, crc
+      end
+
+      begin
+        tx_request;
+      end
+
+      begin
+        // Transmitting acknowledge
+        wait (can_testbench.i_can_top.i_can_bsp.tx_state & can_testbench.i_can_top.i_can_bsp.rx_ack);
+        rx = 0;
+        wait (can_testbench.i_can_top.i_can_bsp.rx_ack_lim);
+        rx = 1;
+      end
+
+    join
+
+    read_receive_buffer;
+    release_rx_buffer;
+    release_rx_buffer;
+    read_receive_buffer;
+    release_rx_buffer;
+    read_receive_buffer;
+    release_rx_buffer;
+    read_receive_buffer;
+    release_rx_buffer;
+    read_receive_buffer;
+
+    #200000;
+
+    read_receive_buffer;
 
   end
 endtask
@@ -667,6 +710,15 @@ task release_rx_buffer;
 endtask
 
 
+task tx_request;
+  begin
+    write_register(8'd1, 8'h1);
+    $display("(%0t) Tx requested.", $time);
+    repeat (2) @ (posedge clk);   // Time to decrement all the counters, etc.
+  end
+endtask
+
+
 task test_synchronization;
   begin
     // Hard synchronization
@@ -715,13 +767,16 @@ task receive_frame;           // CAN IP core receives frames
   input [28:0] id;
   input  [3:0] length;
   input [14:0] crc;
-  integer pointer;
-  integer cnt;
-  integer total_bits;
-  integer stuff_cnt;
+
   reg [117:0] data;
   reg         previous_bit;
-  reg stuff;
+  reg         stuff;
+  reg         tmp;
+  reg         arbitration_lost;
+  integer     pointer;
+  integer     cnt;
+  integer     total_bits;
+  integer     stuff_cnt;
 
   begin
 
@@ -766,37 +821,79 @@ task receive_frame;           // CAN IP core receives frames
     total_bits = pointer;
 
     // Waiting until previous msg is finished before sending another one
-    wait (~can_testbench.i_can_top.i_can_bsp.error_frame & ~can_testbench.i_can_top.i_can_bsp.rx_inter);
+    wait (~can_testbench.i_can_top.i_can_bsp.error_frame & ~can_testbench.i_can_top.i_can_bsp.rx_inter & ~can_testbench.i_can_top.i_can_bsp.tx_state);
+    arbitration_lost = 0;
     
     send_bit(0);                        // SOF
     previous_bit = 0;
 
-    for (cnt=0; cnt<=total_bits; cnt=cnt+1)
-      begin
-        if (stuff_cnt == 5)
-          begin
-            stuff_cnt = 1;
-            total_bits = total_bits + 1;
-            stuff = 1;
-            send_bit(~data[pointer+1]);
-            previous_bit = ~data[pointer+1];
-          end
-        else
-          begin
-            if (data[pointer] == previous_bit)
-              stuff_cnt <= stuff_cnt + 1;
-            else
-              stuff_cnt <= 1;
-            
-            stuff = 0;
-            send_bit(data[pointer]);
-            previous_bit = data[pointer];
-            pointer = pointer - 1;
-          end
-      end
+    fork 
 
-    // Nothing send after the data (just recessive bit)
-    repeat (13) send_bit(1);         // CRC delimiter + ack + ack delimiter + EOF + intermission= 1 + 1 + 1 + 7 + 3
+    begin
+      while (~arbitration_lost)
+        begin
+          for (cnt=0; cnt<=total_bits; cnt=cnt+1)
+            begin
+              if (stuff_cnt == 5)
+                begin
+                  stuff_cnt = 1;
+                  total_bits = total_bits + 1;
+                  stuff = 1;
+                  tmp = ~data[pointer+1];
+                  send_bit(~data[pointer+1]);
+                  previous_bit = ~data[pointer+1];
+                end
+              else
+                begin
+                  if (data[pointer] == previous_bit)
+                    stuff_cnt <= stuff_cnt + 1;
+                  else
+                    stuff_cnt <= 1;
+                  
+                  stuff = 0;
+                  tmp = data[pointer];
+                  send_bit(data[pointer]);
+                  previous_bit = data[pointer];
+                  pointer = pointer - 1;
+                end
+              if (arbitration_lost)
+                cnt=total_bits+1;         // Exit the for loop
+            end
+            arbitration_lost = 1; // At the end we exit the while loop
+
+            // Nothing send after the data (just recessive bit)
+            repeat (13) send_bit(1);         // CRC delimiter + ack + ack delimiter + EOF + intermission= 1 + 1 + 1 + 7 + 3
+        end
+    end
+
+    begin
+      while (~arbitration_lost)
+        begin
+          #1 wait (can_testbench.i_can_top.sample_point);
+//          $display("(%0t)", $time);
+          if (mode)
+            begin
+              if (cnt<32 & tmp & (~rx_and_tx))
+                begin
+                  arbitration_lost = 1;
+                  rx = 1;       // Only recessive is send from now on.
+                end
+            end
+          else
+            begin
+              if (cnt<12 & tmp & (~rx_and_tx))
+                begin
+                  arbitration_lost = 1;
+                  rx = 1;       // Only recessive is send from now on.
+                end
+            end
+        end
+    end
+
+    join
+
+//    // Nothing send after the data (just recessive bit)
+//    repeat (13) send_bit(1);         // CRC delimiter + ack + ack delimiter + EOF + intermission= 1 + 1 + 1 + 7 + 3
   end
 endtask
 

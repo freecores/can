@@ -9,3 +9,4 @@ can_bsp.v
 can_crc.v
 can_acf.v
 can_fifo.v
+can_ibo.v
