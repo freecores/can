@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.33  2003/03/14 19:37:30  mohor
+// ALE changes on negedge of clk.
+//
 // Revision 1.32  2003/03/12 05:57:36  mohor
 // Bidirectional port_0_i changed to port_0_io.
 // input cs_can changed to cs_can_i.
@@ -240,7 +243,7 @@ can_top i_can_top
   .clk_i(clk),
   .rx_i(rx_and_tx),
   .tx_o(tx),
-  .irq_o(irq),
+  .irq_on(irq),
   .clkout_o(clkout)
 );
 
