@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.30  2003/06/16 13:57:58  mohor
+// tx_point generated one clk earlier. rx_i registered. Data corrected when
+// using extended mode.
+//
 // Revision 1.29  2003/06/11 14:21:35  mohor
 // When switching to tx, sync stage is overjumped.
 //
@@ -603,7 +607,7 @@ assign go_rx_data     = (~bit_de_stuff) & sample_point &  rx_dlc  & (bit_cnt == 
 assign go_rx_crc      = (~bit_de_stuff) & sample_point & (rx_dlc  & (bit_cnt == 3) & ((~sampled_bit) & (~(|data_len[2:0])) | remote_rq) |
                                                           rx_data & (bit_cnt == ((limited_data_len<<3) - 1'b1)));
 assign go_rx_crc_lim  = (~bit_de_stuff) & sample_point &  rx_crc  & (bit_cnt == 14);
-assign go_rx_ack      =                   sample_point &  rx_crc_lim;
+assign go_rx_ack      = (~bit_de_stuff) & sample_point &  rx_crc_lim;
 assign go_rx_ack_lim  =                   sample_point &  rx_ack;
 assign go_rx_eof      =                   sample_point &  rx_ack_lim;
 assign go_rx_inter    =                 ((sample_point &  rx_eof  & (eof_cnt == 6)) | error_frame_ended | overload_frame_ended) & (~overload_needed);
@@ -624,7 +628,7 @@ assign go_crc_enable  = hard_sync | go_tx;
 assign rst_crc_enable = go_rx_crc;
 
 assign bit_de_stuff_set   = go_rx_id1 & (~go_error_frame);
-assign bit_de_stuff_reset = go_rx_crc_lim | reset_mode | go_error_frame | go_overload_frame;
+assign bit_de_stuff_reset = go_rx_ack | reset_mode | go_error_frame | go_overload_frame;
 
 assign remote_rq = ((~ide) & rtr1) | (ide & rtr2);
 assign limited_data_len = (data_len < 8)? data_len : 4'h8;
