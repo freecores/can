@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.34  2003/06/13 15:02:24  mohor
+// Synchronization is also needed when transmitting a message.
+//
 // Revision 1.33  2003/06/11 14:21:35  mohor
 // When switching to tx, sync stage is overjumped.
 //
@@ -341,7 +344,6 @@ wire   [7:0] tx_data_12;
 wire         cs;
 
 /* Output signals from can_btl module */
-wire         clk_en;
 wire         sample_point;
 wire         sampled_bit;
 wire         sampled_bit_q;
@@ -381,7 +383,7 @@ wire         we;
 wire   [7:0] addr;
 wire   [7:0] data_in;
 reg    [7:0] data_out;
-
+reg          rx_registered;
 
 /* Connecting can_registers module */
 can_registers i_can_registers
@@ -505,7 +507,7 @@ can_btl i_can_btl
 ( 
   .clk(clk_i),
   .rst(rst),
-  .rx(rx_i),
+  .rx(rx_registered),
 
   /* Mode register */
   .reset_mode(reset_mode),
@@ -520,7 +522,6 @@ can_btl i_can_btl
   .triple_sampling(triple_sampling),
 
   /* Output signals from this module */
-  .clk_en(clk_en),
   .sample_point(sample_point),
   .sampled_bit(sampled_bit),
   .sampled_bit_q(sampled_bit_q),
@@ -681,6 +682,16 @@ end
 
 
 
+always @ (posedge clk_i or posedge rst)
+begin
+  if (rst)
+    rx_registered <= 1'b1;
+  else
+    rx_registered <=#Tp rx_i;
+end
+
+
+
 `ifdef CAN_WISHBONE_IF
   // Combining wb_cyc_i and wb_stb_i signals to cs signal. Than synchronizing to clk_i clock domain. 
   always @ (posedge clk_i or posedge rst)
@@ -768,5 +779,6 @@ end
   assign port_0_io = (cs_can_i & rd_i)? data_out : 8'hz;
 
 `endif
+
 
 endmodule

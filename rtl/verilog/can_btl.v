@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.15  2003/06/13 15:02:24  mohor
+// Synchronization is also needed when transmitting a message.
+//
 // Revision 1.14  2003/06/13 14:55:11  mohor
 // Counters width changed.
 //
@@ -121,7 +124,6 @@ module can_btl
   triple_sampling,
 
   /* Output signals from this module */
-  clk_en,
   sample_point,
   sampled_bit,
   sampled_bit_q,
@@ -164,7 +166,6 @@ input         overjump_sync_seg;
 input         last_bit_of_inter;
 
 /* Output signals from this module */
-output        clk_en;
 output        sample_point;
 output        sampled_bit;
 output        sampled_bit_q;
@@ -176,6 +177,7 @@ output        go_seg1;
 
 reg     [8:0] clk_cnt;
 reg           clk_en;
+reg           clk_en_q;
 reg           sync_blocked;
 reg           resync_blocked;
 reg           sampled_bit;
@@ -211,7 +213,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     clk_cnt <= 0;
-  else if (clk_cnt == (preset_cnt-1'b1))
+  else if (clk_cnt >= (preset_cnt-1'b1))
     clk_cnt <=#Tp 0;
   else
     clk_cnt <=#Tp clk_cnt + 1'b1;
@@ -230,11 +232,20 @@ end
 
 
 
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    clk_en_q  <= 1'b0;
+  else
+    clk_en_q  <=#Tp clk_en;
+end
+
+
+
 /* Changing states */
  assign go_sync_unregistered = clk_en & (seg2 & (~hard_sync) & (~resync) & ((quant_cnt[2:0] == time_segment2)));
- assign go_seg1 = clk_en & (sync | hard_sync | (resync & seg2 & sync_window) | (resync_latched & sync_window));
- assign go_seg2 = clk_en & (seg1 & (~hard_sync) & (quant_cnt == (time_segment1 + delay)));
-
+ assign go_seg1 = clk_en_q & (sync | hard_sync | (resync & seg2 & sync_window) | (resync_latched & sync_window));
+ assign go_seg2 = clk_en_q & (seg1 & (~hard_sync) & (quant_cnt == (time_segment1 + delay)));
 
 
 always @ (posedge clk or posedge rst)
@@ -267,7 +278,7 @@ begin
     sync <= 0;
   else if (go_sync)
     sync <=#Tp 1'b1;
-  else
+  else if (clk_en_q)
     sync <=#Tp 1'b0;
 end
 
@@ -300,8 +311,10 @@ end
 
 /* Quant counter */
 
-assign quant_cnt_rst1 = go_sync | go_seg1 & (~overjump_sync_seg) | go_seg2;
-assign quant_cnt_rst2 = go_seg1 & overjump_sync_seg;
+//assign quant_cnt_rst1 = go_sync | go_seg1 & (~overjump_sync_seg) | go_seg2;
+//assign quant_cnt_rst2 = go_seg1 & overjump_sync_seg;
+assign quant_cnt_rst1 = go_sync | go_seg1 | go_seg2;
+assign quant_cnt_rst2 = 1'b0;
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
@@ -310,7 +323,7 @@ begin
     quant_cnt <=#Tp 0;
   else if (quant_cnt_rst2)
     quant_cnt <=#Tp 1;
-  else if (clk_en)
+  else if (clk_en_q)
     quant_cnt <=#Tp quant_cnt + 1'b1;
 end
 
@@ -320,7 +333,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     delay <= 0;
-  else if (clk_en & resync & seg1)
+  else if (clk_en_q & resync & seg1)
     delay <=#Tp (quant_cnt > {3'h0, sync_jump_width})? (sync_jump_width + 1'b1) : (quant_cnt + 1'b1);
   else if (go_sync | go_seg1)
     delay <=#Tp 0;
@@ -336,7 +349,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     sample <= 2'b11;
-  else if (clk_en)
+  else if (clk_en_q)
     sample <= {sample[0], rx};
 end
 
@@ -350,7 +363,7 @@ begin
       sampled_bit_q <= 1;
       sample_point <= 0;
     end
-  else if (clk_en & (~hard_sync))
+  else if (clk_en_q & (~hard_sync))
     begin
       if (seg1 & (quant_cnt == (time_segment1 + delay)))
         begin
@@ -374,7 +387,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     sync_blocked <=#Tp 1'b0;
-  else if (clk_en)
+  else if (clk_en_q)
     begin
       if (hard_sync | resync)
         sync_blocked <=#Tp 1'b1;

@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.29  2003/06/11 14:21:35  mohor
+// When switching to tx, sync stage is overjumped.
+//
 // Revision 1.28  2003/03/01 22:53:33  mohor
 // Actel APA ram supported.
 //
@@ -558,7 +561,8 @@ wire   [18:0] basic_chain;
 wire   [63:0] basic_chain_data;
 wire   [18:0] extended_chain_std;
 wire   [38:0] extended_chain_ext;
-wire   [63:0] extended_chain_data;
+wire   [63:0] extended_chain_data_std;
+wire   [63:0] extended_chain_data_ext;
 
 wire          rst_tx_pointer;
 
@@ -1580,16 +1584,20 @@ assign basic_chain = {r_tx_data_1[7:4], 2'h0, r_tx_data_1[3:0], r_tx_data_0[7:0]
 assign basic_chain_data = {r_tx_data_9, r_tx_data_8, r_tx_data_7, r_tx_data_6, r_tx_data_5, r_tx_data_4, r_tx_data_3, r_tx_data_2};
 assign extended_chain_std = {r_tx_data_0[7:4], 2'h0, r_tx_data_0[1], r_tx_data_2[2:0], r_tx_data_1[7:0], 1'b0};
 assign extended_chain_ext = {r_tx_data_0[7:4], 2'h0, r_tx_data_0[1], r_tx_data_4[4:0], r_tx_data_3[7:0], r_tx_data_2[7:3], 1'b1, 1'b1, r_tx_data_2[2:0], r_tx_data_1[7:0], 1'b0};
-assign extended_chain_data = {r_tx_data_12, r_tx_data_11, r_tx_data_10, r_tx_data_9, r_tx_data_8, r_tx_data_7, r_tx_data_6, r_tx_data_5};
+assign extended_chain_data_std = {r_tx_data_10, r_tx_data_9, r_tx_data_8, r_tx_data_7, r_tx_data_6, r_tx_data_5, r_tx_data_4, r_tx_data_3};
+assign extended_chain_data_ext = {r_tx_data_12, r_tx_data_11, r_tx_data_10, r_tx_data_9, r_tx_data_8, r_tx_data_7, r_tx_data_6, r_tx_data_5};
 
-always @ (extended_mode or rx_data or tx_pointer or extended_chain_data or rx_crc or r_calculated_crc or
+always @ (extended_mode or rx_data or tx_pointer or extended_chain_data_std or extended_chain_data_ext or rx_crc or r_calculated_crc or
           r_tx_data_0   or extended_chain_ext or extended_chain_std or basic_chain_data or basic_chain or
           finish_msg)
 begin
   if (extended_mode)
     begin
       if (rx_data)  // data stage
-        tx_bit = extended_chain_data[tx_pointer];
+        if (r_tx_data_0[0])    // Extended frame
+          tx_bit = extended_chain_data_ext[tx_pointer];
+        else
+          tx_bit = extended_chain_data_std[tx_pointer];
       else if (rx_crc)
         tx_bit = r_calculated_crc[tx_pointer];
       else if (finish_msg)
