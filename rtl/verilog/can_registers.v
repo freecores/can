@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1.1.1  2002/12/20 16:39:21  mohor
+// Initial
+//
 //
 //
 
@@ -76,7 +79,14 @@ module can_registers
   /* Bus Timing 1 register */
   time_segment1,
   time_segment2,
-  triple_sampling
+  triple_sampling,
+  
+  /* Clock Divider register */
+  pelican_mode,
+  rx_int_enable,
+  clock_off,
+  cd
+
 
 );
 
@@ -108,11 +118,19 @@ output  [3:0] time_segment1;
 output  [2:0] time_segment2;
 output        triple_sampling;
 
+/* Clock Divider register */
+output        pelican_mode;
+output        rx_int_enable;
+output        clock_off;
+output  [2:0] cd;
 
-wire we_mode          = cs & (~rw) & (addr == 8'h0);
-wire we_bus_timing_0  = cs & (~rw) & (addr == 8'h6) & reset_mode;
-wire we_bus_timing_1  = cs & (~rw) & (addr == 8'h7) & reset_mode;
 
+
+wire we_mode                  = cs & (~rw) & (addr == 8'h0);
+wire we_bus_timing_0          = cs & (~rw) & (addr == 8'h6) & reset_mode;
+wire we_bus_timing_1          = cs & (~rw) & (addr == 8'h7) & reset_mode;
+wire we_clock_divider_hi      = cs & (~rw) & (addr == 8'h31) & reset_mode;
+wire we_clock_divider_low     = cs & (~rw) & (addr == 8'h31);
 wire read = cs & rw;
 
 /* Mode register */
@@ -161,27 +179,47 @@ assign triple_sampling = bus_timing_1[7];
 /* End Bus Timing 1 register */
 
 
+/* Clock Divider register */
+wire         pelican_mode;
+wire   [7:0] clock_divider;
+can_register #(5) CLOCK_DIVIDER_REG_HI
+( .data_in(data_in[7:3]),
+  .data_out(clock_divider[7:3]),
+  .we(we_clock_divider_hi),
+  .clk(clk)
+);
+
+can_register #(3) CLOCK_DIVIDER_REG_LOW
+( .data_in(data_in[2:0]),
+  .data_out(clock_divider[2:0]),
+  .we(we_clock_divider_low),
+  .clk(clk)
+);
+
+assign pelican_mode = clock_divider[7];
+assign rx_int_enable = clock_divider[5];
+assign clock_off = clock_divider[3];
+assign cd[2:0] = clock_divider[2:0];
+
+/* End Clock Divider register */
 
 
 
-
-
-
-
-
-
+ 
 
 
 // Reading data from registers
-always @ ( addr or read or mode or bus_timing_0 or bus_timing_1
+always @ ( addr or read or pelican_mode or mode or bus_timing_0 or bus_timing_1 or clock_divider
          )
 begin
   if(read)  // read
     begin
       case(addr)
         8'h0  :  data_out <= mode;
-        8'h6  :  data_out <= bus_timing_0;
-        8'h7  :  data_out <= bus_timing_1;
+        8'h6  :  data_out <= pelican_mode? bus_timing_0 : 8'hff;
+        8'h7  :  data_out <= pelican_mode? bus_timing_1 : 8'hff;
+
+        8'h31 :  data_out <= {clock_divider[7:5], 1'b0, clock_divider[3:0]};
 
         default: data_out <= 8'h0;
       endcase

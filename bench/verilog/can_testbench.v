@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2002/12/26 01:33:01  mohor
+// Tripple sampling supported.
+//
 // Revision 1.3  2002/12/25 23:44:12  mohor
 // Commented lines removed.
 //
@@ -61,13 +64,14 @@
 `include "timescale.v"
 // synopsys translate_on
 `include "can_defines.v"
+`include "can_testbench_defines.v"
 
 module can_testbench();
 
 
 
 parameter Tp = 1;
-
+parameter BRP = 2*(`CAN_TIMING0_BRP + 1);
 
 
 
@@ -124,45 +128,16 @@ begin
   wait(start_tb);
 
   /* Set bus timing register 0 */
-  write_register(8'h6, 8'h81);
+  write_register(8'h6, {`CAN_TIMING0_SJW, `CAN_TIMING0_BRP});
+
   /* Set bus timing register 1 */
-  write_register(8'h7, 8'h34);
+  write_register(8'h7, {`CAN_TIMING1_SAM, `CAN_TIMING1_TSEG2, `CAN_TIMING1_TSEG1});
   
   #10;
   repeat (1000) @ (posedge clk);
   
-  // Hard synchronization
-  repeat (2) @ (posedge clk);   // So we are not synchronized to anything
-  #1 rx=0;
-  repeat (2*4) @ (posedge clk);
-  #1 idle = 0;
-  repeat (8*4) @ (posedge clk);
-  #1 rx=1;
-  repeat (10*4) @ (posedge clk);
-
-  // Resynchronization on time
-  #1 rx=0;
-  repeat (10*4) @ (posedge clk);
-  #1 rx=1;
-  idle = 0;
-  repeat (10*4) @ (posedge clk);
-
-  // Resynchronization late
-  repeat (4) @ (posedge clk);
-  repeat (4) @ (posedge clk);
-  #1 rx=0;
-  repeat (10*4) @ (posedge clk);
-  #1 rx=1;
-  idle = 0;
-
-  // Resynchronization early
-  repeat (8*4) @ (posedge clk);   // two frames too early
-  #1 rx=0;
-  repeat (10*4) @ (posedge clk);
-  #1 rx=1;
-  idle = 0;
-  repeat (10*4) @ (posedge clk);
-
+  test_synchronization;
+//  send_frame(mode, id, length);
 
   repeat (50000) @ (posedge clk);
   $display("CAN Testbench finished.");
@@ -192,6 +167,52 @@ task write_register;
   end
 endtask
 
+
+task test_synchronization;
+  begin
+    // Hard synchronization
+    repeat (2) @ (posedge clk);   // So we are not synchronized to anything
+    #1 rx=0;
+    repeat (2*BRP) @ (posedge clk);
+    #1 idle = 0;
+    repeat (8*BRP) @ (posedge clk);
+    #1 rx=1;
+    repeat (10*BRP) @ (posedge clk);
+  
+    // Resynchronization on time
+    #1 rx=0;
+    repeat (10*BRP) @ (posedge clk);
+    #1 rx=1;
+    idle = 0;
+    repeat (10*BRP) @ (posedge clk);
+  
+    // Resynchronization late
+    repeat (BRP) @ (posedge clk);
+    repeat (BRP) @ (posedge clk);
+    #1 rx=0;
+    repeat (10*BRP) @ (posedge clk);
+    #1 rx=1;
+    idle = 0;
+  
+    // Resynchronization early
+    repeat (8*BRP) @ (posedge clk);   // two frames too early
+    #1 rx=0;
+    repeat (10*BRP) @ (posedge clk);
+    #1 rx=1;
+    idle = 0;
+    repeat (10*BRP) @ (posedge clk);
+  end
+endtask
+
+
+task send_frame;
+  input mode;
+  input id;
+  input length;
+  begin
+    #1;
+  end
+endtask
 
 
 /* State machine monitor (btl) */

@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-////  can_top.v                                                   ////
+////  can_testbench_defines.v                                     ////
 ////                                                              ////
 ////                                                              ////
 ////  This file is part of the CAN Protocal Controller            ////
@@ -45,152 +45,16 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
-// Revision 1.1.1.1  2002/12/20 16:39:21  mohor
-// Initial
 //
 //
 //
 
-// synopsys translate_off
-`include "timescale.v"
-// synopsys translate_on
-`include "can_defines.v"
+// Bit Timing 0 register value
+`define CAN_TIMING0_BRP                 6'h1    // Baud rate prescaler (2*(value+1))
+`define CAN_TIMING0_SJW                 2'h2    // SJW (value+1)
 
-module can_top
-( 
-  clk,
-  rst,
-  data_in,
-  data_out,
-  cs, rw, addr,
-  rx,
-  idle    /* REMOVE and use correct "idle state" signal instead */
-);
+// Bit Timing 1 register value
+`define CAN_TIMING1_TSEG1               4'h4    // TSEG1 segment (value+1)
+`define CAN_TIMING1_TSEG2               3'h3    // TSEG2 segment (value+1)
+`define CAN_TIMING1_SAM                 1'h0    // Triple sampling
 
-parameter Tp = 1;
-
-input        clk;
-input        rst;
-input  [7:0] data_in;
-output [7:0] data_out;
-input        cs, rw;
-input  [7:0] addr;
-input        rx;
-input        idle;   /* REMOVE and use correct "idle state" signal instead */
-
-
-/* Mode register */
-wire         reset_mode;
-wire         listen_only_mode;
-wire         acceptance_filter_mode;
-wire         sleep_mode;
-
-/* Bus Timing 0 register */
-wire    [5:0] baud_r_presc;
-wire    [1:0] sync_jump_width;
-
-/* Bus Timing 1 register */
-wire    [3:0] time_segment1;
-wire    [2:0] time_segment2;
-wire          triple_sampling;
-
-/* Clock Divider register */
-wire          pelican_mode;
-wire          rx_int_enable;
-wire          clock_off;
-wire    [2:0] cd;
-
-
-
-
-/* Connecting can_registers module */
-can_registers i_can_registers
-( 
-  .clk(clk),
-  .rst(rst),
-  .cs(cs),
-  .rw(rw),
-  .addr(addr),
-  .data_in(data_in),
-  .data_out(data_out),
-
-  /* Mode register */
-  .reset_mode(reset_mode),
-  .listen_only_mode(listen_only_mode),
-  .acceptance_filter_mode(acceptance_filter_mode),
-  .sleep_mode(sleep_mode),
-
-  /* Bus Timing 0 register */
-  .baud_r_presc(baud_r_presc),
-  .sync_jump_width(sync_jump_width),
-
-  /* Bus Timing 1 register */
-  .time_segment1(time_segment1),
-  .time_segment2(time_segment2),
-  .triple_sampling(triple_sampling),
-
-  /* Clock Divider register */
-  .pelican_mode(pelican_mode),
-  .rx_int_enable(rx_int_enable),
-  .clock_off(clock_off),
-  .cd(cd)
-
-
-);
-
-
-/* Output signals from can_btl module */
-wire        take_sample;
-wire        clk_en;
-
-/* output signals from can_bsp (bit stream processor) module */
-wire sync_mode;
-
-
-
-/* Connecting can_btl module */
-can_btl i_can_btl
-( 
-  .clk(clk),
-  .rst(rst),
-  .rx(rx),
-
-  /* Mode register */
-  .reset_mode(reset_mode),
-
-  /* Bus Timing 0 register */
-  .baud_r_presc(baud_r_presc),
-  .sync_jump_width(sync_jump_width),
-
-  /* Bus Timing 1 register */
-  .time_segment1(time_segment1),
-  .time_segment2(time_segment2),
-  .triple_sampling(triple_sampling),
-
-  /* Output signals from this module */
-  .take_sample(take_sample),
-  .clk_en(clk_en),
-  
-  /* States */
-  .idle(idle),
-  
-  /* bit stream processor (can_bsp.v) */
-  .sync_mode(sync_mode)
-
-
-);
-
-
-
-can_bsp i_can_bsp
-(
-  .clk(clk),
-  .rst(rst),
-  .sync_mode(sync_mode)
-
-);
-
-
-
-
-endmodule

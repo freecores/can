@@ -116,8 +116,8 @@ define variable nofilenames
 define variable nofullpathfilenames
 include bookmark with filenames
 include scope history without filenames
-define waveform window listpane 10.99
-define waveform window namepane 11.94
+define waveform window listpane 9.97
+define waveform window namepane 10.99
 define multivalueindication
 define pattern curpos dot
 define pattern cursor1 dot
@@ -183,12 +183,12 @@ add group \
       can_testbench.i_can_top.i_can_btl.resync \
       can_testbench.i_can_top.i_can_btl.resync_latched \
       can_testbench.i_can_top.i_can_btl.sync_blocked \
-      can_testbench.i_can_top.i_can_btl.dodatek[3:0]'h \
       can_testbench.i_can_top.i_can_btl.sync \
       can_testbench.i_can_top.i_can_btl.seg1 \
       can_testbench.i_can_top.i_can_btl.seg2 \
       can_testbench.i_can_top.i_can_btl.sample_pulse \
       can_testbench.i_can_top.i_can_btl.sampled_bit \
+      can_testbench.i_can_top.i_can_btl.sample[1:0]'h \
 
 add group \
     can_registers \
@@ -219,4 +219,4 @@ add group \
 
 deselect all
 open window waveform 1 geometry 10 59 1592 1140
-zoom at 49009.23(0)ns 0.00333533 0.00000000
+zoom at 39711.18(0)ns 0.00144500 0.00000000
