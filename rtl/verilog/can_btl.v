@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.23  2003/07/10 01:59:04  tadejm
+// Synchronization fixed. In some strange cases it didn't work according to
+// the VHDL reference model.
+//
 // Revision 1.22  2003/07/07 11:21:37  mohor
 // Little fixes (to fix warnings).
 //
@@ -154,8 +158,7 @@ module can_btl
   /* Output from can_bsp module */
   rx_idle,
   not_first_bit_of_inter,
-  transmitting,
-  go_rx_inter  
+  transmitting  
 
 );
 
@@ -179,7 +182,6 @@ input         triple_sampling;
 input         rx_idle;
 input         not_first_bit_of_inter;
 input         transmitting;
-input         go_rx_inter;
 
 /* Output signals from this module */
 output        sample_point;
@@ -442,7 +444,6 @@ begin
     hard_sync_blocked <=#Tp 1'b0;
   else if (hard_sync & clk_en_q)
     hard_sync_blocked <=#Tp 1'b1;
-//  else if (go_rx_inter)
   else if (go_seg2)
     hard_sync_blocked <=#Tp 1'b0;
 end

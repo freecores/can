@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.40  2003/07/10 01:59:04  tadejm
+// Synchronization fixed. In some strange cases it didn't work according to
+// the VHDL reference model.
+//
 // Revision 1.39  2003/07/07 11:21:37  mohor
 // Little fixes (to fix warnings).
 //
@@ -550,8 +554,7 @@ can_btl i_can_btl
   /* output from can_bsp module */
   .rx_idle(rx_idle),
   .not_first_bit_of_inter(not_first_bit_of_inter),
-  .transmitting(transmitting),
-  .go_rx_inter(go_rx_inter)
+  .transmitting(transmitting)
   
 
 
