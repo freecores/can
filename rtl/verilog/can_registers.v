@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.25  2003/06/21 12:16:30  mohor
+// paralel_case and full_case compiler directives added to case statements.
+//
 // Revision 1.24  2003/06/09 11:22:54  mohor
 // data_out is already registered in the can_top.v file.
 //
@@ -698,27 +701,30 @@ reg    [2:0] clkout_cnt;
 reg          clkout_tmp;
 //reg          clkout;
 
-can_register #(1) CLOCK_DIVIDER_REG_7
+can_register_asyn #(1, 0) CLOCK_DIVIDER_REG_7
 ( .data_in(data_in[7]),
   .data_out(clock_divider[7]),
   .we(we_clock_divider_hi),
-  .clk(clk)
+  .clk(clk),
+  .rst(rst)
 );
 
 assign clock_divider[6:4] = 3'h0;
 
-can_register #(1) CLOCK_DIVIDER_REG_3
+can_register_asyn #(1, 0) CLOCK_DIVIDER_REG_3
 ( .data_in(data_in[3]),
   .data_out(clock_divider[3]),
   .we(we_clock_divider_hi),
-  .clk(clk)
+  .clk(clk),
+  .rst(rst)
 );
 
-can_register #(3) CLOCK_DIVIDER_REG_LOW
+can_register_asyn #(3, 0) CLOCK_DIVIDER_REG_LOW
 ( .data_in(data_in[2:0]),
   .data_out(clock_divider[2:0]),
   .we(we_clock_divider_low),
-  .clk(clk)
+  .clk(clk),
+  .rst(rst)
 );
 
 assign extended_mode = clock_divider[7];
