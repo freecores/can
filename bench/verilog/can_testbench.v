@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.39  2004/03/18 17:15:26  igorm
+// Signal bus_off_on added.
+//
 // Revision 1.38  2003/10/17 05:55:18  markom
 // mbist signals updated according to newest convention
 //
@@ -275,7 +278,7 @@ can_top i_can_top
 
 
 // Combining tx with the output enable signal.
-assign tx = tx_oen? 1'bz : tx_i;
+assign tx = bus_off_on? tx_i : 1'bz;
 
 `ifdef CAN_WISHBONE_IF
   // Generate wishbone clock signal 10 MHz
