@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.21  2003/02/11 00:56:06  mohor
+// Wishbone interface added.
+//
 // Revision 1.20  2003/02/10 16:02:11  mohor
 // CAN is working according to the specification. WB interface and more
 // registers (status, IRQ, ...) needs to be added.
@@ -149,6 +152,7 @@ module can_bsp
   /* Command register */
   release_buffer,
   tx_request,
+  abort_tx,
 
   /* Clock Divider register */
   extended_mode,
@@ -219,6 +223,7 @@ input         extended_mode;
 /* Command register */
 input         release_buffer;
 input         tx_request;
+input         abort_tx;
 
 output        rx_idle;
 output        transmitting;
@@ -488,7 +493,7 @@ assign go_overload_frame = (   ((sample_point &  rx_eof  & (eof_cnt == 6)) | err
 assign go_crc_enable  = hard_sync | go_tx;
 assign rst_crc_enable = go_rx_crc;
 
-assign bit_de_stuff_set   = go_rx_id1;
+assign bit_de_stuff_set   = go_rx_id1 & (~go_error_frame);
 assign bit_de_stuff_reset = go_rx_crc_lim | reset_mode | go_error_frame | go_overload_frame;
 
 assign remote_rq = ((~ide) & rtr1) | (ide & rtr2);
@@ -1112,8 +1117,8 @@ begin
     wr_fifo <= 1'b0;
   else if (reset_wr_fifo)
     wr_fifo <=#Tp 1'b0;
-//  else if (go_rx_inter & id_ok & (~error_frame_ended))                // FIX ME !!! Look following line
-  else if (go_rx_inter & id_ok & (~error_frame_ended) & (~tx_state))    // FIX ME !!! This line is the correct one. The above line is for easier debugging only.
+  else if (go_rx_inter & id_ok & (~error_frame_ended))                // FIX ME !!! Look following line
+//  else if (go_rx_inter & id_ok & (~error_frame_ended) & (~tx_state))    // FIX ME !!! This line is the correct one. The above line is for easier debugging only.
     wr_fifo <=#Tp 1'b1;
 end
 
@@ -1513,9 +1518,9 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     need_to_tx <= 1'b0;
-  else if (tx_successful | node_bus_off)
+  else if (tx_successful | node_bus_off | (abort_tx & (~transmitting)))
     need_to_tx <=#Tp 1'h0;
-  else if (tx_request)
+  else if (tx_request & sample_point)
     need_to_tx <=#Tp 1'b1;
 end
 
