@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.8  2003/01/14 17:25:09  mohor
+// Addresses corrected to decimal values (previously hex).
+//
 // Revision 1.7  2003/01/14 12:19:35  mohor
 // rx_fifo is now working.
 //
@@ -648,15 +651,15 @@ begin
             8'd6  :  data_out <= reset_mode? bus_timing_0 : 8'hff;
             8'd7  :  data_out <= reset_mode? bus_timing_1 : 8'hff;
             8'd10 :  data_out <= reset_mode? 8'hff : tx_data_0;
-            8'd11 :  data_out <= reset_mode? 8'hff : tx_data_0;
-            8'd12 :  data_out <= reset_mode? 8'hff : tx_data_0;
-            8'd13 :  data_out <= reset_mode? 8'hff : tx_data_0;
-            8'd14 :  data_out <= reset_mode? 8'hff : tx_data_0;
-            8'd15 :  data_out <= reset_mode? 8'hff : tx_data_0;
-            8'd16 :  data_out <= reset_mode? 8'hff : tx_data_0;
-            8'd17 :  data_out <= reset_mode? 8'hff : tx_data_0;
-            8'd18 :  data_out <= reset_mode? 8'hff : tx_data_0;
-            8'd19 :  data_out <= reset_mode? 8'hff : tx_data_0;
+            8'd11 :  data_out <= reset_mode? 8'hff : tx_data_1;
+            8'd12 :  data_out <= reset_mode? 8'hff : tx_data_2;
+            8'd13 :  data_out <= reset_mode? 8'hff : tx_data_3;
+            8'd14 :  data_out <= reset_mode? 8'hff : tx_data_4;
+            8'd15 :  data_out <= reset_mode? 8'hff : tx_data_5;
+            8'd16 :  data_out <= reset_mode? 8'hff : tx_data_6;
+            8'd17 :  data_out <= reset_mode? 8'hff : tx_data_7;
+            8'd18 :  data_out <= reset_mode? 8'hff : tx_data_8;
+            8'd19 :  data_out <= reset_mode? 8'hff : tx_data_9;
             8'd31 :  data_out <= {clock_divider[7:5], 1'b0, clock_divider[3:0]};
     
             default: data_out <= 8'h0;

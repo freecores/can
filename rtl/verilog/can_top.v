@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.8  2003/01/14 17:25:09  mohor
+// Addresses corrected to decimal values (previously hex).
+//
 // Revision 1.7  2003/01/10 17:51:34  mohor
 // Temporary version (backup).
 //
@@ -342,9 +345,24 @@ can_bsp i_can_bsp
   /* Acceptance mask register */
   .acceptance_mask_1(acceptance_mask_1),
   .acceptance_mask_2(acceptance_mask_2),
-  .acceptance_mask_3(acceptance_mask_3)
+  .acceptance_mask_3(acceptance_mask_3),
   /* End: This section is for EXTENDED mode */
 
+  /* Tx data registers. Holding identifier (basic mode), tx frame information (extended mode) and data */
+  .tx_data_0(tx_data_0),
+  .tx_data_1(tx_data_1),
+  .tx_data_2(tx_data_2),
+  .tx_data_3(tx_data_3),
+  .tx_data_4(tx_data_4),
+  .tx_data_5(tx_data_5),
+  .tx_data_6(tx_data_6),
+  .tx_data_7(tx_data_7),
+  .tx_data_8(tx_data_8),
+  .tx_data_9(tx_data_9),
+  .tx_data_10(tx_data_10),
+  .tx_data_11(tx_data_11),
+  .tx_data_12(tx_data_12)
+  /* End: Tx data registers */
 );
 
 

@@ -116,8 +116,8 @@ define variable nofilenames
 define variable nofullpathfilenames
 include bookmark with filenames
 include scope history without filenames
-define waveform window listpane 5.97
-define waveform window namepane 13.98
+define waveform window listpane 9.97
+define waveform window namepane 13.72
 define multivalueindication
 define pattern curpos dot
 define pattern cursor1 dot
@@ -201,7 +201,6 @@ add group \
       can_testbench.i_can_top.i_can_bsp.i_can_acf.match_df_std \
       can_testbench.i_can_top.i_can_bsp.i_can_acf.match_sf_ext \
       can_testbench.i_can_top.i_can_bsp.i_can_acf.match_sf_std \
-      can_testbench.i_can_top.i_can_bsp.i_can_acf.no_data \
       can_testbench.i_can_top.i_can_bsp.i_can_acf.reset_mode \
       can_testbench.i_can_top.i_can_bsp.i_can_acf.rst \
       can_testbench.i_can_top.i_can_bsp.i_can_acf.rtr1 \
@@ -300,7 +299,6 @@ add group \
       can_testbench.send_frame.stuff_cnt's \
       can_testbench.send_frame.total_bits's \
       can_testbench.send_frame.stuff \
-      can_testbench.send_frame.xxx \
 
 add group \
     can_bsp \
@@ -373,10 +371,8 @@ add group \
       can_testbench.i_can_top.i_can_bsp.id[28:0]'h \
       can_testbench.i_can_top.i_can_bsp.id_ok \
       can_testbench.i_can_top.i_can_bsp.ide \
-      can_testbench.i_can_top.i_can_bsp.no_data \
       can_testbench.i_can_top.i_can_bsp.reset_mode \
       can_testbench.i_can_top.i_can_bsp.reset_mode_q \
-      can_testbench.i_can_top.i_can_bsp.reset_wr_fifo_normal_mode \
       can_testbench.i_can_top.i_can_bsp.resync \
       can_testbench.i_can_top.i_can_bsp.rst \
       can_testbench.i_can_top.i_can_bsp.sample_point \
@@ -398,22 +394,32 @@ add group \
 
 add group \
     can_fifo \
+      can_testbench.i_can_top.i_can_bsp.i_can_fifo.addr[7:0]'h \
       can_testbench.i_can_top.i_can_bsp.i_can_fifo.clk \
       can_testbench.i_can_top.i_can_bsp.i_can_fifo.data_in[7:0]'h \
       can_testbench.i_can_top.i_can_bsp.i_can_fifo.data_out[7:0]'h \
+      can_testbench.i_can_top.i_can_bsp.i_can_fifo.extended_mode \
+      can_testbench.i_can_top.i_can_bsp.i_can_fifo.fifo_cnt[6:0]'h \
+      can_testbench.i_can_top.i_can_bsp.i_can_fifo.fifo_empty \
+      can_testbench.i_can_top.i_can_bsp.i_can_fifo.fifo_full \
+      can_testbench.i_can_top.i_can_bsp.i_can_fifo.latch_overrun \
       can_testbench.i_can_top.i_can_bsp.i_can_fifo.len_cnt[3:0]'h \
       can_testbench.i_can_top.i_can_bsp.i_can_fifo.rd \
+      can_testbench.i_can_top.i_can_bsp.i_can_fifo.rd_info_pointer[4:0]'h \
       can_testbench.i_can_top.i_can_bsp.i_can_fifo.rd_pointer[5:0]'h \
+      can_testbench.i_can_top.i_can_bsp.i_can_fifo.read_address[5:0]'h \
       can_testbench.i_can_top.i_can_bsp.i_can_fifo.release_buffer \
       can_testbench.i_can_top.i_can_bsp.i_can_fifo.reset_mode \
       can_testbench.i_can_top.i_can_bsp.i_can_fifo.rst \
       can_testbench.i_can_top.i_can_bsp.i_can_fifo.wr \
+      can_testbench.i_can_top.i_can_bsp.i_can_fifo.wr_info_pointer[4:0]'h \
       can_testbench.i_can_top.i_can_bsp.i_can_fifo.wr_pointer[5:0]'h \
       can_testbench.i_can_top.i_can_bsp.i_can_fifo.wr_q \
       can_testbench.i_can_top.i_can_bsp.i_can_fifo.write_length_info \
 
 add group \
     can_registers \
+      can_testbench.i_can_top.i_can_registers.abort_tx \
       can_testbench.i_can_top.i_can_registers.acceptance_code_0[7:0]'h \
       can_testbench.i_can_top.i_can_registers.acceptance_code_1[7:0]'h \
       can_testbench.i_can_top.i_can_registers.acceptance_code_2[7:0]'h \
@@ -428,26 +434,44 @@ add group \
       can_testbench.i_can_top.i_can_registers.bus_timing_0[7:0]'h \
       can_testbench.i_can_top.i_can_registers.bus_timing_1[7:0]'h \
       can_testbench.i_can_top.i_can_registers.cd[2:0]'h \
+      can_testbench.i_can_top.i_can_registers.clear_data_overrun \
       can_testbench.i_can_top.i_can_registers.clk \
       can_testbench.i_can_top.i_can_registers.clock_divider[7:0]'h \
       can_testbench.i_can_top.i_can_registers.clock_off \
+      can_testbench.i_can_top.i_can_registers.command[4:0]'h \
+      can_testbench.i_can_top.i_can_registers.command_dummy[2:0]'h \
       can_testbench.i_can_top.i_can_registers.cs \
       can_testbench.i_can_top.i_can_registers.data_in[7:0]'h \
       can_testbench.i_can_top.i_can_registers.data_out[7:0]'h \
       can_testbench.i_can_top.i_can_registers.extended_mode \
-      can_testbench.i_can_top.i_can_registers.fix_me[7:0]'h \
       can_testbench.i_can_top.i_can_registers.listen_only_mode \
       can_testbench.i_can_top.i_can_registers.mode[7:0]'h \
       can_testbench.i_can_top.i_can_registers.read \
+      can_testbench.i_can_top.i_can_registers.release_buffer \
       can_testbench.i_can_top.i_can_registers.reset_mode \
       can_testbench.i_can_top.i_can_registers.rst \
       can_testbench.i_can_top.i_can_registers.rw \
       can_testbench.i_can_top.i_can_registers.rx_int_enable \
+      can_testbench.i_can_top.i_can_registers.self_rx_request \
       can_testbench.i_can_top.i_can_registers.sleep_mode \
       can_testbench.i_can_top.i_can_registers.sync_jump_width[1:0]'h \
       can_testbench.i_can_top.i_can_registers.time_segment1[3:0]'h \
       can_testbench.i_can_top.i_can_registers.time_segment2[2:0]'h \
       can_testbench.i_can_top.i_can_registers.triple_sampling \
+      can_testbench.i_can_top.i_can_registers.tx_data_0[7:0]'h \
+      can_testbench.i_can_top.i_can_registers.tx_data_1[7:0]'h \
+      can_testbench.i_can_top.i_can_registers.tx_data_2[7:0]'h \
+      can_testbench.i_can_top.i_can_registers.tx_data_3[7:0]'h \
+      can_testbench.i_can_top.i_can_registers.tx_data_4[7:0]'h \
+      can_testbench.i_can_top.i_can_registers.tx_data_5[7:0]'h \
+      can_testbench.i_can_top.i_can_registers.tx_data_6[7:0]'h \
+      can_testbench.i_can_top.i_can_registers.tx_data_7[7:0]'h \
+      can_testbench.i_can_top.i_can_registers.tx_data_8[7:0]'h \
+      can_testbench.i_can_top.i_can_registers.tx_data_9[7:0]'h \
+      can_testbench.i_can_top.i_can_registers.tx_data_10[7:0]'h \
+      can_testbench.i_can_top.i_can_registers.tx_data_11[7:0]'h \
+      can_testbench.i_can_top.i_can_registers.tx_data_12[7:0]'h \
+      can_testbench.i_can_top.i_can_registers.tx_request \
       can_testbench.i_can_top.i_can_registers.we_acceptance_code_0 \
       can_testbench.i_can_top.i_can_registers.we_acceptance_code_1 \
       can_testbench.i_can_top.i_can_registers.we_acceptance_code_2 \
@@ -460,9 +484,23 @@ add group \
       can_testbench.i_can_top.i_can_registers.we_bus_timing_1 \
       can_testbench.i_can_top.i_can_registers.we_clock_divider_hi \
       can_testbench.i_can_top.i_can_registers.we_clock_divider_low \
+      can_testbench.i_can_top.i_can_registers.we_command \
       can_testbench.i_can_top.i_can_registers.we_mode \
+      can_testbench.i_can_top.i_can_registers.we_tx_data_0 \
+      can_testbench.i_can_top.i_can_registers.we_tx_data_1 \
+      can_testbench.i_can_top.i_can_registers.we_tx_data_2 \
+      can_testbench.i_can_top.i_can_registers.we_tx_data_3 \
+      can_testbench.i_can_top.i_can_registers.we_tx_data_4 \
+      can_testbench.i_can_top.i_can_registers.we_tx_data_5 \
+      can_testbench.i_can_top.i_can_registers.we_tx_data_6 \
+      can_testbench.i_can_top.i_can_registers.we_tx_data_7 \
+      can_testbench.i_can_top.i_can_registers.we_tx_data_8 \
+      can_testbench.i_can_top.i_can_registers.we_tx_data_9 \
+      can_testbench.i_can_top.i_can_registers.we_tx_data_10 \
+      can_testbench.i_can_top.i_can_registers.we_tx_data_11 \
+      can_testbench.i_can_top.i_can_registers.we_tx_data_12 \
 
 
 deselect all
 open window waveform 1 geometry 10 59 1592 1140
-zoom at 109181(0)ns 0.00016079 0.00000000
+zoom at 51528.58(0)ns 0.00473837 0.00000000

@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2003/01/14 17:25:09  mohor
+// Addresses corrected to decimal values (previously hex).
+//
 // Revision 1.4  2003/01/14 12:19:35  mohor
 // rx_fifo is now working.
 //
@@ -71,7 +74,6 @@ module can_fifo
   clk,
   rst,
 
-  rd,
   wr,
 
   data_in,
@@ -88,7 +90,6 @@ parameter Tp = 1;
 
 input         clk;
 input         rst;
-input         rd;
 input         wr;
 input   [7:0] data_in;
 input   [7:0] addr;

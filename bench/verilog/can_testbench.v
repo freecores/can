@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.12  2003/01/14 17:25:03  mohor
+// Addresses corrected to decimal values (previously hex).
+//
 // Revision 1.11  2003/01/14 12:19:29  mohor
 // rx_fifo is now working.
 //
@@ -195,14 +198,15 @@ begin
 
   if(`CAN_CLOCK_DIVIDER_MODE)   // Extended mode
     begin
-//      send_frame(0, 1, {26'h00000a6, 3'h5}, 2, 15'h2a11); // mode, rtr, id, length, crc
-//      send_frame(0, 1, 29'h12567635, 2, 15'h75b4); // mode, rtr, id, length, crc
-      send_frame(0, 1, {26'h00000a6, 3'h5}, 4'h2, 15'h2a11); // mode, rtr, id, length, crc
+//      receive_frame(0, 0, {26'h00000a6, 3'h5}, 2, 15'h2a11); // mode, rtr, id, length, crc
+//      receive_frame(0, 0, 29'h12567635, 2, 15'h75b4); // mode, rtr, id, length, crc
+      receive_frame(0, 0, {26'h00000a6, 3'h5}, 4'h2, 15'h2a11); // mode, rtr, id, length, crc
     end
   else
     begin
-//      test_empty_fifo;    test currently switched off
-      test_full_fifo;
+//      test_empty_fifo;    // test currently switched off
+      test_full_fifo;     // test currently switched on
+//      send_frame;
     end
 
 
@@ -213,11 +217,50 @@ end
 
 
 
+task send_frame;    // CAN IP core sends frames
+  begin
+
+    if(`CAN_CLOCK_DIVIDER_MODE)   // Extended mode
+      begin
+
+        // Writing TX frame information + identifier + data
+        write_register(8'd16, 8'h12);
+        write_register(8'd17, 8'h34);
+        write_register(8'd18, 8'h56);
+        write_register(8'd19, 8'h78);
+        write_register(8'd20, 8'h9a);
+        write_register(8'd21, 8'hbc);
+        write_register(8'd22, 8'hde);
+        write_register(8'd23, 8'hf0);
+        write_register(8'd24, 8'h0f);
+        write_register(8'd25, 8'hed);
+        write_register(8'd26, 8'hcb);
+        write_register(8'd27, 8'ha9);
+        write_register(8'd28, 8'h87);
+      end
+    else
+      begin
+        write_register(8'd10, 8'h12); // Writing ID[10:3] = 0x12
+        write_register(8'd11, 8'h04); // Writing ID[3:0] = 0x0, rtr = 0, length = 4
+        write_register(8'd12, 8'h56); // data byte 1
+        write_register(8'd13, 8'h78); // data byte 2
+        write_register(8'd14, 8'h9a); // data byte 3
+        write_register(8'd15, 8'hbc); // data byte 4
+        write_register(8'd16, 8'hde); // data byte 5
+        write_register(8'd17, 8'hf0); // data byte 6
+        write_register(8'd18, 8'h0f); // data byte 7
+        write_register(8'd19, 8'hed); // data byte 8
+      end
+
+  end
+endtask
+
+
 
 task test_empty_fifo;
   begin
-    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h3, 15'h6231); // mode, rtr, id, length, crc
-    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h7, 15'h6047); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h3, 15'h7bcb); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h7, 15'h085c); // mode, rtr, id, length, crc
 
     read_receive_buffer;
     fifo_info;
@@ -237,7 +280,7 @@ task test_empty_fifo;
     read_receive_buffer;
     fifo_info;
 
-    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h8, 15'h30e1); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h8, 15'h57a0); // mode, rtr, id, length, crc
 
     $display("\n\n");
     read_receive_buffer;
@@ -266,34 +309,34 @@ task test_full_fifo;
 
     read_overrun_info(0, 31);
 
-    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h0, 15'h3d18); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h0, 15'h4edd); // mode, rtr, id, length, crc
     read_receive_buffer;
     fifo_info;
-    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h1, 15'h00ca); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h1, 15'h1ccf); // mode, rtr, id, length, crc
     read_receive_buffer;
     fifo_info;
-    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h2, 15'h744a); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h2, 15'h73f4); // mode, rtr, id, length, crc
     fifo_info;
     read_receive_buffer;
-    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h3, 15'h6231); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h3, 15'h7bcb); // mode, rtr, id, length, crc
     fifo_info;
-    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h4, 15'h3051); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h4, 15'h37da); // mode, rtr, id, length, crc
     fifo_info;
-    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h5, 15'h52ef); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h5, 15'h7e15); // mode, rtr, id, length, crc
     fifo_info;
-    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h6, 15'h2c03); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h6, 15'h39cf); // mode, rtr, id, length, crc
     fifo_info;
-    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h7, 15'h6047); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h7, 15'h085c); // mode, rtr, id, length, crc
     fifo_info;
-    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h8, 15'h30e1); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h8, 15'h57a0); // mode, rtr, id, length, crc
     fifo_info;
-    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h8, 15'h30e1); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h8, 15'h57a0); // mode, rtr, id, length, crc
     fifo_info;
-    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h8, 15'h30e1); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h8, 15'h57a0); // mode, rtr, id, length, crc
     fifo_info;
-    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h8, 15'h30e1); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h8, 15'h57a0); // mode, rtr, id, length, crc
     fifo_info;
-    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h8, 15'h30e1); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h8, 15'h57a0); // mode, rtr, id, length, crc
     fifo_info;
     read_overrun_info(0, 15);
 
@@ -302,7 +345,7 @@ task test_full_fifo;
     release_rx_buffer;
     read_receive_buffer;
     fifo_info;
-    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h8, 15'h30e1); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h8, 15'h57a0); // mode, rtr, id, length, crc
     fifo_info;
     read_overrun_info(0, 15);
     $display("\n\n");
@@ -518,7 +561,7 @@ task send_bit;
 endtask
 
 
-task send_frame;
+task receive_frame;           // CAN IP core receives frames
   input mode;
   input remote_trans_req;
   input [28:0] id;
@@ -633,14 +676,14 @@ begin
 end
 */
 
-/*
+//
 // CRC monitor (used until proper CRC generation is used in testbench
 always @ (posedge clk)
 begin
   if (can_testbench.i_can_top.i_can_bsp.crc_error)
     $display("Calculated crc = 0x%0x, crc_in = 0x%0x", can_testbench.i_can_top.i_can_bsp.calculated_crc, can_testbench.i_can_top.i_can_bsp.crc_in);
 end
-*/
+//
 
 
 

@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.9  2003/01/14 12:19:35  mohor
+// rx_fifo is now working.
+//
 // Revision 1.8  2003/01/10 17:51:33  mohor
 // Temporary version (backup).
 //
@@ -121,9 +124,25 @@ module can_bsp
   /* Acceptance mask register */
   acceptance_mask_1,
   acceptance_mask_2,
-  acceptance_mask_3
+  acceptance_mask_3,
   /* End: This section is for EXTENDED mode */
   
+  /* Tx data registers. Holding identifier (basic mode), tx frame information (extended mode) and data */
+  tx_data_0,
+  tx_data_1,
+  tx_data_2,
+  tx_data_3,
+  tx_data_4,
+  tx_data_5,
+  tx_data_6,
+  tx_data_7,
+  tx_data_8,
+  tx_data_9,
+  tx_data_10,
+  tx_data_11,
+  tx_data_12
+  /* End: Tx data registers */
+
 );
 
 parameter Tp = 1;
@@ -168,9 +187,23 @@ input   [7:0] acceptance_code_3;
 input   [7:0] acceptance_mask_1;
 input   [7:0] acceptance_mask_2;
 input   [7:0] acceptance_mask_3;
-
 /* End: This section is for EXTENDED mode */
 
+  /* Tx data registers. Holding identifier (basic mode), tx frame information (extended mode) and data */
+input   [7:0] tx_data_0;
+input   [7:0] tx_data_1;
+input   [7:0] tx_data_2;
+input   [7:0] tx_data_3;
+input   [7:0] tx_data_4;
+input   [7:0] tx_data_5;
+input   [7:0] tx_data_6;
+input   [7:0] tx_data_7;
+input   [7:0] tx_data_8;
+input   [7:0] tx_data_9;
+input   [7:0] tx_data_10;
+input   [7:0] tx_data_11;
+input   [7:0] tx_data_12;
+  /* End: Tx data registers */
 
 
 reg           reset_mode_q;
@@ -731,11 +764,13 @@ wire [2:0]  header_len;
 wire        storing_header;
 wire [3:0]  limited_data_len;
 wire        reset_wr_fifo;
+wire        remote_request; // When remote request comes, no data field is stored to fifo.
 
 assign header_len[2:0] = extended_mode ? (ide? (3'h5) : (3'h3)) : 3'h2;
 assign storing_header = header_cnt < header_len;
-assign limited_data_len[3:0] = (data_len < 8)? (data_len -1'b1) : 4'h7;   // - 1 because counter counts from 0
-assign reset_wr_fifo = data_cnt == limited_data_len + header_len;
+assign remote_request = (extended_mode & rtr2) | ((~extended_mode) & rtr1); // When remote request is active, data length is 0.
+assign limited_data_len[3:0] = remote_request? 4'hf : ((data_len < 8)? (data_len -1'b1) : 4'h7);   // - 1 because counter counts from 0
+assign reset_wr_fifo = data_cnt == (limited_data_len + header_len);
 
 
 // Write enable signal for 64-byte rx fifo
@@ -823,7 +858,6 @@ can_fifo i_can_fifo
   .clk(clk),
   .rst(rst),
 
-  .rd(1'b0),                // FIX ME
   .wr(wr_fifo),
 
   .data_in(data_for_fifo),
