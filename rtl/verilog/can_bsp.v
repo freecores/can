@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.19  2003/02/09 18:40:29  mohor
+// Overload fixed. Hard synchronization also enabled at the last bit of
+// interframe.
+//
 // Revision 1.18  2003/02/09 02:24:33  mohor
 // Bosch license warning added. Error counters finished. Overload frames
 // still need to be fixed.
@@ -300,12 +304,13 @@ reg           transmitting;
 
 reg           error_frame;
 reg           error_frame_q;
-reg           overload_frame;
 reg           enable_error_cnt2;
 reg     [2:0] error_cnt1;
 reg     [2:0] error_cnt2;
 reg     [2:0] delayed_dominant_cnt;
 reg           enable_overload_cnt2;
+reg           overload_frame;
+reg           overload_frame_blocked;
 reg     [2:0] overload_cnt1;
 reg     [2:0] overload_cnt2;
 reg           tx;
@@ -437,6 +442,7 @@ wire          bit_err_exc1;
 wire          bit_err_exc2;
 wire          bit_err_exc3;
 wire          bit_err_exc4;
+wire          bit_err_exc5;
 wire          error_flag_over;
 wire          overload_flag_over;
 
@@ -457,33 +463,36 @@ assign go_rx_crc_lim  = (~bit_de_stuff) & sample_point &  rx_crc  & (bit_cnt == 
 assign go_rx_ack      =                   sample_point &  rx_crc_lim;
 assign go_rx_ack_lim  =                   sample_point &  rx_ack;
 assign go_rx_eof      =                   sample_point &  rx_ack_lim  | (~reset_mode) & reset_mode_q;
-assign go_rx_inter    =                 ((sample_point &  rx_eof  & (eof_cnt == 6)) | error_frame_ended | overload_frame_ended) & (~go_overload_frame);
+assign go_rx_inter    =                 ((sample_point &  rx_eof  & (eof_cnt == 6)) | error_frame_ended | overload_frame_ended) & (~overload_needed);
 
 assign go_error_frame = (form_err | stuff_err | bit_err | ack_err | (crc_err & go_rx_eof));
 assign error_frame_ended = (error_cnt2 == 7) & tx_point;
 assign overload_frame_ended = (overload_cnt2 == 7) & tx_point;
 
-assign go_overload_frame = ((sample_point &  rx_eof  & (eof_cnt == 6)) | error_frame_ended | overload_frame_ended) & overload_needed | 
-                             sample_point & (~sampled_bit) & rx_inter & (bit_cnt < 2)                                                |
-                             sample_point & (~sampled_bit) & ((error_cnt2 == 7) | (overload_cnt2 == 7))
-                            ;
+assign go_overload_frame = (   ((sample_point &  rx_eof  & (eof_cnt == 6)) | error_frame_ended | overload_frame_ended) & overload_needed | 
+                               sample_point & (~sampled_bit) & rx_inter & (bit_cnt < 2)                                                  |
+                               sample_point & (~sampled_bit) & ((error_cnt2 == 7) | (overload_cnt2 == 7))
+                           )
+                           & (~overload_frame_blocked)
+                           ;
 
 
 assign go_crc_enable  = hard_sync | go_tx;
 assign rst_crc_enable = go_rx_crc;
 
 assign bit_de_stuff_set   = go_rx_id1;
-assign bit_de_stuff_reset = go_rx_crc_lim | reset_mode | go_error_frame;
+assign bit_de_stuff_reset = go_rx_crc_lim | reset_mode | go_error_frame | go_overload_frame;
 
 assign remote_rq = ((~ide) & rtr1) | (ide & rtr2);
 assign limited_data_len = (data_len < 8)? data_len : 4'h8;
 
 assign ack_err = rx_ack & sample_point & sampled_bit & tx_state;
-assign bit_err = (tx_state | error_frame | overload_frame | rx_ack) & sample_point & (tx !== sampled_bit) & (~bit_err_exc1) & (~bit_err_exc2) & (~bit_err_exc3) & (~bit_err_exc4);
+assign bit_err = (tx_state | error_frame | overload_frame | rx_ack) & sample_point & (tx !== sampled_bit) & (~bit_err_exc1) & (~bit_err_exc2) & (~bit_err_exc3) & (~bit_err_exc4) & (~bit_err_exc5);
 assign bit_err_exc1 = tx_state & arbitration_field & tx;
 assign bit_err_exc2 = rx_ack & tx;
 assign bit_err_exc3 = error_frame & node_error_passive & (error_cnt1 < 7);
 assign bit_err_exc4 = (error_frame & (error_cnt1 == 7) & (~enable_error_cnt2)) | (overload_frame & (overload_cnt1 == 7) & (~enable_overload_cnt2));
+assign bit_err_exc5 = (error_frame & (error_cnt2 == 7)) | (overload_frame & (overload_cnt2 == 7));
 
 assign arbitration_field = rx_id1 | rx_rtr1 | rx_ide | rx_id2 | rx_rtr2;
 
@@ -663,7 +672,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_eof <= 1'b0;
-  else if (go_rx_inter | error_frame)
+  else if (go_rx_inter | error_frame | go_overload_frame)
     rx_eof <=#Tp 1'b0;
   else if (go_rx_eof)
     rx_eof <=#Tp 1'b1;
@@ -803,7 +812,7 @@ begin
     eof_cnt <= 0;
   else if (sample_point)
     begin
-      if (go_rx_inter | go_error_frame)
+      if (go_rx_inter | go_error_frame | go_overload_frame)
         eof_cnt <=#Tp 0;
       else if (rx_eof)
         eof_cnt <=#Tp eof_cnt + 1'b1;
@@ -915,7 +924,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     ack_err_latched <= 1'b0;
-  else if (reset_mode | error_frame_ended)
+  else if (reset_mode | error_frame_ended | go_overload_frame)
     ack_err_latched <=#Tp 1'b0;
   else if (ack_err)
     ack_err_latched <=#Tp 1'b1;
@@ -926,7 +935,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     bit_err_latched <= 1'b0;
-  else if (reset_mode | error_frame_ended)
+  else if (reset_mode | error_frame_ended | go_overload_frame)
     bit_err_latched <=#Tp 1'b0;
   else if (bit_err)
     bit_err_latched <=#Tp 1'b1;
@@ -990,7 +999,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     stuff_err_latched <= 1'b0;
-  else if (reset_mode | error_frame_ended)
+  else if (reset_mode | error_frame_ended | go_overload_frame)
     stuff_err_latched <=#Tp 1'b0;
   else if (stuff_err)
     stuff_err_latched <=#Tp 1'b1;
@@ -1002,7 +1011,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     form_err_latched <= 1'b0;
-  else if (reset_mode | error_frame_ended)
+  else if (reset_mode | error_frame_ended | go_overload_frame)
     form_err_latched <=#Tp 1'b0;
   else if (form_err)
     form_err_latched <=#Tp 1'b1;
@@ -1016,7 +1025,7 @@ can_crc i_can_crc_rx
   .clk(clk),
   .data(sampled_bit),
   .enable(crc_enable & sample_point & (~bit_de_stuff)),
-  .initialize(rx_eof),
+  .initialize(rx_eof | go_error_frame | go_overload_frame),
   .crc(calculated_crc)
 );
 
@@ -1062,6 +1071,7 @@ can_acf i_can_acf
 
   .go_rx_crc_lim(go_rx_crc_lim),
   .go_rx_inter(go_rx_inter),
+  .go_error_frame(go_error_frame),
   
   .data0(tmp_fifo[0]),
   .data1(tmp_fifo[1]),
@@ -1094,8 +1104,8 @@ begin
     wr_fifo <= 1'b0;
   else if (reset_wr_fifo)
     wr_fifo <=#Tp 1'b0;
-  else if (go_rx_inter & id_ok & (~error_frame_ended))    // FIX ME !!! Look following line
-//  else if (go_rx_inter & id_ok & (~error_frame_ended) & (~tx_state))  FIX ME !!! This line is the correct one. The above line is for easier debugging only.
+//  else if (go_rx_inter & id_ok & (~error_frame_ended))                // FIX ME !!! Look following line
+  else if (go_rx_inter & id_ok & (~error_frame_ended) & (~tx_state))    // FIX ME !!! This line is the correct one. The above line is for easier debugging only.
     wr_fifo <=#Tp 1'b1;
 end
 
@@ -1196,7 +1206,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     error_frame <= 1'b0;
-  else if (reset_mode | error_frame_ended)
+  else if (reset_mode | error_frame_ended | go_overload_frame)
     error_frame <=#Tp 1'b0;
   else if (go_error_frame)
     error_frame <=#Tp 1'b1;
@@ -1220,7 +1230,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     error_cnt1 <= 1'b0;
-  else if (reset_mode | error_frame_ended | go_error_frame)
+  else if (reset_mode | error_frame_ended | go_error_frame | go_overload_frame)
     error_cnt1 <=#Tp 1'b0;
   else if (error_frame & tx_point & (error_cnt1 < 7))
     error_cnt1 <=#Tp error_cnt1 + 1'b1;
@@ -1228,14 +1238,14 @@ end
 
 
 
-assign error_flag_over = ((~node_error_passive) & sample_point & (error_cnt1 == 7) | node_error_passive  & sample_point & (passive_cnt == 5));
+assign error_flag_over = ((~node_error_passive) & sample_point & (error_cnt1 == 7) | node_error_passive  & sample_point & (passive_cnt == 5)) & (~enable_error_cnt2);
 
 
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
     error_flag_over_blocked <= 1'b0;
-  else if (reset_mode | error_frame_ended | go_error_frame)
+  else if (reset_mode | error_frame_ended | go_error_frame | go_overload_frame)
     error_flag_over_blocked <=#Tp 1'b0;
   else if (error_flag_over)
     error_flag_over_blocked <=#Tp 1'b1;
@@ -1247,9 +1257,9 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     enable_error_cnt2 <= 1'b0;
-  else if (reset_mode | error_frame_ended | go_error_frame)
+  else if (reset_mode | error_frame_ended | go_error_frame | go_overload_frame)
     enable_error_cnt2 <=#Tp 1'b0;
-  else if (error_frame & (error_flag_over & (~enable_error_cnt2) & sampled_bit))
+  else if (error_frame & (error_flag_over & sampled_bit))
     enable_error_cnt2 <=#Tp 1'b1;
 end
 
@@ -1258,7 +1268,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     error_cnt2 <= 0;
-  else if (reset_mode | error_frame_ended | go_error_frame)
+  else if (reset_mode | error_frame_ended | go_error_frame | go_overload_frame)
     error_cnt2 <=#Tp 0;
   else if (enable_error_cnt2 & tx_point)
     error_cnt2 <=#Tp error_cnt2 + 1'b1;
@@ -1281,7 +1291,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     passive_cnt <= 0;
-  else if (go_error_frame)
+  else if (reset_mode | error_frame_ended | go_error_frame | go_overload_frame)
     passive_cnt <=#Tp 0;
   else if (sample_point & (passive_cnt < 5))
     begin
@@ -1310,23 +1320,23 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     overload_cnt1 <= 1'b0;
-  else if (reset_mode | overload_frame_ended | go_error_frame)
+  else if (reset_mode | overload_frame_ended | go_error_frame | go_overload_frame)
     overload_cnt1 <=#Tp 1'b0;
   else if (overload_frame & tx_point & (overload_cnt1 < 7))
     overload_cnt1 <=#Tp overload_cnt1 + 1'b1;
 end
 
 
-assign overload_flag_over = sample_point & (overload_cnt1 == 7);
+assign overload_flag_over = sample_point & (overload_cnt1 == 7) & (~enable_overload_cnt2);
 
 
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
     enable_overload_cnt2 <= 1'b0;
-  else if (reset_mode | overload_frame_ended | go_error_frame)
+  else if (reset_mode | overload_frame_ended | go_error_frame | go_overload_frame)
     enable_overload_cnt2 <=#Tp 1'b0;
-  else if (overload_frame & (overload_flag_over & (~enable_overload_cnt2) & sampled_bit))
+  else if (overload_frame & (overload_flag_over & sampled_bit))
     enable_overload_cnt2 <=#Tp 1'b1;
 end
 
@@ -1335,10 +1345,21 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     overload_cnt2 <= 0;
-  else if (reset_mode | overload_frame_ended | go_error_frame)
+  else if (reset_mode | overload_frame_ended | go_error_frame | go_overload_frame)
     overload_cnt2 <=#Tp 0;
   else if (enable_overload_cnt2 & tx_point)
     overload_cnt2 <=#Tp overload_cnt2 + 1'b1;
+end
+
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    overload_frame_blocked <= 0;
+  else if (reset_mode | go_error_frame | go_rx_id1)
+    overload_frame_blocked <=#Tp 0;
+  else if (go_overload_frame & overload_frame)            // This is a second sequential overload
+    overload_frame_blocked <=#Tp 1'b1;
 end
 
 
@@ -1349,7 +1370,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     tx <= 1'b1;
-  else if (reset_mode | error_frame_ended | overload_frame_ended)               // Reset
+  else if (reset_mode)                                                          // Reset
     tx <=#Tp 1'b1;
   else if (tx_point)
     begin
@@ -1357,6 +1378,13 @@ begin
         tx <=#Tp ((~bit_de_stuff_tx) & tx_bit) | (bit_de_stuff_tx & (~tx_q));
       else if (send_ack)                                                        // Acknowledge
         tx <=#Tp 1'b0;
+      else if (overload_frame)                                                  // Transmitting overload frame
+        begin
+          if (overload_cnt1 < 6)
+            tx <=#Tp 1'b0;
+          else
+            tx <=#Tp 1'b1;
+        end
       else if (error_frame)                                                     // Transmitting error frame
         begin
           if (error_cnt1 < 6)
@@ -1366,13 +1394,6 @@ begin
               else
                 tx <=#Tp 1'b0;
             end
-          else
-            tx <=#Tp 1'b1;
-        end
-      else if (overload_frame)                                                  // Transmitting overload frame
-        begin
-          if (overload_cnt1 < 6)
-            tx <=#Tp 1'b0;
           else
             tx <=#Tp 1'b1;
         end
@@ -1463,8 +1484,8 @@ assign rst_tx_pointer = ((~bit_de_stuff_tx) & tx_point & (~rx_data) &   extended
                         (                     tx_point &   rx_crc_lim                                                          ) |   // crc
                         (go_rx_idle                                                                                            ) |   // at the end
                         (reset_mode                                                                                            ) |
-                        (overload_frame                                                                                        ) |   // FIX ME (not sure this is ok)
-                        (error_frame                                                                                           ) ;   // FIX ME (not sure this is ok)
+                        (overload_frame                                                                                        ) |
+                        (error_frame                                                                                           ) ;
 
 always @ (posedge clk or posedge rst)
 begin
@@ -1477,14 +1498,14 @@ begin
 end
 
 
-assign tx_successful = transmitter & go_rx_inter & (~error_frame) & (~priority_lost);
+assign tx_successful = transmitter & go_rx_inter & (~error_frame_ended) & (~overload_frame_ended) & (~priority_lost);
 
 
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
     need_to_tx <= 1'b0;
-  else if (tx_successful)
+  else if (tx_successful | node_bus_off)
     need_to_tx <=#Tp 1'h0;
   else if (tx_request)
     need_to_tx <=#Tp 1'b1;
@@ -1601,7 +1622,14 @@ begin
     rx_err_cnt <=#Tp 'h0;
   else
     begin
-      if ((rx_err_cnt < 1023) & (~transmitter))
+      if ((~transmitter) & go_rx_ack_lim & (~err) & (rx_err_cnt > 0))
+        begin
+          if (rx_err_cnt > 127)
+            rx_err_cnt <=#Tp 127;
+          else
+            rx_err_cnt <=#Tp rx_err_cnt - 1'b1;
+        end
+      else if ((rx_err_cnt < 1023) & (~transmitter))
         begin
           if (go_error_frame_q & (~rule5))                                                                          // 1  (rule 5 is just the opposite then rule 1 exception
             rx_err_cnt <=#Tp rx_err_cnt + 1'b1;
@@ -1611,13 +1639,6 @@ begin
                   )
             rx_err_cnt <=#Tp rx_err_cnt + 4'h8;
         end
-      else if ((~transmitter) & go_rx_ack_lim & (~err) & (rx_err_cnt > 0))
-        begin
-          if (rx_err_cnt > 127)
-            rx_err_cnt <=#Tp 127;
-          else
-            rx_err_cnt <=#Tp rx_err_cnt - 1'b1;
-        end
     end
 end
 
@@ -1626,11 +1647,13 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     tx_err_cnt <= 'h0;
-  else if (reset_mode)
+  else if (reset_mode | node_bus_off)
     tx_err_cnt <=#Tp 'h0;
   else
     begin
-      if ((tx_err_cnt < 1023) & transmitter)
+      if ((tx_err_cnt > 0) & tx_successful)
+        tx_err_cnt <=#Tp tx_err_cnt - 1'h1;
+      else if ((tx_err_cnt < 1023) & transmitter)
         begin
           if ( (sample_point & (~sampled_bit) & (delayed_dominant_cnt == 7)                     ) |       // 6
                (error_flag_over & (~error_flag_over_blocked) & rule5                            ) |       // 4  (rule 5 is the same as rule 4)
@@ -1638,8 +1661,6 @@ begin
              )
             tx_err_cnt <=#Tp tx_err_cnt + 4'h8;
         end
-      else if ((tx_err_cnt > 0) & tx_successful)
-        tx_err_cnt <=#Tp tx_err_cnt - 1'h1;
     end
 end
 
@@ -1683,10 +1704,13 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     recessive_cnt <= 1'b0;
-  else if (node_bus_off & sample_point & sampled_bit)
-    recessive_cnt <=#Tp recessive_cnt + 1'b1;
-  else
-    recessive_cnt <=#Tp 0;
+  else if (sample_point)
+    begin
+      if (node_bus_off & sampled_bit)
+        recessive_cnt <=#Tp recessive_cnt + 1'b1;
+      else
+        recessive_cnt <=#Tp 0;
+    end
 end
 
 

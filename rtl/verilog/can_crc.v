@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2003/02/09 02:24:33  mohor
+// Bosch license warning added. Error counters finished. Overload frames
+// still need to be fixed.
+//
 // Revision 1.1  2003/01/08 02:10:54  mohor
 // Acceptance filter added.
 //
@@ -68,7 +72,7 @@ parameter Tp = 1;
 
 input         clk;
 input         data;
-input         enable;               // Must be Destuffed !!!
+input         enable;
 input         initialize;
 
 output [14:0] crc;
@@ -86,10 +90,6 @@ always @ (posedge clk)
 begin
   if(initialize)
     crc <= #Tp 0;
-//  else if (crc_next)
-//    crc <= #Tp {crc[13:0], 1'b0} ^ 15'h4599;
-//  else
-//    crc <= #Tp {crc[13:0], 1'b0};
   else if (enable)
     begin
       if (crc_next)

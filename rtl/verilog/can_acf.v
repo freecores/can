@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2003/02/09 18:40:29  mohor
+// Overload fixed. Hard synchronization also enabled at the last bit of
+// interframe.
+//
 // Revision 1.4  2003/02/09 02:24:33  mohor
 // Bosch license warning added. Error counters finished. Overload frames
 // still need to be fixed.
@@ -96,6 +100,7 @@ module can_acf
   
   go_rx_crc_lim,
   go_rx_inter,
+  go_error_frame,
   
   data0,
   data1,
@@ -130,6 +135,7 @@ input   [7:0] acceptance_mask_2;
 input   [7:0] acceptance_mask_3;
 input         go_rx_crc_lim;
 input         go_rx_inter;
+input         go_error_frame;
 input   [7:0] data0;
 input   [7:0] data1;
 input         rtr1;
@@ -348,7 +354,7 @@ begin
       else      
         id_ok <=#Tp match;
     end
-  else if (reset_mode | go_rx_inter)        // sample_point is already included in go_rx_inter
+  else if (reset_mode | go_rx_inter | go_error_frame)        // sample_point is already included in go_rx_inter
     id_ok <=#Tp 0;
 end
 
