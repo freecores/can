@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.26  2003/06/22 01:33:14  mohor
+// clkout is clk/2 after the reset.
+//
 // Revision 1.25  2003/06/21 12:16:30  mohor
 // paralel_case and full_case compiler directives added to case statements.
 //
@@ -735,7 +738,7 @@ assign cd[2:0]       = clock_divider[2:0];
 
 always @ (cd)
 begin
-  case (cd)                       /* synthesis full_case synthesis parallel_case */ 
+  case (cd)                       /* synthesis full_case parallel_case */ 
     3'b000 : clkout_div <= 0;
     3'b001 : clkout_div <= 1;
     3'b010 : clkout_div <= 2;
@@ -1028,7 +1031,7 @@ begin
     begin
       if (extended_mode)    // EXTENDED mode (Different register map depends on mode)
         begin
-          case(addr)  /* synthesis full_case synthesis parallel_case */ 
+          case(addr)  /* synthesis full_case parallel_case */ 
             8'd0  :  data_out <= {4'b0000, mode_ext[3:1], mode[0]};
             8'd1  :  data_out <= 8'h0;
             8'd2  :  data_out <= status;
@@ -1056,13 +1059,11 @@ begin
             8'd28 :  data_out <= 8'h0;
             8'd29 :  data_out <= {1'b0, rx_message_counter};
             8'd31 :  data_out <= clock_divider;
-    
-            default: data_out <= 8'h0;
           endcase
         end
       else                  // BASIC mode
         begin
-          case(addr)  /* synthesis full_case synthesis parallel_case */ 
+          case(addr)  /* synthesis full_case parallel_case */ 
             8'd0  :  data_out <= {3'b001, mode_basic[4:1], mode[0]};
             8'd1  :  data_out <= 8'hff;
             8'd2  :  data_out <= status;
@@ -1082,8 +1083,6 @@ begin
             8'd18 :  data_out <= reset_mode? 8'hff : tx_data_8;
             8'd19 :  data_out <= reset_mode? 8'hff : tx_data_9;
             8'd31 :  data_out <= clock_divider;
-    
-            default: data_out <= 8'h0;
           endcase
         end
     end
