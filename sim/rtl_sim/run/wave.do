@@ -116,8 +116,8 @@ define variable nofilenames
 define variable nofullpathfilenames
 include bookmark with filenames
 include scope history without filenames
-define waveform window listpane 6.16
-define waveform window namepane 14.36
+define waveform window listpane 10.99
+define waveform window namepane 11.94
 define multivalueindication
 define pattern curpos dot
 define pattern cursor1 dot
@@ -172,26 +172,23 @@ add group \
 
 add group \
     can_btl \
-      can_testbench.i_can_top.i_can_btl.baud_r_presc[5:0]'h \
-      can_testbench.i_can_top.i_can_btl.clk \
+      can_testbench.i_can_top.i_can_btl.go_seg1 \
+      can_testbench.i_can_top.i_can_btl.go_seg2 \
+      can_testbench.i_can_top.i_can_btl.go_sync \
       can_testbench.i_can_top.i_can_btl.clk_cnt[8:0]'h \
       can_testbench.i_can_top.i_can_btl.clk_en \
-      can_testbench.i_can_top.i_can_btl.hard_sync \
-      can_testbench.i_can_top.i_can_btl.idle \
-      can_testbench.i_can_top.i_can_btl.monitored_bit \
-      can_testbench.i_can_top.i_can_btl.preset_cnt[8:0]'h \
       can_testbench.i_can_top.i_can_btl.quant_cnt[7:0]'h \
-      can_testbench.i_can_top.i_can_btl.reset_mode \
-      can_testbench.i_can_top.i_can_btl.rst \
       can_testbench.i_can_top.i_can_btl.rx \
-      can_testbench.i_can_top.i_can_btl.sampled_bit \
+      can_testbench.i_can_top.i_can_btl.hard_sync \
+      can_testbench.i_can_top.i_can_btl.resync \
+      can_testbench.i_can_top.i_can_btl.resync_latched \
       can_testbench.i_can_top.i_can_btl.sync_blocked \
-      can_testbench.i_can_top.i_can_btl.sync_jump_width[1:0]'h \
-      can_testbench.i_can_top.i_can_btl.sync_mode \
-      can_testbench.i_can_top.i_can_btl.take_sample \
-      can_testbench.i_can_top.i_can_btl.time_segment1[3:0]'h \
-      can_testbench.i_can_top.i_can_btl.time_segment2[2:0]'h \
-      can_testbench.i_can_top.i_can_btl.triple_sampling \
+      can_testbench.i_can_top.i_can_btl.dodatek[3:0]'h \
+      can_testbench.i_can_top.i_can_btl.sync \
+      can_testbench.i_can_top.i_can_btl.seg1 \
+      can_testbench.i_can_top.i_can_btl.seg2 \
+      can_testbench.i_can_top.i_can_btl.sample_pulse \
+      can_testbench.i_can_top.i_can_btl.sampled_bit \
 
 add group \
     can_registers \
@@ -222,4 +219,4 @@ add group \
 
 deselect all
 open window waveform 1 geometry 10 59 1592 1140
-zoom at 41358.39(0)ns 0.00195991 0.00000000
+zoom at 49009.23(0)ns 0.00333533 0.00000000

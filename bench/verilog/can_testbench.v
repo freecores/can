@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1.1.1  2002/12/20 16:39:21  mohor
+// Initial
+//
 //
 //
 
@@ -103,7 +106,7 @@ begin
   addr = 'hz;
   rx = 1;
   rst = 1;
-  idle = 0;
+  idle = 1;
   #200 rst = 0;
   #200 start_tb = 1;
 end
@@ -115,31 +118,44 @@ begin
   wait(start_tb);
 
   /* Set bus timing register 0 */
-  write_register(8'h6, 8'h01);
+  write_register(8'h6, 8'h81);
   /* Set bus timing register 1 */
   write_register(8'h7, 8'h34);
   
   #10;
-  idle = 0;
   repeat (1000) @ (posedge clk);
   
-  // To sample two bits before hard synchronization starts
+  // Hard synchronization
+  repeat (2) @ (posedge clk);   // So we are not synchronized to anything
   #1 rx=0;
-  repeat (10*4) @ (posedge clk);
+  repeat (2*4) @ (posedge clk);
+  #1 idle = 0;
+  repeat (8*4) @ (posedge clk);
   #1 rx=1;
   repeat (10*4) @ (posedge clk);
 
-  repeat (4) @ (posedge clk);   /* Delete this line to have a rx change at the critical moment */
-
-  // Hard synchronization
-  #1;
-  idle = 1;
+  // Resynchronization on time
   #1 rx=0;
   repeat (10*4) @ (posedge clk);
   #1 rx=1;
   idle = 0;
   repeat (10*4) @ (posedge clk);
+
+  // Resynchronization late
+  repeat (4) @ (posedge clk);
+  repeat (4) @ (posedge clk);
   #1 rx=0;
+  repeat (10*4) @ (posedge clk);
+  #1 rx=1;
+  idle = 0;
+
+  // Resynchronization early
+  repeat (9*4) @ (posedge clk);   // one frame too early
+  #1 rx=0;
+  repeat (10*4) @ (posedge clk);
+  #1 rx=1;
+  idle = 0;
+  repeat (10*4) @ (posedge clk);
 
   repeat (50000) @ (posedge clk);
   $display("CAN Testbench finished.");
