@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.23  2003/02/14 20:17:01  mohor
+// Several registers added. Not finished, yet.
+//
 // Revision 1.22  2003/02/12 14:23:59  mohor
 // abort_tx added. Bit destuff fixed.
 //
@@ -152,12 +155,16 @@ module can_bsp
 
   /* Mode register */
   reset_mode,
+  listen_only_mode,
   acceptance_filter_mode,
+  self_test_mode,
 
   /* Command register */
   release_buffer,
   tx_request,
   abort_tx,
+  self_rx_request,
+  single_shot_transmission,
 
   /* Error Warning Limit register */
   error_warning_limit,
@@ -185,6 +192,11 @@ module can_bsp
   need_to_tx,
   overrun,
   info_empty,
+  go_error_frame,
+  priority_lost,
+  node_error_passive,
+  node_error_active,
+
 
 
   /* This section is for BASIC and EXTENDED mode */
@@ -244,14 +256,18 @@ output  [7:0] data_out;
 
 
 input         reset_mode;
+input         listen_only_mode;
 input         acceptance_filter_mode;
 input         extended_mode;
+input         self_test_mode;
 
 
 /* Command register */
 input         release_buffer;
 input         tx_request;
 input         abort_tx;
+input         self_rx_request;
+input         single_shot_transmission;
 
 /* Error Warning Limit register */
 input   [7:0] error_warning_limit;
@@ -276,6 +292,10 @@ output        tx_successful;
 output        need_to_tx;
 output        overrun;
 output        info_empty;
+output        go_error_frame;
+output        priority_lost;
+output        node_error_passive;
+output        node_error_active;
 
 
 /* This section is for BASIC and EXTENDED mode */
@@ -438,7 +458,6 @@ wire          go_rx_crc_lim;
 wire          go_rx_ack;
 wire          go_rx_ack_lim;
 wire          go_rx_eof;
-wire          go_error_frame;
 wire          go_overload_frame;
 wire          go_rx_inter;
 
@@ -464,7 +483,7 @@ wire          ack_err;
 wire          stuff_err;
                                     // of intermission, it starts reading the identifier (and transmitting its own).
 wire          overload_needed = 0;  // When receiver is busy, it needs to send overload frame. Only 2 overload frames are allowed to
-                                    // be send in a row. This is not implemented because host can not send an overload request. FIX ME !!!!
+                                    // be send in a row. This is not implemented because host can not send an overload request.
 
 wire          id_ok;                // If received ID matches ID set in registers
 wire          no_byte0;             // There is no byte 0 (RTR bit set to 1 or DLC field equal to 0). Signal used for acceptance filter.
@@ -549,7 +568,7 @@ assign bit_de_stuff_reset = go_rx_crc_lim | reset_mode | go_error_frame | go_ove
 assign remote_rq = ((~ide) & rtr1) | (ide & rtr2);
 assign limited_data_len = (data_len < 8)? data_len : 4'h8;
 
-assign ack_err = rx_ack & sample_point & sampled_bit & tx_state;
+assign ack_err = rx_ack & sample_point & sampled_bit & tx_state & (~self_test_mode);
 assign bit_err = (tx_state | error_frame | overload_frame | rx_ack) & sample_point & (tx !== sampled_bit) & (~bit_err_exc1) & (~bit_err_exc2) & (~bit_err_exc3) & (~bit_err_exc4) & (~bit_err_exc5);
 assign bit_err_exc1 = tx_state & arbitration_field & tx;
 assign bit_err_exc2 = rx_ack & tx;
@@ -830,9 +849,9 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     byte_cnt <= 0;
-  else if (reset_mode | write_data_to_tmp_fifo)
+  else if (write_data_to_tmp_fifo)
     byte_cnt <=#Tp byte_cnt + 1;
-  else if (sample_point & go_rx_crc_lim)
+  else if (reset_mode | (sample_point & go_rx_crc_lim))
     byte_cnt <=#Tp 0;
 end
 
@@ -1180,8 +1199,7 @@ begin
     wr_fifo <= 1'b0;
   else if (reset_wr_fifo)
     wr_fifo <=#Tp 1'b0;
-  else if (go_rx_inter & id_ok & (~error_frame_ended))                // FIX ME !!! Look following line
-//  else if (go_rx_inter & id_ok & (~error_frame_ended) & (~tx_state))    // FIX ME !!! This line is the correct one. The above line is for easier debugging only.
+  else if (go_rx_inter & id_ok & (~error_frame_ended) & ((~tx_state) | self_rx_request))
     wr_fifo <=#Tp 1'b1;
 end
 
@@ -1441,7 +1459,7 @@ begin
 end
 
 
-assign send_ack = (~tx_state) & rx_ack & (~err);
+assign send_ack = (~tx_state) & rx_ack & (~err) & (~listen_only_mode);
 
 
 always @ (posedge clk or posedge rst)
@@ -1554,16 +1572,16 @@ begin
     end
 end
 
-
-assign rst_tx_pointer = ((~bit_de_stuff_tx) & tx_point & (~rx_data) &   extended_mode  & tx_pointer == 38                      ) |   // arbitration + control for extended format
-                        ((~bit_de_stuff_tx) & tx_point & (~rx_data) & (~extended_mode) & tx_pointer == 18                      ) |   // arbitration + control for standard format
-                        ((~bit_de_stuff_tx) & tx_point &   rx_data  &   extended_mode  & tx_pointer == (8 * tx_data_0[3:0] - 1)) |   // data
-                        ((~bit_de_stuff_tx) & tx_point &   rx_data  & (~extended_mode) & tx_pointer == (8 * tx_data_1[3:0] - 1)) |   // data
-                        (                     tx_point &   rx_crc_lim                                                          ) |   // crc
-                        (go_rx_idle                                                                                            ) |   // at the end
-                        (reset_mode                                                                                            ) |
-                        (overload_frame                                                                                        ) |
-                        (error_frame                                                                                           ) ;
+assign rst_tx_pointer = ((~bit_de_stuff_tx) & tx_point & (~rx_data) &   extended_mode  &   r_tx_data_0[0]   & tx_pointer == 38                      ) |   // arbitration + control for extended format
+                        ((~bit_de_stuff_tx) & tx_point & (~rx_data) &   extended_mode  & (~r_tx_data_0[0])  & tx_pointer == 18                      ) |   // arbitration + control for extended format
+                        ((~bit_de_stuff_tx) & tx_point & (~rx_data) & (~extended_mode)                      & tx_pointer == 18                      ) |   // arbitration + control for standard format
+                        ((~bit_de_stuff_tx) & tx_point &   rx_data  &   extended_mode                       & tx_pointer == (8 * tx_data_0[3:0] - 1)) |   // data
+                        ((~bit_de_stuff_tx) & tx_point &   rx_data  & (~extended_mode)                      & tx_pointer == (8 * tx_data_1[3:0] - 1)) |   // data
+                        (                     tx_point &   rx_crc_lim                                                                               ) |   // crc
+                        (go_rx_idle                                                                                                                 ) |   // at the end
+                        (reset_mode                                                                                                                 ) |
+                        (overload_frame                                                                                                              ) |
+                        (error_frame                                                                                                                ) ;
 
 always @ (posedge clk or posedge rst)
 begin
@@ -1576,7 +1594,7 @@ begin
 end
 
 
-assign tx_successful = transmitter & go_rx_inter & (~error_frame_ended) & (~overload_frame_ended) & (~priority_lost);
+assign tx_successful = transmitter & go_rx_inter & ((~error_frame_ended) & (~overload_frame_ended) & (~priority_lost) | single_shot_transmission);
 
 
 always @ (posedge clk or posedge rst)
@@ -1591,8 +1609,8 @@ end
 
 
 
-assign go_early_tx = need_to_tx & (~tx_state) & (~suspend) & sample_point & (~sampled_bit) & (rx_idle | last_bit_of_inter);
-assign go_tx       = need_to_tx & (~tx_state) & (~suspend) & (go_early_tx | rx_idle);
+assign go_early_tx = (~listen_only_mode) & need_to_tx & (~tx_state) & (~suspend) & sample_point & (~sampled_bit) & (rx_idle | last_bit_of_inter);
+assign go_tx       = (~listen_only_mode) & need_to_tx & (~tx_state) & (~suspend) & (go_early_tx | rx_idle);
 
 
 // Tx state
@@ -1702,22 +1720,25 @@ begin
     rx_err_cnt <=#Tp 'h0;
   else
     begin
-      if ((~transmitter) & go_rx_ack_lim & (~err) & (rx_err_cnt > 0))
+      if (~listen_only_mode)
         begin
-          if (rx_err_cnt > 127)
-            rx_err_cnt <=#Tp 127;
-          else
-            rx_err_cnt <=#Tp rx_err_cnt - 1'b1;
-        end
-      else if ((rx_err_cnt < 248) & (~transmitter))   // 248 + 8 = 256
-        begin
-          if (go_error_frame_q & (~rule5))                                                                          // 1  (rule 5 is just the opposite then rule 1 exception
-            rx_err_cnt <=#Tp rx_err_cnt + 1'b1;
-          else if ( (error_frame & sample_point & (~sampled_bit) & (error_cnt1 == 7) & (~rx_err_cnt_blocked)  ) |   // 2
-                    (go_error_frame_q & rule5                                                                 ) |   // 5
-                    (error_frame & sample_point & (~sampled_bit) & (delayed_dominant_cnt == 7)                )     // 6
-                  )
-            rx_err_cnt <=#Tp rx_err_cnt + 4'h8;
+          if ((~transmitter) & go_rx_ack_lim & (~err) & (rx_err_cnt > 0))
+            begin
+              if (rx_err_cnt > 127)
+                rx_err_cnt <=#Tp 127;
+              else
+                rx_err_cnt <=#Tp rx_err_cnt - 1'b1;
+            end
+          else if ((rx_err_cnt < 248) & (~transmitter))   // 248 + 8 = 256
+            begin
+              if (go_error_frame_q & (~rule5))                                                                          // 1  (rule 5 is just the opposite then rule 1 exception
+                rx_err_cnt <=#Tp rx_err_cnt + 1'b1;
+              else if ( (error_frame & sample_point & (~sampled_bit) & (error_cnt1 == 7) & (~rx_err_cnt_blocked)  ) |   // 2
+                        (go_error_frame_q & rule5                                                                 ) |   // 5
+                        (error_frame & sample_point & (~sampled_bit) & (delayed_dominant_cnt == 7)                )     // 6
+                      )
+                rx_err_cnt <=#Tp rx_err_cnt + 4'h8;
+            end
         end
     end
 end
@@ -1769,6 +1790,9 @@ begin
   else if (((rx_err_cnt >= 128) | (tx_err_cnt >= 128)) & (error_frame_ended | (~reset_mode) & reset_mode_q) & (~node_bus_off))
     node_error_passive <=#Tp 1'b1;
 end
+
+
+assign node_error_active = ~(node_error_passive | node_bus_off);
 
 
 always @ (posedge clk or posedge rst)

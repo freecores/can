@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.14  2003/02/14 20:17:01  mohor
+// Several registers added. Not finished, yet.
+//
 // Revision 1.13  2003/02/12 14:25:30  mohor
 // abort_tx added.
 //
@@ -125,13 +128,17 @@ module can_registers
   need_to_tx,
   overrun,
   info_empty,
+  go_error_frame,
+  priority_lost,
+  node_error_passive,
+  node_error_active,
 
 
   /* Mode register */
   reset_mode,
   listen_only_mode,
   acceptance_filter_mode,
-  sleep_mode,
+  self_test_mode,
 
 
   /* Command register */
@@ -140,6 +147,7 @@ module can_registers
   abort_tx,
   tx_request,
   self_rx_request,
+  single_shot_transmission,
 
   /* Bus Timing 0 register */
   baud_r_presc,
@@ -234,6 +242,10 @@ input         tx_successful;
 input         need_to_tx;
 input         overrun;
 input         info_empty;
+input         go_error_frame;
+input         priority_lost;
+input         node_error_passive;
+input         node_error_active;
 
 
 
@@ -241,7 +253,7 @@ input         info_empty;
 output        reset_mode;
 output        listen_only_mode;
 output        acceptance_filter_mode;
-output        sleep_mode;
+output        self_test_mode;
 
 /* Command register */
 output        clear_data_overrun;
@@ -249,6 +261,7 @@ output        release_buffer;
 output        abort_tx;
 output        tx_request;
 output        self_rx_request;
+output        single_shot_transmission;
 
 /* Bus Timing 0 register */
 output  [5:0] baud_r_presc;
@@ -316,13 +329,26 @@ output  [7:0] tx_data_12;
 /* End: Tx data registers */
 
 
+reg           tx_successful_q;
+reg           overrun_q;
+reg           overrun_status;
+reg           transmission_complete;
+reg           transmit_buffer_status_q;
+reg           receive_buffer_status;
+reg           info_empty_q;
+reg           error_status_q;
+reg           node_bus_off_q;
+reg           priority_lost_q;
+reg           node_error_passive_q;
+reg           transmit_buffer_status;
+reg           single_shot_transmission;
+
 // Some interrupts exist in basic mode and in extended mode. Since they are in different registers they need to be multiplexed.
 wire          data_overrun_irq_en;
 wire          error_warning_irq_en;
 wire          transmit_irq_en;
 wire          receive_irq_en;
 
-reg           transmit_buffer_status;
 
 wire    [7:0] irq_reg;
 
@@ -374,13 +400,24 @@ wire   we_acceptance_mask_3     = cs & we & (addr == 8'd23) & reset_mode & exten
 
 
 
+always @ (posedge clk)
+begin
+  tx_successful_q           <=#Tp tx_successful;
+  overrun_q                 <=#Tp overrun;
+  transmit_buffer_status_q  <=#Tp transmit_buffer_status;
+  info_empty_q              <=#Tp info_empty;
+  error_status_q            <=#Tp error_status;
+  node_bus_off_q            <=#Tp node_bus_off;
+  priority_lost_q           <=#Tp priority_lost;
+  node_error_passive_q      <=#Tp node_error_passive;
+end
 
 
 
 /* Mode register */
 wire   [0:0] mode;
 wire   [4:1] mode_basic;
-wire   [4:1] mode_ext;
+wire   [3:1] mode_ext;
 wire         receive_irq_en_basic;
 wire         transmit_irq_en_basic;
 wire         error_irq_en_basic;
@@ -403,18 +440,18 @@ can_register_asyn #(4, 0) MODE_REG_BASIC
   .rst(rst)
 );
 
-can_register_asyn #(4, 0) MODE_REG_EXT
-( .data_in(data_in[4:1]),
-  .data_out(mode_ext[4:1]),
-  .we(we_mode),
+can_register_asyn #(3, 0) MODE_REG_EXT
+( .data_in(data_in[3:1]),
+  .data_out(mode_ext[3:1]),
+  .we(we_mode & reset_mode),
   .clk(clk),
   .rst(rst)
 );
 
 assign reset_mode             = mode[0];
 assign listen_only_mode       = mode_ext[1];
+assign self_test_mode         = mode_ext[2];
 assign acceptance_filter_mode = mode_ext[3];
-assign sleep_mode             = mode_ext[4];
 
 assign receive_irq_en_basic  = mode_basic[1];
 assign transmit_irq_en_basic = mode_basic[2];
@@ -443,33 +480,49 @@ can_register_asyn_syn #(1, 1'h0) COMMAND_REG1
   .rst_sync(abort_tx & ~transmitting)
 );
 
-can_register_asyn_syn #(3, 3'h0) COMMAND_REG
-( .data_in(data_in[4:2]),
-  .data_out(command[4:2]),
+can_register_asyn_syn #(2, 2'h0) COMMAND_REG
+( .data_in(data_in[3:2]),
+  .data_out(command[3:2]),
   .we(we_command),
   .clk(clk),
   .rst(rst),
-  .rst_sync(|command[4:2])
+  .rst_sync(|command[3:2])
 );
 
-assign self_rx_request = command[4];
+can_register_asyn_syn #(1, 1'h0) COMMAND_REG4
+( .data_in(data_in[4]),
+  .data_out(command[4]),
+  .we(we_command),
+  .clk(clk),
+  .rst(rst),
+  .rst_sync(tx_successful & (~tx_successful_q) | abort_tx)
+);
+
+assign self_rx_request = command[4] & (~command[0]);
 assign clear_data_overrun = command[3];
 assign release_buffer = command[2];
-assign abort_tx = command[1];
-assign tx_request = command[0];
+assign abort_tx = command[1] & (~command[0]) & (~command[4]);
+assign tx_request = command[0] | command[4];
+
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    single_shot_transmission <= 1'b0;
+  else if (we_command & data_in[1] & (data_in[1] | data_in[4]))
+    single_shot_transmission <=#Tp 1'b1;
+  else if (tx_successful & (~tx_successful_q))
+    single_shot_transmission <=#Tp 1'b0;
+end
+
+
+
 /* End Command register */
 
 
 /* Status register */
 
 wire   [7:0] status;
-reg          tx_successful_q;
-reg          overrun_q;
-reg          overrun_status;
-reg          transmission_complete;
-reg          transmit_buffer_status_q;
-reg          receive_buffer_status;
-reg          info_empty_q;
 
 assign status[7] = node_bus_off;
 assign status[6] = error_status;
@@ -481,13 +534,6 @@ assign status[1] = overrun_status;
 assign status[0] = receive_buffer_status;
 
 
-always @ (posedge clk)
-begin
-  tx_successful_q           <=#Tp tx_successful;
-  overrun_q                 <=#Tp overrun;
-  transmit_buffer_status_q  <=#Tp transmit_buffer_status;
-  info_empty_q              <=#Tp info_empty;
-end
 
 always @ (posedge clk or posedge rst)
 begin
@@ -525,103 +571,13 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    receive_buffer_status <= 1'b1;
+    receive_buffer_status <= 1'b0;
   else if (release_buffer)
     receive_buffer_status <=#Tp 1'b0;
   else if (~info_empty)
     receive_buffer_status <=#Tp 1'b1;
 end
 
-/*
-can_register_asyn_syn #(1, 0) BUS_STATUS_REG_0
-( .data_in(),
-  .data_out(status[0]),
-  .we(),
-  .clk(clk)
-  .rst(rst),
-  .rst_sync()
-);
-
-can_register_asyn_syn #(1, 0) BUS_STATUS_REG_0
-( .data_in(),
-  .data_out(status[0]),
-  .we(),
-  .clk(clk)
-  .rst(rst),
-  .rst_sync()
-);
-
-can_register_asyn_syn #(1, 0) BUS_STATUS_REG_0
-( .data_in(),
-  .data_out(status[0]),
-  .we(),
-  .clk(clk)
-  .rst(rst),
-  .rst_sync()
-);
-
-can_register_asyn_syn #(1, 0) BUS_STATUS_REG_0
-( .data_in(),
-  .data_out(status[0]),
-  .we(),
-  .clk(clk)
-  .rst(rst),
-  .rst_sync()
-);
-     
-can_register_asyn_syn #(1, 0) BUS_STATUS_REG_0
-( .data_in(),
-  .data_out(status[0]),
-  .we(),
-  .clk(clk)
-  .rst(rst),
-  .rst_sync()
-);    
-      
-can_register_asyn_syn #(1, 0) BUS_STATUS_REG_0
-( .data_in(),
-  .data_out(status[0]),
-  .we(),
-  .clk(clk)
-  .rst(rst),
-  .rst_sync()
-);
-
-can_register_asyn_syn #(1, 0) BUS_STATUS_REG_0
-( .data_in(),
-  .data_out(status[0]),
-  .we(),
-  .clk(clk)
-  .rst(rst),
-  .rst_sync()
-);
-
-can_register_asyn_syn #(1, 0) BUS_STATUS_REG_0
-( .data_in(),
-  .data_out(status[0]),
-  .we(),
-  .clk(clk)
-  .rst(rst),
-  .rst_sync()
-);
-
-can_register_asyn_syn #(1, 0) BUS_STATUS_REG_0
-( .data_in(),
-  .data_out(status[0]),
-  .we(),
-  .clk(clk)
-  .rst(rst),
-  .rst_sync()
-);
-
-can_register_asyn #(1, 0) BUS_STATUS_REG_7
-( .data_in(),
-  .data_out(status[7]),
-  .we(),
-  .clk(clk)
-  .rst(rst)
-);
-*/
 /* End Status register */
 
 
@@ -963,7 +919,7 @@ begin
       if (extended_mode)    // EXTENDED mode (Different register map depends on mode)
         begin
           case(addr)
-            8'd0  :  data_out <= {3'b000, mode_ext[4:1], mode[0]};
+            8'd0  :  data_out <= {4'b0000, mode_ext[3:1], mode[0]};
             8'd1  :  data_out <= 8'h0;
             8'd2  :  data_out <= status;
             8'd3  :  data_out <= irq_reg;
@@ -1059,7 +1015,7 @@ reg receive_irq;
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    receive_irq <= 1'b1;
+    receive_irq <= 1'b0;
   else if (release_buffer)
     receive_irq <=#Tp 1'b0;
   else if ((~info_empty) & (~receive_irq) & receive_irq_en)
@@ -1067,13 +1023,61 @@ begin
 end
 
 
+reg error_irq;
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    error_irq <= 1'b0;
+  else if (((error_status ^ error_status_q) | (node_bus_off ^ node_bus_off_q)) & error_warning_irq_en)
+    error_irq <=#Tp 1'b1;
+  else if (read_irq_reg)
+    error_irq <=#Tp 1'b0;
+end
+
+
+reg bus_error_irq;
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    bus_error_irq <= 1'b0;
+  else if (go_error_frame & bus_error_irq_en)
+    bus_error_irq <=#Tp 1'b1;
+  else if (read_irq_reg)
+    bus_error_irq <=#Tp 1'b0;
+end
+
+
+reg arbitration_lost_irq;
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    arbitration_lost_irq <= 1'b0;
+  else if (priority_lost & (~priority_lost_q) & arbitration_lost_irq_en)
+    arbitration_lost_irq <=#Tp 1'b1;
+  else if (read_irq_reg)
+    arbitration_lost_irq <=#Tp 1'b0;
+end
+
+
+
+reg error_passive_irq;
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    error_passive_irq <= 1'b0;
+  else if ((node_error_passive & (~node_error_passive_q) | (~node_error_passive) & node_error_passive_q & node_error_active) & error_passive_irq_en)
+    error_passive_irq <=#Tp 1'b1;
+  else if (read_irq_reg)
+    error_passive_irq <=#Tp 1'b0;
+end
+
 
 
 // FIX ME !!!
-assign irq_reg = {4'h0, data_overrun_irq, 1'b0, transmit_irq, 1'b0};
+assign irq_reg = {bus_error_irq, arbitration_lost_irq, error_passive_irq, 1'b0, data_overrun_irq, error_irq, transmit_irq, receive_irq};
 
 // FIX ME !!!
-assign irq = data_overrun_irq | transmit_irq;
+assign irq = data_overrun_irq | transmit_irq | receive_irq | error_irq | bus_error_irq | arbitration_lost_irq | error_passive_irq;
 
 
 

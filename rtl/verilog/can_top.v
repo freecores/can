@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.16  2003/02/14 20:17:01  mohor
+// Several registers added. Not finished, yet.
+//
 // Revision 1.15  2003/02/12 14:25:30  mohor
 // abort_tx added.
 //
@@ -165,12 +168,14 @@ wire   [7:0] data_out_regs;
 wire         reset_mode;
 wire         listen_only_mode;
 wire         acceptance_filter_mode;
-wire         sleep_mode;
+wire         self_test_mode;
 
 /* Command register */
 wire         release_buffer;
 wire         tx_request;
 wire         abort_tx;
+wire         self_rx_request;
+wire         single_shot_transmission;
 
 /* Bus Timing 0 register */
 wire   [5:0] baud_r_presc;
@@ -262,6 +267,11 @@ wire         tx_successful;
 wire         need_to_tx;
 wire         overrun;
 wire         info_empty;
+wire         go_error_frame;
+wire         priority_lost;
+wire         node_error_passive;
+wire         node_error_active;
+
 
 
 
@@ -290,19 +300,25 @@ can_registers i_can_registers
   .need_to_tx(need_to_tx),
   .overrun(overrun),
   .info_empty(info_empty),
+  .go_error_frame(go_error_frame),
+  .priority_lost(priority_lost),
+  .node_error_passive(node_error_passive),
+  .node_error_active(node_error_active),
+
 
   /* Mode register */
   .reset_mode(reset_mode),
   .listen_only_mode(listen_only_mode),
   .acceptance_filter_mode(acceptance_filter_mode),
-  .sleep_mode(sleep_mode),
+  .self_test_mode(self_test_mode),
 
   /* Command register */
   .clear_data_overrun(),
   .release_buffer(release_buffer),
   .abort_tx(abort_tx),
   .tx_request(tx_request),
-  .self_rx_request(),
+  .self_rx_request(self_rx_request),
+  .single_shot_transmission(single_shot_transmission),
 
   /* Bus Timing 0 register */
   .baud_r_presc(baud_r_presc),
@@ -433,12 +449,17 @@ can_bsp i_can_bsp
 
   /* Mode register */
   .reset_mode(reset_mode),
+  .listen_only_mode(listen_only_mode),
   .acceptance_filter_mode(acceptance_filter_mode),
+  .self_test_mode(self_test_mode),
   
   /* Command register */
   .release_buffer(release_buffer),
   .tx_request(tx_request),
   .abort_tx(abort_tx),
+  .self_rx_request(self_rx_request),
+  .single_shot_transmission(single_shot_transmission),
+
 
   /* Error Warning Limit register */
   .error_warning_limit(error_warning_limit),
@@ -467,6 +488,10 @@ can_bsp i_can_bsp
   .need_to_tx(need_to_tx),
   .overrun(overrun),
   .info_empty(info_empty),
+  .go_error_frame(go_error_frame),
+  .priority_lost(priority_lost),
+  .node_error_passive(node_error_passive),
+  .node_error_active(node_error_active),
   
   /* This section is for BASIC and EXTENDED mode */
   /* Acceptance code register */
