@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2002/12/28 04:13:23  mohor
+// Backup version.
+//
 // Revision 1.5  2002/12/27 00:12:52  mohor
 // Header changed, testbench improved to send a frame (crc still missing).
 //
@@ -91,9 +94,12 @@ module can_btl
   sample_point,
   sampled_bit,
   sampled_bit_q,
+  hard_sync,
+  resync,
   
   /* Output from can_bsp module */
   rx_idle
+  
   
   
 
@@ -126,6 +132,8 @@ output        clk_en;
 output        sample_point;
 output        sampled_bit;
 output        sampled_bit_q;
+output        hard_sync;
+output        resync;
 
 
 
@@ -147,14 +155,12 @@ wire          go_sync;
 wire          go_seg1;
 wire          go_seg2;
 wire [8:0]    preset_cnt;
-wire          hard_sync;
-wire          resync;
 wire          sync_window;
 
 
 
 assign preset_cnt = (baud_r_presc + 1'b1)<<1;        // (BRP+1)*2
-assign hard_sync  =  rx_idle   & (~rx) & sampled_bit & (~sync_blocked);  // Hard synchronization
+assign hard_sync  =   rx_idle  & (~rx) & sampled_bit & (~sync_blocked);  // Hard synchronization
 assign resync     = (~rx_idle) & (~rx) & sampled_bit & (~sync_blocked);  // Re-synchronization
 
 

@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.7  2002/12/28 04:13:53  mohor
+// Backup version.
+//
 // Revision 1.6  2002/12/27 00:12:48  mohor
 // Header changed, testbench improved to send a frame (crc still missing).
 //
@@ -90,7 +93,7 @@ reg   [7:0] addr;
 reg         rx;
 integer     start_tb;
 
-/* Instantiate can_top module */
+// Instantiate can_top module
 can_top i_can_top
 ( 
   .clk(clk),
@@ -130,27 +133,58 @@ initial
 begin
   wait(start_tb);
 
-  /* Set bus timing register 0 */
+  // Set bus timing register 0
   write_register(8'h6, {`CAN_TIMING0_SJW, `CAN_TIMING0_BRP});
 
-  /* Set bus timing register 1 */
+  // Set bus timing register 1
   write_register(8'h7, {`CAN_TIMING1_SAM, `CAN_TIMING1_TSEG2, `CAN_TIMING1_TSEG1});
+
+  // Set Clock Divider register
+  write_register(8'h31, {`CAN_CLOCK_DIVIDER_MODE, 7'h0});    // Setting the normal mode (not extended)
+
+  // Set Acceptance Code and Acceptance Mask registers (their address differs for basic and extended mode
+  if(`CAN_CLOCK_DIVIDER_MODE)   // Extended mode
+    begin
+      // Set Acceptance Code and Acceptance Mask registers
+      write_register(8'h16, 8'ha6); // acceptance code 0
+      write_register(8'h17, 8'hb0); // acceptance code 1
+      write_register(8'h18, 8'h12); // acceptance code 2
+      write_register(8'h19, 8'h34); // acceptance code 3
+      write_register(8'h20, 8'h0); // acceptance mask 0
+      write_register(8'h21, 8'h0); // acceptance mask 1
+      write_register(8'h22, 8'h0); // acceptance mask 2
+      write_register(8'h23, 8'h0); // acceptance mask 3
+    end
+  else
+    begin
+      // Set Acceptance Code and Acceptance Mask registers
+      write_register(8'h4, 8'ha6); // acceptance code
+      write_register(8'h5, 8'h00); // acceptance mask
+    end
   
   #10;
   repeat (1000) @ (posedge clk);
   
-  /* Switch-off reset mode */
+  // Switch-off reset mode
   write_register(8'h0, {7'h0, ~(`CAN_MODE_RESET)});
 
   repeat (BRP) @ (posedge clk);   // At least BRP clocks needed before bus goes to dominant level. Otherwise 1 quant difference is possible
                                   // This difference is resynchronized later.
+  repeat (7) send_bit(1);         // Sending EOF
 
 //  test_synchronization;
 
-  repeat (7) send_bit(1);         // Sending EOF
 
 
-  send_frame(1, 29'h00075678, 1); // mode, id, length
+  if(`CAN_CLOCK_DIVIDER_MODE)   // Extended mode
+    begin
+      send_frame(0, 1, {26'h00000a6, 3'h5}, 2, 15'h2a11); // mode, rtr, id, length, crc
+//      send_frame(0, 1, 29'h12567635, 2, 15'h75b4); // mode, rtr, id, length, crc
+    end
+  else
+    begin
+      send_frame(0, 1, {26'h00000a6, 3'h5}, 2, 15'h2a11); // mode, rtr, id, length, crc
+    end
   
 
   repeat (50000) @ (posedge clk);
@@ -187,7 +221,6 @@ task test_synchronization;
     // Hard synchronization
     #1 rx=0;
     repeat (2*BRP) @ (posedge clk);
-//    #1 idle = 0;
     repeat (8*BRP) @ (posedge clk);
     #1 rx=1;
     repeat (10*BRP) @ (posedge clk);
@@ -196,7 +229,6 @@ task test_synchronization;
     #1 rx=0;
     repeat (10*BRP) @ (posedge clk);
     #1 rx=1;
-//    idle = 0;
     repeat (10*BRP) @ (posedge clk);
   
     // Resynchronization late
@@ -205,14 +237,12 @@ task test_synchronization;
     #1 rx=0;
     repeat (10*BRP) @ (posedge clk);
     #1 rx=1;
-//    idle = 0;
   
     // Resynchronization early
     repeat (8*BRP) @ (posedge clk);   // two frames too early
     #1 rx=0;
     repeat (10*BRP) @ (posedge clk);
     #1 rx=1;
-//    idle = 0;
     repeat (10*BRP) @ (posedge clk);
   end
 endtask
@@ -224,15 +254,16 @@ task send_bit;
   begin
     #1 rx=bit;
     repeat ((`CAN_TIMING1_TSEG1 + `CAN_TIMING1_TSEG2 + 3)*BRP) @ (posedge clk);
-//    idle=0;
   end
 endtask
 
 
 task send_frame;
   input mode;
+  input remote_trans_req;
   input [28:0] id;
   input  [3:0] length;
+  input [14:0] crc;
   integer cnt;
 
   reg [28:0] data;
@@ -260,7 +291,7 @@ task send_frame;
             data=data<<1;
           end
 
-        send_bit(0);                    // RTR
+        send_bit(remote_trans_req);
         send_bit(0);                    // r1 (reserved 1)
         send_bit(0);                    // r0 (reserved 0)
 
@@ -277,7 +308,7 @@ task send_frame;
             send_bit(data[10]);
             data=data<<1;
           end
-        send_bit(0);                    // RTR
+        send_bit(remote_trans_req);
         send_bit(0);                    // IDE
         send_bit(0);                    // r0 (reserved 0)
 
@@ -289,17 +320,37 @@ task send_frame;
       end                 // End header
 
 
-      for (cnt=0; cnt<(8*length); cnt=cnt+4)  // data
-        begin
-          send_bit(cnt[3]);
-          send_bit(cnt[2]);
-          send_bit(cnt[1]);
-          send_bit(cnt[0]);
-        end
+    if(length)    // Send data if length is > 0
+      begin
+        for (cnt=1; cnt<=(2*length); cnt=cnt+1)  // data   (we are sending nibbles)
+          begin
+            send_bit(cnt[3]);
+            send_bit(cnt[2]);
+            send_bit(cnt[1]);
+            send_bit(cnt[0]);
+          end
+      end
+      
+    // Send CRC
+    data[14:0] = crc[14:0];
+    for (cnt=0; cnt<15; cnt=cnt+1)  // 15 bit CRC
+      begin
+        send_bit(data[14]);
+        data=data<<1;
+      end
 
-
-      // Nothing send after the data (just recessive bit)
-      send_bit(1);
+    // Send CRC delimiter
+    send_bit(1);
+    
+    // Send ACK slot
+    send_bit(1);
+    
+    // Send Ack delimiter
+    send_bit(1);
+    
+    
+    // Nothing send after the data (just recessive bit)
+    send_bit(1);
 
 
 
@@ -307,7 +358,7 @@ task send_frame;
 endtask
 
 
-/* State machine monitor (btl) */
+// State machine monitor (btl)
 always @ (posedge clk)
 begin
   if(can_testbench.i_can_top.i_can_btl.go_sync & can_testbench.i_can_top.i_can_btl.go_seg1 | can_testbench.i_can_top.i_can_btl.go_sync & can_testbench.i_can_top.i_can_btl.go_seg2 | 

@@ -6,3 +6,5 @@ can_register_syn.v
 can_register_asyn_syn.v
 can_top.v
 can_bsp.v
+can_crc.v
+can_acf.v

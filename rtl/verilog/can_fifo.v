@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-////  can_testbench_defines.v                                     ////
+////  can_fifo.v                                                  ////
 ////                                                              ////
 ////                                                              ////
 ////  This file is part of the CAN Protocol Controller            ////
@@ -45,30 +45,102 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
-// Revision 1.3  2002/12/28 04:13:53  mohor
-// Backup version.
-//
-// Revision 1.2  2002/12/27 00:12:48  mohor
-// Header changed, testbench improved to send a frame (crc still missing).
-//
-// Revision 1.1  2002/12/26 16:00:29  mohor
-// Testbench define file added. Clock divider register added.
-//
 //
 //
 //
 
-// Mode register
-`define CAN_MODE_RESET                  1'h1    // Reset mode
+// synopsys translate_off
+`include "timescale.v"
+// synopsys translate_on
+`include "can_defines.v"
 
-// Bit Timing 0 register value
-`define CAN_TIMING0_BRP                 6'h1    // Baud rate prescaler (2*(value+1))
-`define CAN_TIMING0_SJW                 2'h2    // SJW (value+1)
+module can_fifo
+( 
+  clk,
+  rst,
 
-// Bit Timing 1 register value
-`define CAN_TIMING1_TSEG1               4'h4    // TSEG1 segment (value+1)
-`define CAN_TIMING1_TSEG2               3'h3    // TSEG2 segment (value+1)
-`define CAN_TIMING1_SAM                 1'h0    // Triple sampling
+  rd,
+  wr,
+  wr_length_info,
 
-// Clock Divider register
-`define CAN_CLOCK_DIVIDER_MODE          1'h1    // Normal (not extended mode
+  data_in,
+  data_out,
+
+  reset_mode,
+  release_buffer,
+  extended_mode
+  
+);
+
+parameter Tp = 1;
+
+input         clk;
+input         rst;
+input         rd;
+input         wr;
+input         wr_length_info;
+input   [7:0] data_in;
+input         reset_mode;
+input         release_buffer;
+input         extended_mode;
+
+output  [7:0] data_in;
+
+
+reg     [7:0] fifo [0:63];
+reg     [5:0] rd_pointer;
+reg     [5:0] wr_pointer;
+reg     [3:0] length_info[0:6];
+reg           overrun_info[0:6];
+
+
+
+// length_info
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    length_info <= 0;
+  else if (wr_length_info)
+    length_info <=#Tp data_in;
+  else if (reset_mode)
+    length_info <=#Tp 0;
+end
+
+
+// rd_pointer
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    rd_pointer <= 0;
+  else if (rd)
+    rd_pointer <=#Tp rd_pointer + length_info;
+  else if (reset_mode)
+    rd_pointer <=#Tp 0;
+end
+
+
+// wr_pointer
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    wr_pointer <= 0;
+  else if (wr)
+    wr_pointer <=#Tp wd_pointer + 1'b1;
+  else if (reset_mode)
+    wr_pointer <=#Tp 0;
+end
+
+
+// writing data to fifo
+always @ (posedge clk or posedge rst)
+begin
+  if (wr)
+    fifo[wr_pointer] <=#Tp data_in;
+end
+
+
+
+
+
+
+endmodule

@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2002/12/28 04:13:23  mohor
+// Backup version.
+//
 // Revision 1.3  2002/12/27 00:12:52  mohor
 // Header changed, testbench improved to send a frame (crc still missing).
 //
@@ -104,6 +107,26 @@ wire          rx_int_enable;
 wire          clock_off;
 wire    [2:0] cd;
 
+/* This section is for BASIC and EXTENDED mode */
+/* Acceptance code register */
+wire [7:0] acceptance_code_0;
+
+/* Acceptance mask register */
+wire [7:0] acceptance_mask_0;
+/* End: This section is for BASIC and EXTENDED mode */
+
+
+/* This section is for EXTENDED mode */
+/* Acceptance code register */
+wire [7:0] acceptance_code_1;
+wire [7:0] acceptance_code_2;
+wire [7:0] acceptance_code_3;
+
+/* Acceptance mask register */
+wire [7:0] acceptance_mask_1;
+wire [7:0] acceptance_mask_2;
+wire [7:0] acceptance_mask_3;
+/* End: This section is for EXTENDED mode */
 
 
 
@@ -137,7 +160,31 @@ can_registers i_can_registers
   .extended_mode(extended_mode),
   .rx_int_enable(rx_int_enable),
   .clock_off(clock_off),
-  .cd(cd)
+  .cd(cd),
+  
+  /* This section is for BASIC and EXTENDED mode */
+  /* Acceptance code register */
+  .acceptance_code_0(acceptance_code_0),
+
+  /* Acceptance mask register */
+  .acceptance_mask_0(acceptance_mask_0),
+  /* End: This section is for BASIC and EXTENDED mode */
+  
+  /* This section is for EXTENDED mode */
+  /* Acceptance code register */
+  .acceptance_code_1(acceptance_code_1),
+  .acceptance_code_2(acceptance_code_2),
+  .acceptance_code_3(acceptance_code_3),
+
+  /* Acceptance mask register */
+  .acceptance_mask_1(acceptance_mask_1),
+  .acceptance_mask_2(acceptance_mask_2),
+  .acceptance_mask_3(acceptance_mask_3)
+  /* End: This section is for EXTENDED mode */
+
+
+
+
 
 
 );
@@ -148,6 +195,9 @@ wire        clk_en;
 wire        sample_point;
 wire        sampled_bit;
 wire        sampled_bit_q;
+wire        hard_sync;
+wire        resync;
+
 
 /* output from can_bsp module */
 wire        rx_idle;
@@ -179,6 +229,9 @@ can_btl i_can_btl
   .sample_point(sample_point),
   .sampled_bit(sampled_bit),
   .sampled_bit_q(sampled_bit_q),
+  .hard_sync(hard_sync),
+  .resync(resync),
+
   
   /* output from can_bsp module */
   .rx_idle(rx_idle)
@@ -198,13 +251,38 @@ can_bsp i_can_bsp
   .sample_point(sample_point),
   .sampled_bit(sampled_bit),
   .sampled_bit_q(sampled_bit_q),
+  .hard_sync(hard_sync),
+  .resync(resync),
 
   /* Mode register */
   .reset_mode(reset_mode),
+  .acceptance_filter_mode(acceptance_filter_mode),
   
+  /* Clock Divider register */
+  .extended_mode(extended_mode),
+
   /* output from can_bsp module */
-  .rx_idle(rx_idle)
+  .rx_idle(rx_idle),
   
+  /* This section is for BASIC and EXTENDED mode */
+  /* Acceptance code register */
+  .acceptance_code_0(acceptance_code_0),
+
+  /* Acceptance mask register */
+  .acceptance_mask_0(acceptance_mask_0),
+  /* End: This section is for BASIC and EXTENDED mode */
+  
+  /* This section is for EXTENDED mode */
+  /* Acceptance code register */
+  .acceptance_code_1(acceptance_code_1),
+  .acceptance_code_2(acceptance_code_2),
+  .acceptance_code_3(acceptance_code_3),
+
+  /* Acceptance mask register */
+  .acceptance_mask_1(acceptance_mask_1),
+  .acceptance_mask_2(acceptance_mask_2),
+  .acceptance_mask_3(acceptance_mask_3)
+  /* End: This section is for EXTENDED mode */
 
 );
 
