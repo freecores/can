@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.11  2003/02/14 20:17:01  mohor
+// Several registers added. Not finished, yet.
+//
 // Revision 1.10  2003/02/11 00:56:06  mohor
 // Wishbone interface added.
 //
@@ -108,7 +111,8 @@ module can_fifo
   release_buffer,
   extended_mode,
   overrun,
-  info_empty
+  info_empty,
+  info_cnt
 
 );
 
@@ -126,6 +130,7 @@ input         extended_mode;
 output  [7:0] data_out;
 output        overrun;
 output        info_empty;
+output  [6:0] info_cnt;
 
 
 reg     [7:0] fifo [0:63];

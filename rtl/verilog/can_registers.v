@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.15  2003/02/18 00:10:15  mohor
+// Most of the registers added. Registers "arbitration lost capture", "error code
+// capture" + few more still need to be added.
+//
 // Revision 1.14  2003/02/14 20:17:01  mohor
 // Several registers added. Not finished, yet.
 //
@@ -128,10 +132,12 @@ module can_registers
   need_to_tx,
   overrun,
   info_empty,
-  go_error_frame,
-  priority_lost,
+  set_bus_error_irq,
+  set_arbitration_lost_irq,
+  arbitration_lost_capture,
   node_error_passive,
   node_error_active,
+  rx_message_counter,
 
 
   /* Mode register */
@@ -148,6 +154,13 @@ module can_registers
   tx_request,
   self_rx_request,
   single_shot_transmission,
+
+  /* Arbitration Lost Capture Register */
+  read_arbitration_lost_capture_reg,
+
+  /* Error Code Capture Register */
+  read_error_code_capture_reg,
+  error_capture_code,
 
   /* Bus Timing 0 register */
   baud_r_presc,
@@ -169,9 +182,7 @@ module can_registers
 
   /* Clock Divider register */
   extended_mode,
-  rx_int_enable,
-  clock_off,
-  cd,
+  clkout,
   
   
   /* This section is for BASIC and EXTENDED mode */
@@ -242,10 +253,12 @@ input         tx_successful;
 input         need_to_tx;
 input         overrun;
 input         info_empty;
-input         go_error_frame;
-input         priority_lost;
+input         set_bus_error_irq;
+input         set_arbitration_lost_irq;
+input   [4:0] arbitration_lost_capture;
 input         node_error_passive;
 input         node_error_active;
+input   [6:0] rx_message_counter;
 
 
 
@@ -262,6 +275,13 @@ output        abort_tx;
 output        tx_request;
 output        self_rx_request;
 output        single_shot_transmission;
+
+/* Arbitration Lost Capture Register */
+output        read_arbitration_lost_capture_reg;
+
+/* Error Code Capture Register */
+output        read_error_code_capture_reg;
+input   [7:0] error_capture_code;
 
 /* Bus Timing 0 register */
 output  [5:0] baud_r_presc;
@@ -284,9 +304,7 @@ output        we_tx_err_cnt;
 
 /* Clock Divider register */
 output        extended_mode;
-output        rx_int_enable;
-output        clock_off;
-output  [2:0] cd;
+output        clkout;
 
 
 /* This section is for BASIC and EXTENDED mode */
@@ -338,7 +356,6 @@ reg           receive_buffer_status;
 reg           info_empty_q;
 reg           error_status_q;
 reg           node_bus_off_q;
-reg           priority_lost_q;
 reg           node_error_passive_q;
 reg           transmit_buffer_status;
 reg           single_shot_transmission;
@@ -364,7 +381,8 @@ wire we_clock_divider_hi      = we_clock_divider_low & reset_mode;
 
 wire read = cs & (~we);
 wire read_irq_reg = read & (addr == 8'd3);
-
+assign read_arbitration_lost_capture_reg = read & extended_mode & (addr == 8'd11);
+assign read_error_code_capture_reg = read & extended_mode & (addr == 8'd12);
 
 /* This section is for BASIC and EXTENDED mode */
 wire we_acceptance_code_0       = cs & we &   reset_mode  & ((~extended_mode) & (addr == 8'd4)  | extended_mode & (addr == 8'd16));
@@ -408,7 +426,6 @@ begin
   info_empty_q              <=#Tp info_empty;
   error_status_q            <=#Tp error_status;
   node_bus_off_q            <=#Tp node_bus_off;
-  priority_lost_q           <=#Tp priority_lost;
   node_error_passive_q      <=#Tp node_error_passive;
 end
 
@@ -652,9 +669,25 @@ can_register_asyn #(8, 96) ERROR_WARNING_REG
 
 /* Clock Divider register */
 wire   [7:0] clock_divider;
-can_register #(5) CLOCK_DIVIDER_REG_HI
-( .data_in(data_in[7:3]),
-  .data_out(clock_divider[7:3]),
+wire         clock_off;
+wire   [2:0] cd;
+reg    [2:0] clkout_div;
+reg    [2:0] clkout_cnt;
+reg          clkout_tmp;
+reg          clkout;
+
+can_register #(1) CLOCK_DIVIDER_REG_7
+( .data_in(data_in[7]),
+  .data_out(clock_divider[7]),
+  .we(we_clock_divider_hi),
+  .clk(clk)
+);
+
+assign clock_divider[6:4] = 3'h0;
+
+can_register #(1) CLOCK_DIVIDER_REG_3
+( .data_in(data_in[3]),
+  .data_out(clock_divider[3]),
   .we(we_clock_divider_hi),
   .clk(clk)
 );
@@ -667,9 +700,59 @@ can_register #(3) CLOCK_DIVIDER_REG_LOW
 );
 
 assign extended_mode = clock_divider[7];
-assign rx_int_enable = clock_divider[5];
-assign clock_off = clock_divider[3];
-assign cd[2:0] = clock_divider[2:0];
+assign clock_off     = clock_divider[3];
+assign cd[2:0]       = clock_divider[2:0];
+
+
+
+always @ (cd)
+begin
+  case (cd)                       // synopsys_full_case synopsys_paralel_case
+    3'b000 : clkout_div <= 0;
+    3'b001 : clkout_div <= 1;
+    3'b010 : clkout_div <= 2;
+    3'b011 : clkout_div <= 3;
+    3'b100 : clkout_div <= 4;
+    3'b101 : clkout_div <= 5;
+    3'b110 : clkout_div <= 6;
+    3'b111 : clkout_div <= 0;
+  endcase
+end
+
+
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    clkout_cnt <= 3'h0;
+  else if (clkout_cnt == clkout_div)
+    clkout_cnt <=#Tp 3'h0;
+  else
+    clkout_cnt <= clkout_cnt + 1'b1;
+end
+
+
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    clkout_tmp <= 1'b0;
+  else if (clkout_cnt == clkout_div)
+    clkout_tmp <=#Tp ~clkout_tmp;
+end
+
+
+
+always @ (cd or clk or clkout_tmp)
+begin
+  if (clock_off)
+    clkout <=#Tp 1'b1;
+  else if (&cd)
+    clkout <=#Tp clk;
+  else
+    clkout <=#Tp clkout_tmp;
+end
+
 
 /* End Clock Divider register */
 
@@ -911,7 +994,8 @@ always @ ( addr or read or extended_mode or mode or bus_timing_0 or bus_timing_1
            acceptance_mask_0 or acceptance_mask_1 or acceptance_mask_2 or acceptance_mask_3 or
            reset_mode or tx_data_0 or tx_data_1 or tx_data_2 or tx_data_3 or tx_data_4 or 
            tx_data_5 or tx_data_6 or tx_data_7 or tx_data_8 or tx_data_9 or status or 
-           error_warning_limit or rx_err_cnt or tx_err_cnt or irq_en_ext or irq_reg
+           error_warning_limit or rx_err_cnt or tx_err_cnt or irq_en_ext or irq_reg or mode_ext or
+           arbitration_lost_capture or rx_message_counter or mode_basic
          )
 begin
   if(read)  // read
@@ -926,6 +1010,8 @@ begin
             8'd4  :  data_out <= irq_en_ext;
             8'd6  :  data_out <= bus_timing_0;
             8'd7  :  data_out <= bus_timing_1;
+            8'd11 :  data_out <= {3'h0, arbitration_lost_capture[4:0]};
+            8'd12 :  data_out <= error_capture_code;
             8'd13 :  data_out <= error_warning_limit;
             8'd14 :  data_out <= rx_err_cnt;
             8'd15 :  data_out <= tx_err_cnt;
@@ -942,8 +1028,8 @@ begin
             8'd26 :  data_out <= 8'h0;
             8'd27 :  data_out <= 8'h0;
             8'd28 :  data_out <= 8'h0;
-    
-            8'd31 :  data_out <= {clock_divider[7:5], 1'b0, clock_divider[3:0]};
+            8'd29 :  data_out <= {1'b0, rx_message_counter};
+            8'd31 :  data_out <= clock_divider;
     
             default: data_out <= 8'h0;
           endcase
@@ -969,7 +1055,7 @@ begin
             8'd17 :  data_out <= reset_mode? 8'hff : tx_data_7;
             8'd18 :  data_out <= reset_mode? 8'hff : tx_data_8;
             8'd19 :  data_out <= reset_mode? 8'hff : tx_data_9;
-            8'd31 :  data_out <= {clock_divider[7:5], 1'b0, clock_divider[3:0]};
+            8'd31 :  data_out <= clock_divider;
     
             default: data_out <= 8'h0;
           endcase
@@ -1040,7 +1126,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     bus_error_irq <= 1'b0;
-  else if (go_error_frame & bus_error_irq_en)
+  else if (set_bus_error_irq & bus_error_irq_en)
     bus_error_irq <=#Tp 1'b1;
   else if (read_irq_reg)
     bus_error_irq <=#Tp 1'b0;
@@ -1052,7 +1138,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     arbitration_lost_irq <= 1'b0;
-  else if (priority_lost & (~priority_lost_q) & arbitration_lost_irq_en)
+  else if (set_arbitration_lost_irq & arbitration_lost_irq_en)
     arbitration_lost_irq <=#Tp 1'b1;
   else if (read_irq_reg)
     arbitration_lost_irq <=#Tp 1'b0;
@@ -1073,10 +1159,8 @@ end
 
 
 
-// FIX ME !!!
 assign irq_reg = {bus_error_irq, arbitration_lost_irq, error_passive_irq, 1'b0, data_overrun_irq, error_irq, transmit_irq, receive_irq};
 
-// FIX ME !!!
 assign irq = data_overrun_irq | transmit_irq | receive_irq | error_irq | bus_error_irq | arbitration_lost_irq | error_passive_irq;
 
 

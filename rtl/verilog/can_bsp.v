@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.24  2003/02/18 00:10:15  mohor
+// Most of the registers added. Registers "arbitration lost capture", "error code
+// capture" + few more still need to be added.
+//
 // Revision 1.23  2003/02/14 20:17:01  mohor
 // Several registers added. Not finished, yet.
 //
@@ -166,6 +170,13 @@ module can_bsp
   self_rx_request,
   single_shot_transmission,
 
+  /* Arbitration Lost Capture Register */
+  read_arbitration_lost_capture_reg,
+
+  /* Error Code Capture Register */
+  read_error_code_capture_reg,
+  error_capture_code,
+
   /* Error Warning Limit register */
   error_warning_limit,
 
@@ -192,10 +203,12 @@ module can_bsp
   need_to_tx,
   overrun,
   info_empty,
-  go_error_frame,
-  priority_lost,
+  set_bus_error_irq,
+  set_arbitration_lost_irq,
+  arbitration_lost_capture,
   node_error_passive,
   node_error_active,
+  rx_message_counter,
 
 
 
@@ -269,6 +282,13 @@ input         abort_tx;
 input         self_rx_request;
 input         single_shot_transmission;
 
+/* Arbitration Lost Capture Register */
+input         read_arbitration_lost_capture_reg;
+
+/* Error Code Capture Register */
+input         read_error_code_capture_reg;
+output  [7:0] error_capture_code;
+
 /* Error Warning Limit register */
 input   [7:0] error_warning_limit;
 
@@ -292,10 +312,12 @@ output        tx_successful;
 output        need_to_tx;
 output        overrun;
 output        info_empty;
-output        go_error_frame;
-output        priority_lost;
+output        set_bus_error_irq;
+output        set_arbitration_lost_irq;
+output  [4:0] arbitration_lost_capture;
 output        node_error_passive;
 output        node_error_active;
+output  [6:0] rx_message_counter;
 
 
 /* This section is for BASIC and EXTENDED mode */
@@ -398,7 +420,11 @@ reg     [2:0] overload_cnt2;
 reg           tx;
 reg           crc_err;
 
-reg           priority_lost;
+reg           arbitration_lost;
+reg           arbitration_lost_q;
+reg     [4:0] arbitration_lost_capture;
+reg           arbitration_cnt_en;
+reg           arbitration_blocked;
 reg           tx_q;
 
 reg           need_to_tx;   // When the CAN core has something to transmit and a dominant bit is sampled at the third bit
@@ -438,6 +464,13 @@ reg     [2:0] susp_cnt;
 reg           go_error_frame_q;
 reg           error_flag_over_blocked;
 
+reg     [7:0] error_capture_code;
+reg     [7:6] error_capture_code_type;
+reg           error_capture_code_blocked;
+
+wire    [4:0] error_capture_code_segment;
+wire          error_capture_code_direction;
+
 wire          bit_de_stuff;
 wire          bit_de_stuff_tx;
 
@@ -460,6 +493,7 @@ wire          go_rx_ack_lim;
 wire          go_rx_eof;
 wire          go_overload_frame;
 wire          go_rx_inter;
+wire          go_error_frame;
 
 wire          go_crc_enable;
 wire          rst_crc_enable;
@@ -569,7 +603,7 @@ assign remote_rq = ((~ide) & rtr1) | (ide & rtr2);
 assign limited_data_len = (data_len < 8)? data_len : 4'h8;
 
 assign ack_err = rx_ack & sample_point & sampled_bit & tx_state & (~self_test_mode);
-assign bit_err = (tx_state | error_frame | overload_frame | rx_ack) & sample_point & (tx !== sampled_bit) & (~bit_err_exc1) & (~bit_err_exc2) & (~bit_err_exc3) & (~bit_err_exc4) & (~bit_err_exc5);
+assign bit_err = (tx_state | error_frame | overload_frame | rx_ack) & sample_point & (tx != sampled_bit) & (~bit_err_exc1) & (~bit_err_exc2) & (~bit_err_exc3) & (~bit_err_exc4) & (~bit_err_exc5);
 assign bit_err_exc1 = tx_state & arbitration_field & tx;
 assign bit_err_exc2 = rx_ack & tx;
 assign bit_err_exc3 = error_frame & node_error_passive & (error_cnt1 < 7);
@@ -1291,9 +1325,8 @@ can_fifo i_can_fifo
   .release_buffer(release_buffer),
   .extended_mode(extended_mode),
   .overrun(overrun),
-  .info_empty(info_empty)
-
-  
+  .info_empty(info_empty),
+  .info_cnt(rx_message_counter)
 );
 
 
@@ -1594,7 +1627,7 @@ begin
 end
 
 
-assign tx_successful = transmitter & go_rx_inter & ((~error_frame_ended) & (~overload_frame_ended) & (~priority_lost) | single_shot_transmission);
+assign tx_successful = transmitter & go_rx_inter & ((~error_frame_ended) & (~overload_frame_ended) & (~arbitration_lost) | single_shot_transmission);
 
 
 always @ (posedge clk or posedge rst)
@@ -1618,7 +1651,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     tx_state <= 1'b0;
-  else if (reset_mode | go_rx_inter | error_frame | priority_lost)
+  else if (reset_mode | go_rx_inter | error_frame | arbitration_lost)
     tx_state <=#Tp 1'b0;
   else if (go_tx)
     tx_state <=#Tp 1'b1;
@@ -1647,7 +1680,7 @@ begin
     transmitting <= 1'b0;
   else if (go_error_frame | go_overload_frame | go_tx)
     transmitting <=#Tp 1'b1;
-  else if (reset_mode | go_rx_idle | (go_rx_id1 & (~tx_state)) | (priority_lost & tx_state))
+  else if (reset_mode | go_rx_idle | (go_rx_id1 & (~tx_state)) | (arbitration_lost & tx_state))
     transmitting <=#Tp 1'b0;
 end
 
@@ -1701,11 +1734,54 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    priority_lost <= 1'b0;
+    arbitration_lost <= 1'b0;
   else if (go_rx_idle | error_frame | reset_mode)
-    priority_lost <=#Tp 1'b0;
+    arbitration_lost <=#Tp 1'b0;
   else if (tx_state & sample_point & tx & arbitration_field)
-    priority_lost <=#Tp (~sampled_bit);
+    arbitration_lost <=#Tp (~sampled_bit);
+end
+
+
+always @ (posedge clk)
+begin
+  arbitration_lost_q <=#Tp arbitration_lost;
+end
+
+
+assign set_arbitration_lost_irq = arbitration_lost & (~arbitration_lost_q) & (~arbitration_blocked);
+
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    arbitration_cnt_en <= 1'b0;
+  else if (arbitration_blocked)
+    arbitration_cnt_en <=#Tp 1'b0;
+  else if (rx_id1 & sample_point & (~arbitration_blocked))
+    arbitration_cnt_en <=#Tp 1'b1;
+end
+
+
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    arbitration_blocked <= 1'b0;
+  else if (read_arbitration_lost_capture_reg)
+    arbitration_blocked <=#Tp 1'b0;
+  else if (set_arbitration_lost_irq)
+    arbitration_blocked <=#Tp 1'b1;
+end
+
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    arbitration_lost_capture <= 5'h0;
+  else if (read_arbitration_lost_capture_reg)
+    arbitration_lost_capture <=#Tp 5'h0;
+  else if (sample_point & (~arbitration_blocked) & arbitration_cnt_en & (~bit_de_stuff))
+    arbitration_lost_capture <=#Tp arbitration_lost_capture + 1'b1;
 end
 
 
@@ -1864,5 +1940,54 @@ assign error_status = (~reset_mode) & extended_mode? ((rx_err_cnt >= error_warni
 
 assign transmit_status = transmitting                 | (extended_mode & waiting_for_bus_free);
 assign receive_status  = (~rx_idle) & (~transmitting) | (extended_mode & waiting_for_bus_free);
+
+
+/* Error code capture register */
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    error_capture_code <= 8'h0;
+  else if (read_error_code_capture_reg)
+    error_capture_code <=#Tp 8'h0;
+  else if (set_bus_error_irq)
+    error_capture_code <=#Tp {error_capture_code_type[7:6], error_capture_code_direction, error_capture_code_segment[4:0]};
+end
+
+
+
+assign error_capture_code_segment[0] = rx_idle | rx_ide | (rx_id2 & (bit_cnt<13)) | rx_r1 | rx_r0 | rx_dlc | rx_ack | rx_ack_lim | error_frame & node_error_active;
+assign error_capture_code_segment[1] = rx_idle | rx_id1 | rx_id2 | rx_dlc | rx_data | rx_ack_lim | rx_eof | rx_inter | error_frame & node_error_passive;
+assign error_capture_code_segment[2] = (rx_id1 & (bit_cnt>7)) | rx_rtr1 | rx_ide | rx_id2 | rx_rtr2 | rx_r1 | error_frame & node_error_passive | overload_frame;
+assign error_capture_code_segment[3] = (rx_id2 & (bit_cnt>4)) | rx_rtr2 | rx_r1 | rx_r0 | rx_dlc | rx_data | rx_crc | rx_crc_lim | rx_ack | rx_ack_lim | rx_eof | overload_frame;
+assign error_capture_code_segment[4] = rx_crc_lim | rx_ack | rx_ack_lim | rx_eof | rx_inter | error_frame | overload_frame;
+assign error_capture_code_direction  = ~transmitting;
+
+
+always @ (bit_err or form_err or stuff_err)
+begin
+  if (bit_err)
+    error_capture_code_type[7:6] <= 2'b00;
+  else if (form_err)
+    error_capture_code_type[7:6] <= 2'b01;
+  else if (stuff_err)
+    error_capture_code_type[7:6] <= 2'b10;
+  else
+    error_capture_code_type[7:6] <= 2'b11;
+end
+
+
+assign set_bus_error_irq = go_error_frame & (~error_capture_code_blocked);
+
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    error_capture_code_blocked <= 1'b0;
+  else if (read_error_code_capture_reg)
+    error_capture_code_blocked <=#Tp 1'b0;
+  else if (set_bus_error_irq)
+    error_capture_code_blocked <=#Tp 1'b1;
+end
+
 
 endmodule

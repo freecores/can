@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.17  2003/02/18 00:10:15  mohor
+// Most of the registers added. Registers "arbitration lost capture", "error code
+// capture" + few more still need to be added.
+//
 // Revision 1.16  2003/02/14 20:17:01  mohor
 // Several registers added. Not finished, yet.
 //
@@ -127,6 +131,7 @@ module can_top
   tx,
   tx_oen,
   irq,
+  clkout
 );
 
 parameter Tp = 1;
@@ -145,6 +150,7 @@ input        rx;
 output       tx;
 output       tx_oen;
 output       irq;
+output       clkout;
 
 reg    [7:0] wb_dat_o;
 reg          wb_ack_o;
@@ -153,8 +159,6 @@ reg          data_out_fifo_selected;
 reg          cs_sync1;
 reg          cs_sync2;
 reg          cs_sync3;
-reg          cs_sync_rst1;
-reg          cs_sync_rst2;
 
 reg          cs_ack1;
 reg          cs_ack2;
@@ -177,6 +181,13 @@ wire         abort_tx;
 wire         self_rx_request;
 wire         single_shot_transmission;
 
+/* Arbitration Lost Capture Register */
+wire         read_arbitration_lost_capture_reg;
+
+/* Error Code Capture Register */
+wire         read_error_code_capture_reg;
+wire   [7:0] error_capture_code;
+
 /* Bus Timing 0 register */
 wire   [5:0] baud_r_presc;
 wire   [1:0] sync_jump_width;
@@ -197,9 +208,6 @@ wire         we_tx_err_cnt;
 
 /* Clock Divider register */
 wire         extended_mode;
-wire         rx_int_enable;
-wire         clock_off;
-wire   [2:0] cd;
 
 /* This section is for BASIC and EXTENDED mode */
 /* Acceptance code register */
@@ -267,10 +275,12 @@ wire         tx_successful;
 wire         need_to_tx;
 wire         overrun;
 wire         info_empty;
-wire         go_error_frame;
-wire         priority_lost;
+wire         set_bus_error_irq;
+wire         set_arbitration_lost_irq;
+wire   [4:0] arbitration_lost_capture;
 wire         node_error_passive;
 wire         node_error_active;
+wire   [6:0] rx_message_counter;
 
 
 
@@ -300,10 +310,12 @@ can_registers i_can_registers
   .need_to_tx(need_to_tx),
   .overrun(overrun),
   .info_empty(info_empty),
-  .go_error_frame(go_error_frame),
-  .priority_lost(priority_lost),
+  .set_bus_error_irq(set_bus_error_irq),
+  .set_arbitration_lost_irq(set_arbitration_lost_irq),
+  .arbitration_lost_capture(arbitration_lost_capture),
   .node_error_passive(node_error_passive),
   .node_error_active(node_error_active),
+  .rx_message_counter(rx_message_counter),
 
 
   /* Mode register */
@@ -319,6 +331,13 @@ can_registers i_can_registers
   .tx_request(tx_request),
   .self_rx_request(self_rx_request),
   .single_shot_transmission(single_shot_transmission),
+
+  /* Arbitration Lost Capture Register */
+  .read_arbitration_lost_capture_reg(read_arbitration_lost_capture_reg),
+
+  /* Error Code Capture Register */
+  .read_error_code_capture_reg(read_error_code_capture_reg),
+  .error_capture_code(error_capture_code),
 
   /* Bus Timing 0 register */
   .baud_r_presc(baud_r_presc),
@@ -340,9 +359,7 @@ can_registers i_can_registers
 
   /* Clock Divider register */
   .extended_mode(extended_mode),
-  .rx_int_enable(rx_int_enable),
-  .clock_off(clock_off),
-  .cd(cd),
+  .clkout(clkout),
   
   /* This section is for BASIC and EXTENDED mode */
   /* Acceptance code register */
@@ -460,6 +477,12 @@ can_bsp i_can_bsp
   .self_rx_request(self_rx_request),
   .single_shot_transmission(single_shot_transmission),
 
+  /* Arbitration Lost Capture Register */
+  .read_arbitration_lost_capture_reg(read_arbitration_lost_capture_reg),
+
+  /* Error Code Capture Register */
+  .read_error_code_capture_reg(read_error_code_capture_reg),
+  .error_capture_code(error_capture_code),
 
   /* Error Warning Limit register */
   .error_warning_limit(error_warning_limit),
@@ -488,10 +511,12 @@ can_bsp i_can_bsp
   .need_to_tx(need_to_tx),
   .overrun(overrun),
   .info_empty(info_empty),
-  .go_error_frame(go_error_frame),
-  .priority_lost(priority_lost),
+  .set_bus_error_irq(set_bus_error_irq),
+  .set_arbitration_lost_irq(set_arbitration_lost_irq),
+  .arbitration_lost_capture(arbitration_lost_capture),
   .node_error_passive(node_error_passive),
   .node_error_active(node_error_active),
+  .rx_message_counter(rx_message_counter),
   
   /* This section is for BASIC and EXTENDED mode */
   /* Acceptance code register */
@@ -558,80 +583,30 @@ end
 
 
 
-// FIX ME !!! This wishbone interface is not OK, yet.
-// Combining wb_cyc_i and wb_stb_i signals to cs signal. Than synchronizing to clk clock domain. 
-always @ (posedge clk)
-begin
-  if (cs_ack2)
-    begin
-      cs_sync1 <=#Tp 1'b0;
-      cs_sync2 <=#Tp 1'b0;
-      cs_sync3 <=#Tp 1'b0;
-    end
-  else
-    begin
-      cs_sync1 <=#Tp (wb_cyc_i & wb_stb_i);
-      cs_sync2 <=#Tp cs_sync1;
-      cs_sync3 <=#Tp cs_sync2;
-    end
-end
-
-
-assign cs = cs_sync2 & (~cs_sync3);
-
-
-always @ (posedge wb_clk_i)
-begin
-  if (wb_ack_o)
-    begin
-      cs_ack1 <=#Tp 1'b0;
-      cs_ack2 <=#Tp 1'b0;
-      cs_ack3 <=#Tp 1'b0;
-    end
-  else
-    begin
-      cs_ack1 <=#Tp cs_sync2;
-      cs_ack2 <=#Tp cs_ack1;
-      cs_ack3 <=#Tp cs_ack2;
-    end
-end
-
-
-
-// Generating acknowledge signal
-always @ (posedge wb_clk_i)
-begin
-  wb_ack_o <=#Tp (cs_ack2 & (~cs_ack3));
-end
-
-
-
-
-
-/*
 // Combining wb_cyc_i and wb_stb_i signals to cs signal. Than synchronizing to clk clock domain. 
 reg rst_blocked_ack;
+reg          cs_sync_rst1;
+reg          cs_sync_rst2;
 
-always @ (posedge clk)
+always @ (posedge clk or posedge wb_rst_i)
 begin
-  if (cs_sync_rst2 & ({~rst_blocked_ack} ))
+  if (wb_rst_i)
     begin
-      cs_sync1 <=#Tp 1'b0;
-      cs_sync2 <=#Tp 1'b0;
-      cs_sync3 <=#Tp 1'b0;
-      cs_sync_rst1 <=#Tp 1'b0;
-      cs_sync_rst2 <=#Tp 1'b0;
+      cs_sync1     <=# 1'b0;
+      cs_sync2     <=# 1'b0;
+      cs_sync3     <=# 1'b0;
+      cs_sync_rst1 <=# 1'b0;
+      cs_sync_rst2 <=# 1'b0;
     end
   else
     begin
-      cs_sync1 <=#Tp (wb_cyc_i & wb_stb_i);
-      cs_sync2 <=#Tp cs_sync1;
-      cs_sync3 <=#Tp cs_sync2;
+      cs_sync1     <=#Tp wb_cyc_i & wb_stb_i & (~cs_sync_rst2);
+      cs_sync2     <=#Tp cs_sync1            & (~cs_sync_rst2);
+      cs_sync3     <=#Tp cs_sync2            & (~cs_sync_rst2);
       cs_sync_rst1 <=#Tp cs_ack3;
       cs_sync_rst2 <=#Tp cs_sync_rst1;
     end
 end
-
 
 
 assign cs = cs_sync2 & (~cs_sync3);
@@ -651,17 +626,6 @@ always @ (posedge wb_clk_i)
 begin
   wb_ack_o <=#Tp (cs_ack2 & (~cs_ack3));
 end
-
-
-always @ (posedge wb_clk_i)
-begin
-  if (cs_ack3)
-    rst_blocked_ack <=#Tp 1'b0;
-  else if (cs_ack1)
-    rst_blocked_ack <=#Tp 1'b1;
-end
-*/
-
 
 
 endmodule
