@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2003/01/14 12:19:35  mohor
+// rx_fifo is now working.
+//
 // Revision 1.1  2003/01/08 02:13:15  mohor
 // Acceptance filter added.
 //
@@ -79,7 +82,6 @@ module can_acf
   acceptance_mask_2,
   acceptance_mask_3,
   
-  sample_point,
   go_rx_crc_lim,
   go_rx_idle,
   
@@ -114,7 +116,6 @@ input   [7:0] acceptance_mask_0;
 input   [7:0] acceptance_mask_1;
 input   [7:0] acceptance_mask_2;
 input   [7:0] acceptance_mask_3;
-input         sample_point;
 input         go_rx_crc_lim;
 input         go_rx_idle;
 input   [7:0] data0;
@@ -313,7 +314,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     id_ok <= 0;
-  else if (go_rx_crc_lim)                       // sample_point is already included in go_rx_crc_lim
+  else if (go_rx_crc_lim)                   // sample_point is already included in go_rx_crc_lim
     begin
       if (extended_mode)
         begin

@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.8  2003/01/10 17:51:34  mohor
+// Temporary version (backup).
+//
 // Revision 1.7  2003/01/08 02:10:53  mohor
 // Acceptance filter added.
 //
@@ -97,11 +100,13 @@ module can_btl
   sample_point,
   sampled_bit,
   sampled_bit_q,
+  tx_point,
   hard_sync,
   resync,
   
   /* Output from can_bsp module */
-  rx_idle
+  rx_idle,
+  transmitting
   
   
   
@@ -129,12 +134,14 @@ input         triple_sampling;
 
 /* Output from can_bsp module */
 input         rx_idle;
+input         transmitting;
 
 /* Output signals from this module */
 output        clk_en;
 output        sample_point;
 output        sampled_bit;
 output        sampled_bit_q;
+output        tx_point;
 output        hard_sync;
 output        resync;
 
@@ -143,6 +150,7 @@ output        resync;
 reg     [8:0] clk_cnt;
 reg           clk_en;
 reg           sync_blocked;
+reg           resync_blocked;
 reg           sampled_bit;
 reg           sampled_bit_q;
 reg     [7:0] quant_cnt;
@@ -163,8 +171,9 @@ wire          sync_window;
 
 
 assign preset_cnt = (baud_r_presc + 1'b1)<<1;        // (BRP+1)*2
-assign hard_sync  =   rx_idle  & (~rx) & sampled_bit & (~sync_blocked);  // Hard synchronization
-assign resync     = (~rx_idle) & (~rx) & sampled_bit & (~sync_blocked);  // Re-synchronization
+assign hard_sync  =   rx_idle  & (~rx) & sampled_bit & (~sync_blocked) & (~transmitting);  // Hard synchronization
+assign resync     = (~rx_idle) & (~rx) & sampled_bit & (~sync_blocked) & (~resync_blocked) & (~transmitting);  // Re-synchronization
+//assign resync     = (~rx_idle) & (~rx) & sampled_bit & (~sync_blocked) & (~transmitting);  // Re-synchronization
 
 
 /* Generating general enable signal that defines baud rate. */
@@ -224,6 +233,8 @@ begin
 end
 
 
+assign tx_point = go_sync;
+
 /* Seg1 stage/segment (together with propagation segment which is 1 quant long) */
 always @ (posedge clk or posedge rst)
 begin
@@ -253,7 +264,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     quant_cnt <= 0;
-  else if (go_sync || go_seg1 || go_seg2)
+  else if (go_sync | go_seg1 | go_seg2 | reset_mode)
     quant_cnt <=#Tp 0;
   else if (clk_en)
     quant_cnt <=#Tp quant_cnt + 1'b1;
@@ -325,6 +336,19 @@ begin
       else if (seg2 & quant_cnt == time_segment2)
         sync_blocked <=#Tp 1'b0;
     end
+end
+
+
+/* Blocking resynchronization until reception starts (needed because after reset mode exits we are waiting for
+   end-of-frame and interframe. No resynchronization is needed meanwhile). */
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    resync_blocked <=#Tp 1'b1;
+  else if (reset_mode)
+    resync_blocked <=#Tp 1'b1;
+  else if (hard_sync)
+    resync_blocked <=#Tp 1'b0;
 end
 
 

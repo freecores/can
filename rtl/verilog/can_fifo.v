@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.7  2003/01/17 17:44:31  mohor
+// Fifo corrected to be synthesizable.
+//
 // Revision 1.6  2003/01/15 13:16:47  mohor
 // When a frame with "remote request" is received, no data is stored to fifo, just the frame information (identifier, ...). Data length that is stored is the received data length and not the actual data length that is stored to fifo.
 //
@@ -114,11 +117,14 @@ reg           overrun_info[0:63];
 reg           wr_q;
 reg     [3:0] len_cnt;
 reg     [6:0] fifo_cnt;
+reg     [6:0] info_cnt;
 reg           latch_overrun;
 
 wire          write_length_info;
 wire          fifo_empty;
 wire          fifo_full;
+wire          info_full;
+wire          info_empty;
 
 assign write_length_info = (~wr) & wr_q;
 
@@ -153,7 +159,7 @@ begin
     wr_info_pointer <= 0;
   else if (reset_mode)
     wr_info_pointer <=#Tp 0;
-  else if (write_length_info)
+  else if (write_length_info & (~info_full))
     wr_info_pointer <=#Tp wr_info_pointer + 1'b1;
 end
 
@@ -161,7 +167,7 @@ end
 // length_info
 always @ (posedge clk)
 begin
-  if (write_length_info)
+  if (write_length_info & (~info_full))
     length_info[wr_info_pointer] <=#Tp len_cnt;
 end
 
@@ -169,7 +175,7 @@ end
 // overrun_info
 always @ (posedge clk)
 begin
-  if (write_length_info)
+  if (write_length_info & (~info_full))
     overrun_info[wr_info_pointer] <=#Tp latch_overrun | (wr & fifo_full);
 end
 
@@ -241,6 +247,23 @@ end
 assign fifo_full = fifo_cnt == 64;
 assign fifo_empty = fifo_cnt == 0;
 
+
+// Counting data in length_info and overrun_info fifo
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    info_cnt <= 0;
+  else if (write_length_info ^ release_buffer)
+    begin
+      if (release_buffer & (~info_empty))
+        info_cnt <=#Tp info_cnt - 1'b1;
+      else if (write_length_info & (~info_full))
+        info_cnt <=#Tp info_cnt + 1'b1;
+    end
+end
+        
+assign info_full = info_cnt == 64;
+assign info_empty = info_cnt == 0;
 
 
 // writing data to fifo

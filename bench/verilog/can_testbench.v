@@ -45,6 +45,11 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.16  2003/01/16 13:36:14  mohor
+// Form error supported. When receiving messages, last bit of the end-of-frame
+// does not generate form error. Receiver goes to the idle mode one bit sooner.
+// (CAN specification ver 2.0, part B, page 57).
+//
 // Revision 1.15  2003/01/15 21:05:06  mohor
 // CRC checking fixed (when bitstuff occurs at the end of a CRC sequence).
 //
@@ -115,8 +120,13 @@ wire  [7:0] data_out;
 reg         cs, rw;
 reg   [7:0] addr;
 reg         rx;
+wire        tx;
+wire        rx_and_tx;
+
 integer     start_tb;
 reg   [7:0] tmp_data;
+reg         delayed_tx;
+
 
 // Instantiate can_top module
 can_top i_can_top
@@ -128,8 +138,11 @@ can_top i_can_top
   .cs(cs),
   .rw(rw),
   .addr(addr),
-  .rx(rx)
+  .rx(rx_and_tx),
+  .tx(tx)
 );
+
+
 
 
 // Generate clock signal 24 MHz
@@ -152,6 +165,20 @@ begin
   #200 initialize_fifo;
   #200 start_tb = 1;
 end
+
+
+// Generating delayed tx signal (CAN transciever delay)
+always
+begin
+  wait (tx);
+  repeat (4*BRP) @ (posedge clk);   // 4 time quants delay
+  #1 delayed_tx = tx;
+  wait (~tx);
+  repeat (4*BRP) @ (posedge clk);   // 4 time quants delay
+  #1 delayed_tx = tx;
+end
+
+assign rx_and_tx = rx & delayed_tx;
 
 
 // Main testbench
@@ -199,7 +226,10 @@ begin
 
   repeat (BRP) @ (posedge clk);   // At least BRP clocks needed before bus goes to dominant level. Otherwise 1 quant difference is possible
                                   // This difference is resynchronized later.
+
+  // After exiting the reset mode
   repeat (7) send_bit(1);         // Sending EOF
+  repeat (3) send_bit(1);         // Sending Interframe
 
 //  test_synchronization;
 
@@ -214,8 +244,8 @@ begin
   else
     begin
 //      test_empty_fifo;    // test currently switched off
-      test_full_fifo;     // test currently switched on
-//      send_frame;         // test currently switched off
+//      test_full_fifo;     // test currently switched off
+      send_frame;         // test currently switched on
     end
 
 
@@ -559,10 +589,10 @@ task read_overrun_info;
 endtask
 
 
-task fifo_info;   // displaying how many packets and how many bytes are in fifo
+task fifo_info;   // Displaying how many packets and how many bytes are in fifo. Not working when wr_info_pointer is smaller than rd_info_pointer.
   begin
-    $display("(%0t) Currently %0d bytes in fifo (%0d packets)", $time, can_testbench.i_can_top.i_can_bsp.i_can_fifo.fifo_cnt, 
-    (can_testbench.i_can_top.i_can_bsp.i_can_fifo.wr_info_pointer - can_testbench.i_can_top.i_can_bsp.i_can_fifo.rd_info_pointer));
+      $display("(%0t) Currently %0d bytes in fifo (%0d packets)", $time, can_testbench.i_can_top.i_can_bsp.i_can_fifo.fifo_cnt, 
+      (can_testbench.i_can_top.i_can_bsp.i_can_fifo.wr_info_pointer - can_testbench.i_can_top.i_can_bsp.i_can_fifo.rd_info_pointer));
 end
 endtask
 
@@ -692,6 +722,7 @@ task receive_frame;           // CAN IP core receives frames
   reg [117:0] data;
   reg         previous_bit;
   reg stuff;
+
   begin
 
     stuff_cnt = 1;
@@ -734,6 +765,8 @@ task receive_frame;           // CAN IP core receives frames
     // This is how many bits we need to shift
     total_bits = pointer;
 
+    // Waiting until previous msg is finished before sending another one
+    wait (~can_testbench.i_can_top.i_can_bsp.error_frame & ~can_testbench.i_can_top.i_can_bsp.rx_inter);
     
     send_bit(0);                        // SOF
     previous_bit = 0;
@@ -763,10 +796,9 @@ task receive_frame;           // CAN IP core receives frames
       end
 
     // Nothing send after the data (just recessive bit)
-    repeat (10) send_bit(1);         // CRC delimiter + ack + ack delimiter + EOF = 1 + 1 + 1 + 7
+    repeat (13) send_bit(1);         // CRC delimiter + ack + ack delimiter + EOF + intermission= 1 + 1 + 1 + 7 + 3
   end
 endtask
-
 
 
 

@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.9  2003/01/15 13:16:48  mohor
+// When a frame with "remote request" is received, no data is stored to fifo, just the frame information (identifier, ...). Data length that is stored is the received data length and not the actual data length that is stored to fifo.
+//
 // Revision 1.8  2003/01/14 17:25:09  mohor
 // Addresses corrected to decimal values (previously hex).
 //
@@ -84,7 +87,8 @@ module can_top
   data_in,
   data_out,
   cs, rw, addr,
-  rx
+  rx,
+  tx
 );
 
 parameter Tp = 1;
@@ -96,6 +100,7 @@ output [7:0] data_out;
 input        cs, rw;
 input  [7:0] addr;
 input        rx;
+output       tx;
 
 reg           data_out_fifo_selected;
 
@@ -253,13 +258,14 @@ wire        clk_en;
 wire        sample_point;
 wire        sampled_bit;
 wire        sampled_bit_q;
+wire        tx_point;
 wire        hard_sync;
 wire        resync;
 
 
 /* output from can_bsp module */
 wire        rx_idle;
-
+wire        transmitting;
 
 
 
@@ -287,12 +293,14 @@ can_btl i_can_btl
   .sample_point(sample_point),
   .sampled_bit(sampled_bit),
   .sampled_bit_q(sampled_bit_q),
+  .tx_point(tx_point),
   .hard_sync(hard_sync),
   .resync(resync),
 
   
   /* output from can_bsp module */
-  .rx_idle(rx_idle)
+  .rx_idle(rx_idle),
+  .transmitting(transmitting)
   
 
 
@@ -309,8 +317,8 @@ can_bsp i_can_bsp
   .sample_point(sample_point),
   .sampled_bit(sampled_bit),
   .sampled_bit_q(sampled_bit_q),
+  .tx_point(tx_point),
   .hard_sync(hard_sync),
-  .resync(resync),
 
   .addr(addr),
   .data_out(data_out_fifo),
@@ -327,6 +335,7 @@ can_bsp i_can_bsp
 
   /* output from can_bsp module */
   .rx_idle(rx_idle),
+  .transmitting(transmitting),
   
   /* This section is for BASIC and EXTENDED mode */
   /* Acceptance code register */
@@ -361,13 +370,16 @@ can_bsp i_can_bsp
   .tx_data_9(tx_data_9),
   .tx_data_10(tx_data_10),
   .tx_data_11(tx_data_11),
-  .tx_data_12(tx_data_12)
+  .tx_data_12(tx_data_12),
   /* End: Tx data registers */
+  
+  /* Tx signal */
+  .tx(tx)
 );
 
 
 // Multiplexing data_out from registers and rx fifo
-always @ (extended_mode or addr)
+always @ (extended_mode or addr or reset_mode)
 begin
   if (extended_mode & (~reset_mode) & ((addr >= 8'd16) && (addr <= 8'd28)) | (~extended_mode) & ((addr >= 8'd20) && (addr <= 8'd29)))
     data_out_fifo_selected <= 1'b1;

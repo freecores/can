@@ -45,6 +45,11 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.14  2003/01/16 13:36:19  mohor
+// Form error supported. When receiving messages, last bit of the end-of-frame
+// does not generate form error. Receiver goes to the idle mode one bit sooner.
+// (CAN specification ver 2.0, part B, page 57).
+//
 // Revision 1.13  2003/01/15 21:59:45  mohor
 // Data is stored to fifo at the end of ack stage.
 //
@@ -100,8 +105,8 @@ module can_bsp
   sample_point,
   sampled_bit,
   sampled_bit_q,
+  tx_point,
   hard_sync,
-  resync,
 
   addr,
   data_out,
@@ -118,6 +123,7 @@ module can_bsp
   extended_mode,
 
   rx_idle,
+  transmitting,
 
   /* This section is for BASIC and EXTENDED mode */
   /* Acceptance code register */
@@ -152,8 +158,11 @@ module can_bsp
   tx_data_9,
   tx_data_10,
   tx_data_11,
-  tx_data_12
+  tx_data_12,
   /* End: Tx data registers */
+  
+  /* Tx signal */
+  tx
 
 );
 
@@ -164,8 +173,8 @@ input         rst;
 input         sample_point;
 input         sampled_bit;
 input         sampled_bit_q;
+input         tx_point;
 input         hard_sync;
-input         resync;
 input   [7:0] addr;
 output  [7:0] data_out;
 
@@ -178,6 +187,7 @@ input         extended_mode;
 input         release_buffer;
 
 output        rx_idle;
+output        transmitting;
 
 /* This section is for BASIC and EXTENDED mode */
 /* Acceptance code register */
@@ -201,7 +211,7 @@ input   [7:0] acceptance_mask_2;
 input   [7:0] acceptance_mask_3;
 /* End: This section is for EXTENDED mode */
 
-  /* Tx data registers. Holding identifier (basic mode), tx frame information (extended mode) and data */
+/* Tx data registers. Holding identifier (basic mode), tx frame information (extended mode) and data */
 input   [7:0] tx_data_0;
 input   [7:0] tx_data_1;
 input   [7:0] tx_data_2;
@@ -215,8 +225,10 @@ input   [7:0] tx_data_9;
 input   [7:0] tx_data_10;
 input   [7:0] tx_data_11;
 input   [7:0] tx_data_12;
-  /* End: Tx data registers */
+/* End: Tx data registers */
 
+/* Tx signal */
+output        tx;
 
 reg           reset_mode_q;
 reg     [5:0] bit_cnt;
@@ -245,6 +257,9 @@ wire          go_rx_crc_lim;
 wire          go_rx_ack;
 wire          go_rx_ack_lim;
 wire          go_rx_eof;
+wire          go_error_frame;
+wire          go_overload_frame;
+wire          go_rx_inter;
 
 wire          go_crc_enable;
 wire          rst_crc_enable;
@@ -267,23 +282,47 @@ reg           rx_crc_lim;
 reg           rx_ack;
 reg           rx_ack_lim;
 reg           rx_eof;
+reg           rx_inter;
 
 reg           rtr1;
 reg           ide;
 reg           rtr2;
 reg    [14:0] crc_in;
 
+reg     [7:0] tmp_data;
+reg     [7:0] tmp_fifo [0:7];
+reg           write_data_to_tmp_fifo;
+reg     [2:0] byte_cnt;
+reg           bit_stuff_cnt_en;
 reg           crc_enable;
 
 reg     [2:0] eof_cnt;
 wire   [14:0] calculated_crc;
 wire          remote_rq;
 wire    [3:0] limited_data_len;
-reg           form_error;
+//reg           form_error;
+wire          form_error;
 wire          set_form_error;
+reg           transmitting;
 
-assign go_rx_idle     =                   sample_point &  rx_eof  & (eof_cnt == 5);   // Receiver ignores last (7th) bit of the end-of-frame.
-assign go_rx_id1      =                   sample_point &  rx_idle & (~sampled_bit);
+reg           error_frame;
+reg           enable_error_cnt2;
+reg     [2:0] error_cnt1;
+reg     [2:0] error_cnt2;
+reg           tx;
+reg           crc_error;
+
+wire          error_frame_ended;
+wire          bit_error = 0; // FIX ME !!!
+wire          acknowledge_error = 0; // FIX ME !!!
+wire          need_to_tx = 0; // When the CAN core has something to transmit and a dominant bit is sampled at the third bit
+                              // of intermission, it starts reading the identifier (and transmitting its own). // FIX ME !!!
+wire          overload_needed = 0;  // When receiver is busy, it needs to send overload frame. Only 2 overload frames are allowed to
+                                    // be send in a row. Counter?   FIX ME
+
+assign go_rx_idle     =                   sample_point &  sampled_bit & rx_inter & (bit_cnt == 2);  // Look the following line for TX
+//assign go_rx_id1      =                   sample_point &  (~sampled_bit) & (rx_idle | rx_inter & (bit_cnt == 2) & need_to_tx);
+assign go_rx_id1      =                   sample_point &  (~sampled_bit) & (rx_idle | rx_inter & (bit_cnt == 2));
 assign go_rx_rtr1     = (~bit_de_stuff) & sample_point &  rx_id1  & (bit_cnt == 10);
 assign go_rx_ide      = (~bit_de_stuff) & sample_point &  rx_rtr1;
 assign go_rx_id2      = (~bit_de_stuff) & sample_point &  rx_ide  &   sampled_bit;
@@ -298,12 +337,21 @@ assign go_rx_crc_lim  = (~bit_de_stuff) & sample_point &  rx_crc  & (bit_cnt == 
 assign go_rx_ack      =                   sample_point &  rx_crc_lim;
 assign go_rx_ack_lim  =                   sample_point &  rx_ack;
 assign go_rx_eof      =                   sample_point &  rx_ack_lim  | (~reset_mode) & reset_mode_q;
+assign go_rx_inter    =                 ((sample_point &  rx_eof  & (eof_cnt == 6)) | error_frame_ended) & (~overload_needed);
+
+assign go_error_frame = form_error | stuff_error | bit_error | acknowledge_error | (crc_error & go_rx_eof);
+assign error_frame_ended = (error_cnt2 == 7) & tx_point;
+
+assign go_overload_frame = ((sample_point &  rx_eof  & (eof_cnt == 6)) | error_frame_ended) & overload_needed | 
+                             sample_point & (~sampled_bit) & rx_inter & ((bit_cnt == 0) | (bit_cnt == 1))     |
+                             sample_point & (~sampled_bit) & (error_cnt2 == 7)
+                            ;
 
 assign go_crc_enable  = hard_sync;
 assign rst_crc_enable = go_rx_crc;
 
 assign bit_de_stuff_set   = go_rx_id1;
-assign bit_de_stuff_reset = go_rx_crc_lim;
+assign bit_de_stuff_reset = go_rx_crc_lim | reset_mode | go_error_frame;
 
 assign remote_rq = ((~ide) & rtr1) | (ide & rtr2);
 assign limited_data_len = (data_len < 8)? data_len : 4'h8;
@@ -313,8 +361,8 @@ assign limited_data_len = (data_len < 8)? data_len : 4'h8;
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    rx_idle <= 1'b1;
-  else if (reset_mode | go_rx_id1)
+    rx_idle <= 1'b0;
+  else if (reset_mode | go_rx_id1 | error_frame)
     rx_idle <=#Tp 1'b0;
   else if (go_rx_idle)
     rx_idle <=#Tp 1'b1;
@@ -326,7 +374,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_id1 <= 1'b0;
-  else if (reset_mode | go_rx_rtr1)
+  else if (reset_mode | go_rx_rtr1 | error_frame)
     rx_id1 <=#Tp 1'b0;
   else if (go_rx_id1)
     rx_id1 <=#Tp 1'b1;
@@ -338,7 +386,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_rtr1 <= 1'b0;
-  else if (reset_mode | go_rx_ide)
+  else if (reset_mode | go_rx_ide | error_frame)
     rx_rtr1 <=#Tp 1'b0;
   else if (go_rx_rtr1)
     rx_rtr1 <=#Tp 1'b1;
@@ -350,7 +398,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_ide <= 1'b0;
-  else if (reset_mode | go_rx_r0 | go_rx_id2)
+  else if (reset_mode | go_rx_r0 | go_rx_id2 | error_frame)
     rx_ide <=#Tp 1'b0;
   else if (go_rx_ide)
     rx_ide <=#Tp 1'b1;
@@ -362,7 +410,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_id2 <= 1'b0;
-  else if (reset_mode | go_rx_rtr2)
+  else if (reset_mode | go_rx_rtr2 | error_frame)
     rx_id2 <=#Tp 1'b0;
   else if (go_rx_id2)
     rx_id2 <=#Tp 1'b1;
@@ -374,7 +422,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_rtr2 <= 1'b0;
-  else if (reset_mode | go_rx_r1)
+  else if (reset_mode | go_rx_r1 | error_frame)
     rx_rtr2 <=#Tp 1'b0;
   else if (go_rx_rtr2)
     rx_rtr2 <=#Tp 1'b1;
@@ -386,7 +434,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_r1 <= 1'b0;
-  else if (reset_mode | go_rx_r0)
+  else if (reset_mode | go_rx_r0 | error_frame)
     rx_r1 <=#Tp 1'b0;
   else if (go_rx_r1)
     rx_r1 <=#Tp 1'b1;
@@ -398,7 +446,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_r0 <= 1'b0;
-  else if (reset_mode | go_rx_dlc)
+  else if (reset_mode | go_rx_dlc | error_frame)
     rx_r0 <=#Tp 1'b0;
   else if (go_rx_r0)
     rx_r0 <=#Tp 1'b1;
@@ -410,7 +458,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_dlc <= 1'b0;
-  else if (reset_mode | go_rx_data | go_rx_crc)
+  else if (reset_mode | go_rx_data | go_rx_crc | error_frame)
     rx_dlc <=#Tp 1'b0;
   else if (go_rx_dlc)
     rx_dlc <=#Tp 1'b1;
@@ -422,7 +470,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_data <= 1'b0;
-  else if (reset_mode | go_rx_crc)
+  else if (reset_mode | go_rx_crc | error_frame)
     rx_data <=#Tp 1'b0;
   else if (go_rx_data)
     rx_data <=#Tp 1'b1;
@@ -434,7 +482,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_crc <= 1'b0;
-  else if (reset_mode | go_rx_crc_lim)
+  else if (reset_mode | go_rx_crc_lim | error_frame)
     rx_crc <=#Tp 1'b0;
   else if (go_rx_crc)
     rx_crc <=#Tp 1'b1;
@@ -446,7 +494,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_crc_lim <= 1'b0;
-  else if (reset_mode | go_rx_ack)
+  else if (reset_mode | go_rx_ack | error_frame)
     rx_crc_lim <=#Tp 1'b0;
   else if (go_rx_crc_lim)
     rx_crc_lim <=#Tp 1'b1;
@@ -458,7 +506,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_ack <= 1'b0;
-  else if (reset_mode | go_rx_ack_lim)
+  else if (reset_mode | go_rx_ack_lim | error_frame)
     rx_ack <=#Tp 1'b0;
   else if (go_rx_ack)
     rx_ack <=#Tp 1'b1;
@@ -470,7 +518,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_ack_lim <= 1'b0;
-  else if (reset_mode | go_rx_eof)
+  else if (reset_mode | go_rx_eof | error_frame)
     rx_ack_lim <=#Tp 1'b0;
   else if (go_rx_ack_lim)
     rx_ack_lim <=#Tp 1'b1;
@@ -482,10 +530,23 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_eof <= 1'b0;
-  else if (go_rx_idle)
+  else if (go_rx_inter | error_frame)
     rx_eof <=#Tp 1'b0;
   else if (go_rx_eof)
     rx_eof <=#Tp 1'b1;
+end
+
+
+
+// Interframe space
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    rx_inter <= 1'b0;
+  else if (go_rx_idle | go_rx_id1 | go_overload_frame | go_error_frame)
+    rx_inter <=#Tp 1'b0;
+  else if (go_rx_inter)
+    rx_inter <=#Tp 1'b1;
 end
 
 
@@ -540,8 +601,6 @@ end
 
 
 // Data
-reg [7:0] tmp_data;
-reg [7:0] tmp_fifo [0:7];
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
@@ -551,7 +610,6 @@ begin
 end
 
 
-reg write_data_to_tmp_fifo;
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
@@ -563,7 +621,6 @@ begin
 end
 
 
-reg [2:0] byte_cnt;
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
@@ -575,7 +632,7 @@ begin
 end
 
 
-always @ (posedge clk or posedge rst)
+always @ (posedge clk)
 begin
   if (write_data_to_tmp_fifo)
     tmp_fifo[byte_cnt] <=#Tp tmp_data;
@@ -598,7 +655,8 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     bit_cnt <= 0;
-  else if (go_rx_id1 | go_rx_id2 | go_rx_dlc | go_rx_data | go_rx_crc | go_rx_ack | go_rx_eof)
+  else if (go_rx_id1 | go_rx_id2 | go_rx_dlc | go_rx_data | go_rx_crc | 
+           go_rx_ack | go_rx_eof | go_rx_inter | go_error_frame | go_overload_frame)
     bit_cnt <=#Tp 0;
   else if (sample_point & (~bit_de_stuff))
     bit_cnt <=#Tp bit_cnt + 1'b1;
@@ -621,7 +679,6 @@ end
 
 
 // Enabling bit de-stuffing
-reg bit_stuff_cnt_en;
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
@@ -631,6 +688,7 @@ begin
   else if (bit_de_stuff_reset)
     bit_stuff_cnt_en <=#Tp 1'b0;
 end
+
 
 // bit_stuff_cnt
 always @ (posedge clk or posedge rst)
@@ -654,15 +712,16 @@ end
 assign bit_de_stuff = bit_stuff_cnt == 5;
 
 
+
 // stuff_error
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
     stuff_error <= 0;
-  else if (sample_point & (rx_id1) & bit_de_stuff & (sampled_bit == sampled_bit_q))   // Add other stages (data, control, etc.) !!!
+  else if (reset_mode | go_rx_idle | error_frame)     // Stuff error might reset itself
+    stuff_error <=#Tp 0;
+  else if (sample_point & bit_stuff_cnt_en & bit_de_stuff & (sampled_bit == sampled_bit_q))
     stuff_error <=#Tp 1'b1;
-//  else if (reset condition)       // Add reset condition
-//    stuff_error <=#Tp 0;
 end
 
 
@@ -685,7 +744,6 @@ begin
 end
 
 
-reg crc_error;
 // CRC error generation
 always @ (posedge clk or posedge rst)
 begin
@@ -693,30 +751,31 @@ begin
     crc_error <= 0;
   else if (go_rx_ack)
     crc_error <=#Tp crc_in != calculated_crc;
-  else if (reset_mode | rx_eof)
+  else if (reset_mode | go_rx_idle | error_frame)   // CRC error might reset itself
     crc_error <=#Tp 0;
 end
 
 
 // Conditions for form error
-assign set_form_error = sample_point & ( (~bit_de_stuff) & rx_ide     &   sampled_bit & (~rtr1) |
+//assign set_form_error = sample_point & ( (~bit_de_stuff) & rx_ide     &   sampled_bit & (~rtr1) |
+assign     form_error = sample_point & ( (~bit_de_stuff) & rx_ide     &   sampled_bit & (~rtr1) |
                                                            rx_crc_lim & (~sampled_bit)          |
                                                            rx_ack_lim & (~sampled_bit)          |
                                                            rx_eof     & (~sampled_bit)
                                        );
 
-
+/*
 // Form error 
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
     form_error <= 1'b0;
-  else if (reset_mode | form_error)
+  else if (reset_mode | go_rx_idle | error_frame)
     form_error <=#Tp 1'b0;
   else if (set_form_error)
     form_error <=#Tp 1'b1;
 end
-
+*/
 
 // Instantiation of the RX CRC module
 can_crc i_can_crc_rx 
@@ -772,7 +831,6 @@ can_acf i_can_acf
   .acceptance_mask_3(acceptance_mask_3),
   /* End: This section is for EXTENDED mode */
 
-  .sample_point(sample_point),
   .go_rx_crc_lim(go_rx_crc_lim),
   .go_rx_idle(go_rx_idle),
   
@@ -801,11 +859,14 @@ wire        storing_header;
 wire [3:0]  limited_data_len_minus1;
 wire        reset_wr_fifo;
 wire        no_error;
+
 assign header_len[2:0] = extended_mode ? (ide? (3'h5) : (3'h3)) : 3'h2;
 assign storing_header = header_cnt < header_len;
 assign limited_data_len_minus1[3:0] = remote_rq? 4'hf : ((data_len < 8)? (data_len -1'b1) : 4'h7);   // - 1 because counter counts from 0
 assign reset_wr_fifo = data_cnt == (limited_data_len_minus1 + header_len);
-assign no_error = ~crc_error;
+assign no_error = (~crc_error) & (~form_error) & (~stuff_error);
+
+
 
 // Write enable signal for 64-byte rx fifo
 always @ (posedge clk or posedge rst)
@@ -814,7 +875,7 @@ begin
     wr_fifo <= 1'b0;
   else if (reset_wr_fifo)
     wr_fifo <=#Tp 1'b0;
-  else if (go_rx_idle & id_ok & no_error)
+  else if (go_rx_inter & id_ok & (~error_frame_ended))
     wr_fifo <=#Tp 1'b1;
 end
 
@@ -844,7 +905,8 @@ end
 
 
 // Multiplexing data that is stored to 64-byte fifo depends on the mode of operation and frame format
-always @ (extended_mode or ide or data_cnt or header_cnt or storing_header or id or rtr1 or rtr2 or data_len or
+always @ (extended_mode or ide or data_cnt or header_cnt or  header_len or 
+          storing_header or id or rtr1 or rtr2 or data_len or
           tmp_fifo[0] or tmp_fifo[2] or tmp_fifo[4] or tmp_fifo[6] or 
           tmp_fifo[1] or tmp_fifo[3] or tmp_fifo[5] or tmp_fifo[7])
 begin
@@ -854,28 +916,31 @@ begin
         begin
           if (ide)              // extended format
             begin
-              case (header_cnt)            // synopsys parallel_case synopsys full_case
-                4'h0  : data_for_fifo <= {1'b1, rtr2, 2'h0, data_len};
-                4'h1  : data_for_fifo <= id[28:21];
-                4'h2  : data_for_fifo <= id[20:13];
-                4'h3  : data_for_fifo <= id[12:5];
-                4'h4  : data_for_fifo <= {id[4:0], 3'h0};
+              case (header_cnt) // synthesis parallel_case 
+                3'h0  : data_for_fifo <= {1'b1, rtr2, 2'h0, data_len};
+                3'h1  : data_for_fifo <= id[28:21];
+                3'h2  : data_for_fifo <= id[20:13];
+                3'h3  : data_for_fifo <= id[12:5];
+                3'h4  : data_for_fifo <= {id[4:0], 3'h0};
+                default: data_for_fifo <= 0;
               endcase
             end
           else                  // standard format
             begin
-              case (header_cnt)            // synopsys parallel_case synopsys full_case
-                4'h0  : data_for_fifo <= {1'b0, rtr1, 2'h0, data_len};
-                4'h1  : data_for_fifo <= id[10:3];
-                4'h2  : data_for_fifo <= {id[2:0], 5'h0};
+              case (header_cnt) // synthesis parallel_case 
+                3'h0  : data_for_fifo <= {1'b0, rtr1, 2'h0, data_len};
+                3'h1  : data_for_fifo <= id[10:3];
+                3'h2  : data_for_fifo <= {id[2:0], 5'h0};
+                default: data_for_fifo <= 0;
               endcase
             end
         end
       else                    // normal mode
         begin
-          case (header_cnt)            // synopsys parallel_case synopsys full_case
-            4'h0  : data_for_fifo <= id[10:3];
-            4'h1  : data_for_fifo <= {id[2:0], rtr1, data_len};
+          case (header_cnt) // synthesis parallel_case 
+            3'h0  : data_for_fifo <= id[10:3];
+            3'h1  : data_for_fifo <= {id[2:0], rtr1, data_len};
+            default: data_for_fifo <= 0;
           endcase
         end
     end
@@ -904,6 +969,90 @@ can_fifo i_can_fifo
 
   
 );
+
+
+
+// transmitting signals that core is a transmitter. No synchronization is done meanwhile.
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    transmitting <= 1'b0;
+  else if (go_rx_idle | reset_mode)
+    transmitting <=#Tp 1'b0;
+  else if (~no_error)
+    transmitting <=#Tp 1'b1;
+end
+
+
+
+// Transmitting error frame. The same counters are used for sending overload frame, too.
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    error_frame <= 1'b0;
+  else if (reset_mode | error_frame_ended)
+    error_frame <=#Tp 1'b0;
+  else if (go_error_frame | go_overload_frame)
+    error_frame <=#Tp 1'b1;
+end
+
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    error_cnt1 <= 1'b0;
+  else if (reset_mode | error_frame_ended)
+    error_cnt1 <=#Tp 1'b0;
+  else if (error_frame & tx_point & (error_cnt1 < 6))
+    error_cnt1 <=#Tp error_cnt1 + 1'b1;
+end
+
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    enable_error_cnt2 <= 1'b0;
+  else if (reset_mode | error_frame_ended)
+    enable_error_cnt2 <=#Tp 1'b0;
+  else if (sample_point & sampled_bit & (error_cnt1 == 6))
+    enable_error_cnt2 <=#Tp 1'b1;
+end
+
+
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    error_cnt2 <= 1'b0;
+  else if (reset_mode | error_frame_ended)
+    error_cnt2 <=#Tp 1'b0;
+  else if (enable_error_cnt2 & tx_point)
+    error_cnt2 <=#Tp error_cnt2 + 1'b1;
+end
+
+
+wire node_error_passive = 1;
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    tx <= 1'b1;
+  else if (reset_mode | error_frame_ended)
+    tx <=#Tp 1'b1;
+  else if (tx_point & error_frame)
+    begin
+      if (error_cnt1 < 6)
+        begin
+          if (node_error_passive)
+            tx <=#Tp 1'b1;
+          else
+            tx <=#Tp 1'b0;
+        end
+      else if (error_cnt2 < 7)
+        tx <=#Tp 1'b1;
+    end
+end
+
 
 
 

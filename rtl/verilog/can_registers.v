@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.9  2003/01/15 13:16:48  mohor
+// When a frame with "remote request" is received, no data is stored to fifo, just the frame information (identifier, ...). Data length that is stored is the received data length and not the actual data length that is stored to fifo.
+//
 // Revision 1.8  2003/01/14 17:25:09  mohor
 // Addresses corrected to decimal values (previously hex).
 //
@@ -610,7 +613,11 @@ can_register #(8) ACCEPTANCE_MASK_REG3
 
 
 // Reading data from registers
-always @ ( addr or read or extended_mode or mode or bus_timing_0 or bus_timing_1 or clock_divider
+always @ ( addr or read or extended_mode or mode or bus_timing_0 or bus_timing_1 or clock_divider or
+           acceptance_code_0 or acceptance_code_1 or acceptance_code_2 or acceptance_code_3 or
+           acceptance_mask_0 or acceptance_mask_1 or acceptance_mask_2 or acceptance_mask_3 or
+           reset_mode or tx_data_0 or tx_data_1 or tx_data_2 or tx_data_3 or tx_data_4 or 
+           tx_data_5 or tx_data_6 or tx_data_7 or tx_data_8 or tx_data_9
          )
 begin
   if(read)  // read
