@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.24  2003/02/14 20:16:53  mohor
+// Several registers added. Not finished, yet.
+//
 // Revision 1.23  2003/02/12 14:28:30  mohor
 // Errors monitoring improved. arbitration_lost improved.
 //
@@ -169,6 +172,8 @@ reg   [7:0] tmp_data;
 reg         delayed_tx;
 reg         tx_bypassed;
 reg         wb_free;
+reg         extended_mode;
+
 
 
 // Instantiate can_top module
@@ -220,6 +225,7 @@ begin
   wb_free = 1;
   rx = 1;
   wb_rst_i = 1;
+  extended_mode = 0;
   #200 wb_rst_i = 0;
   #200 initialize_fifo;
   #200 start_tb = 1;
@@ -257,28 +263,26 @@ begin
 
 
   // Set Clock Divider register
-  write_register(8'd31, {`CAN_CLOCK_DIVIDER_MODE, 7'h0});    // Setting the normal mode (not extended)
- 
+  extended_mode = 1'b0;
+  write_register(8'd31, {extended_mode, 7'h0});    // Setting the normal mode (not extended)
+
+
   // Set Acceptance Code and Acceptance Mask registers (their address differs for basic and extended mode
-  if(`CAN_CLOCK_DIVIDER_MODE)   // Extended mode
-    begin
-      // Set Acceptance Code and Acceptance Mask registers
-      write_register(8'd16, 8'ha6); // acceptance code 0
-      write_register(8'd17, 8'hb0); // acceptance code 1
-      write_register(8'd18, 8'h12); // acceptance code 2
-      write_register(8'd19, 8'h30); // acceptance code 3
-      write_register(8'd20, 8'h0); // acceptance mask 0
-      write_register(8'd21, 8'h0); // acceptance mask 1
-      write_register(8'd22, 8'h00); // acceptance mask 2
-      write_register(8'd23, 8'h00); // acceptance mask 3
-    end
-  else
-    begin
-      // Set Acceptance Code and Acceptance Mask registers
-//      write_register(8'd4, 8'ha6); // acceptance code
-      write_register(8'd4, 8'he8); // acceptance code
-      write_register(8'd5, 8'h0f); // acceptance mask
-    end
+/*
+  // Set Acceptance Code and Acceptance Mask registers
+  write_register(8'd16, 8'ha6); // acceptance code 0
+  write_register(8'd17, 8'hb0); // acceptance code 1
+  write_register(8'd18, 8'h12); // acceptance code 2
+  write_register(8'd19, 8'h30); // acceptance code 3
+  write_register(8'd20, 8'h0); // acceptance mask 0
+  write_register(8'd21, 8'h0); // acceptance mask 1
+  write_register(8'd22, 8'h00); // acceptance mask 2
+  write_register(8'd23, 8'h00); // acceptance mask 3
+*/
+
+  // Set Acceptance Code and Acceptance Mask registers
+  write_register(8'd4, 8'he8); // acceptance code
+  write_register(8'd5, 8'h0f); // acceptance mask
   
   #10;
   repeat (1000) @ (posedge clk);
@@ -296,7 +300,7 @@ begin
 //  test_synchronization;
 
 
-
+/*
   if(`CAN_CLOCK_DIVIDER_MODE)   // Extended mode
     begin
 //      test_empty_fifo_ext;    // test currently switched off
@@ -312,7 +316,8 @@ begin
 //      manual_frame;       // test currently switched off
 //      forced_bus_off;       // test currently switched on
     end
-
+*/
+  self_reception_request;
 
   $display("CAN Testbench finished !");
   $stop;
@@ -370,7 +375,7 @@ task manual_frame;    // Testbench sends a frame
 
     fork
       begin
-        tx_request;
+        tx_request_command;
       end
 
       begin
@@ -521,7 +526,7 @@ task manual_frame;    // Testbench sends a frame
 
     fork
       begin
-        tx_request;
+        tx_request_command;
       end
 
       begin
@@ -588,10 +593,10 @@ task manual_frame;    // Testbench sends a frame
 
 
     read_receive_buffer;
-    release_rx_buffer;
+    release_rx_buffer_command;
 
     read_receive_buffer;
-    release_rx_buffer;
+    release_rx_buffer_command;
     read_receive_buffer;
 
     #4000000;
@@ -617,7 +622,7 @@ task bus_off_test;    // Testbench sends a frame
 
     fork
       begin
-        tx_request;
+        tx_request_command;
       end
 
       begin
@@ -681,6 +686,10 @@ task bus_off_test;    // Testbench sends a frame
         end // repeat
 
         // Node is error passive now.
+
+        // Read irq register (error interrupt should be cleared now.
+        read_register(8'd3);
+
         repeat (20)
         
         begin
@@ -749,26 +758,46 @@ task bus_off_test;    // Testbench sends a frame
 
         // Node is bus-off now
 
+
+        // Read irq register (error interrupt should be cleared now.
+        read_register(8'd3);
+
+
+
         #100000;
 
         // Switch-off reset mode
         write_register(8'd0, {7'h0, ~(`CAN_MODE_RESET)});
 
-        repeat (128 * 11)
+        repeat (64 * 11)
         begin
           send_bit(1);
         end // repeat
 
+        // Read irq register (error interrupt should be cleared now.
+        read_register(8'd3);
+
+        repeat (64 * 11)
+        begin
+          send_bit(1);
+        end // repeat
+
+
+
+        // Read irq register (error interrupt should be cleared now.
+        read_register(8'd3);
+
       end
-    
-    
+     
+
+
     join
 
 
 
     fork
       begin
-        tx_request;
+        tx_request_command;
       end
 
       begin
@@ -831,9 +860,9 @@ task bus_off_test;    // Testbench sends a frame
     join
 
     read_receive_buffer;
-    release_rx_buffer;
+    release_rx_buffer_command;
     read_receive_buffer;
-    release_rx_buffer;
+    release_rx_buffer_command;
     read_receive_buffer;
 
     #4000000;
@@ -850,7 +879,7 @@ endtask   // bus_off_test
 task send_frame;    // CAN IP core sends frames
   begin
 
-    if(`CAN_CLOCK_DIVIDER_MODE)   // Extended mode
+    if(extended_mode)   // Extended mode
       begin
 
         // Writing TX frame information + identifier + data
@@ -900,7 +929,7 @@ task send_frame;    // CAN IP core sends frames
       end
 
       begin
-        tx_request;
+        tx_request_command;
       end
 
       begin
@@ -915,14 +944,14 @@ task send_frame;    // CAN IP core sends frames
     join
 
     read_receive_buffer;
-    release_rx_buffer;
-    release_rx_buffer;
+    release_rx_buffer_command;
+    release_rx_buffer_command;
     read_receive_buffer;
-    release_rx_buffer;
+    release_rx_buffer_command;
     read_receive_buffer;
-    release_rx_buffer;
+    release_rx_buffer_command;
     read_receive_buffer;
-    release_rx_buffer;
+    release_rx_buffer_command;
     read_receive_buffer;
 
     #200000;
@@ -938,41 +967,122 @@ endtask   // send_frame
 
 
 
+task self_reception_request;    // CAN IP core sends sets self reception mode and transmits a msg. This test runs in EXTENDED mode
+  begin
+
+    // Switch-on reset mode
+    write_register(8'd0, {7'h0, (`CAN_MODE_RESET)});
+    
+    // Set Clock Divider register
+    extended_mode = 1'b1;
+    write_register(8'd31, {extended_mode, 7'h0});    // Setting the extended mode
+ 
+    // Set Acceptance Code and Acceptance Mask registers
+    write_register(8'd16, 8'ha6); // acceptance code 0
+    write_register(8'd17, 8'hb0); // acceptance code 1
+    write_register(8'd18, 8'h12); // acceptance code 2
+    write_register(8'd19, 8'h30); // acceptance code 3
+    write_register(8'd20, 8'h00); // acceptance mask 0
+    write_register(8'd21, 8'h00); // acceptance mask 1
+    write_register(8'd22, 8'h00); // acceptance mask 2
+    write_register(8'd23, 8'h00); // acceptance mask 3
+
+    // Setting the "self test mode"
+    write_register(8'd0, 8'h4);
+
+    // Switch-off reset mode
+    write_register(8'd0, {7'h0, ~(`CAN_MODE_RESET)});
+
+    // After exiting the reset mode sending bus free
+    repeat (11) send_bit(1);
+
+
+    // Writing TX frame information + identifier + data
+    write_register(8'd16, 8'h45);   // Frame format = 0, Remote transmision request = 1, DLC = 5
+    write_register(8'd17, 8'ha6);   // ID[28:21] = a6
+    write_register(8'd18, 8'ha0);   // ID[20:18] = 5
+    // write_register(8'd19, 8'h78); RTR does not send any data
+    // write_register(8'd20, 8'h9a);
+    // write_register(8'd21, 8'hbc);
+    // write_register(8'd22, 8'hde);
+    // write_register(8'd23, 8'hf0);
+    // write_register(8'd24, 8'h0f);
+    // write_register(8'd25, 8'hed);
+    // write_register(8'd26, 8'hcb);
+    // write_register(8'd27, 8'ha9);
+    // write_register(8'd28, 8'h87);
+
+
+    // Enabling IRQ's (extended mode)
+    write_register(8'd4, 8'hff);
+
+//    tx_request_command;
+    self_reception_request_command;
+
+    #400000;
+
+    read_receive_buffer;
+    release_rx_buffer_command;
+    release_rx_buffer_command;
+    read_receive_buffer;
+    release_rx_buffer_command;
+    read_receive_buffer;
+    release_rx_buffer_command;
+    read_receive_buffer;
+    release_rx_buffer_command;
+    read_receive_buffer;
+
+
+    read_receive_buffer;
+
+    // Read irq register
+    read_register(8'd3);
+    #1000;
+
+  end
+endtask   // self_reception_request
+
+
+
 task test_empty_fifo;
   begin
-    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h3, 15'h7bcb); // mode, rtr, id, length, crc
-    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h7, 15'h085c); // mode, rtr, id, length, crc
+
+    // Enable irqs (basic mode)
+    write_register(8'd0, 8'h1e);
+
+    receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h3, 15'h56a9); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h7, 15'h391d); // mode, rtr, id, length, crc
 
     read_receive_buffer;
     fifo_info;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     $display("\n\n");
     read_receive_buffer;
     fifo_info;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     $display("\n\n");
     read_receive_buffer;
     fifo_info;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     $display("\n\n");
     read_receive_buffer;
     fifo_info;
 
-    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h8, 15'h57a0); // mode, rtr, id, length, crc
+    receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h8, 15'h70e0); // mode, rtr, id, length, crc
 
     $display("\n\n");
     read_receive_buffer;
     fifo_info;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     $display("\n\n");
     read_receive_buffer;
     fifo_info;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     $display("\n\n");
     read_receive_buffer;
     fifo_info;
@@ -989,17 +1099,17 @@ task test_empty_fifo_ext;
     read_receive_buffer;
     fifo_info;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     $display("\n\n");
     read_receive_buffer;
     fifo_info;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     $display("\n\n");
     read_receive_buffer;
     fifo_info;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     $display("\n\n");
     read_receive_buffer;
     fifo_info;
@@ -1010,12 +1120,12 @@ task test_empty_fifo_ext;
     read_receive_buffer;
     fifo_info;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     $display("\n\n");
     read_receive_buffer;
     fifo_info;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     $display("\n\n");
     read_receive_buffer;
     fifo_info;
@@ -1030,7 +1140,7 @@ task test_full_fifo;
     // Enable irqs (basic mode)
     write_register(8'd0, 8'h1e);
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     $display("\n\n");
     read_receive_buffer;
     fifo_info;
@@ -1061,7 +1171,7 @@ $display("FIFO should be full now");
     receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h8, 15'h57a0); // mode, rtr, id, length, crc
     fifo_info;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     fifo_info;
 
     // Space just enough for the following frame.
@@ -1073,10 +1183,10 @@ $display("FIFO should be full now");
     fifo_info;
     read_overrun_info(0, 15);
 
-    release_rx_buffer;
-    release_rx_buffer;
+    release_rx_buffer_command;
+    release_rx_buffer_command;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     read_receive_buffer;
     fifo_info;
     receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h8, 15'h57a0); // mode, rtr, id, length, crc
@@ -1084,59 +1194,59 @@ $display("FIFO should be full now");
     read_overrun_info(0, 15);
     $display("\n\n");
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     read_receive_buffer;
     fifo_info;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     read_receive_buffer;
     fifo_info;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     read_receive_buffer;
     fifo_info;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     read_receive_buffer;
     fifo_info;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     read_receive_buffer;
     fifo_info;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     read_receive_buffer;
     fifo_info;
 
-    clear_data_overrun;
+    clear_data_overrun_command;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     read_receive_buffer;
     fifo_info;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     read_receive_buffer;
     fifo_info;
 
-    clear_data_overrun;
+    clear_data_overrun_command;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     read_receive_buffer;
     fifo_info;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     read_receive_buffer;
     fifo_info;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     read_receive_buffer;
     fifo_info;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     read_receive_buffer;
     fifo_info;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     read_receive_buffer;
     fifo_info;
 
@@ -1154,7 +1264,7 @@ endtask
 
 task test_full_fifo_ext;
   begin
-    release_rx_buffer;
+    release_rx_buffer_command;
     $display("\n\n");
     read_receive_buffer;
     fifo_info;
@@ -1180,39 +1290,39 @@ task test_full_fifo_ext;
     fifo_info;
     read_overrun_info(0, 10);
 
-    release_rx_buffer;
-    release_rx_buffer;
+    release_rx_buffer_command;
+    release_rx_buffer_command;
     fifo_info;
     receive_frame(1, 0, 29'h14d60246, 4'h8, 15'h2f7a); // mode, rtr, id, length, crc
     fifo_info;
     read_overrun_info(0, 15);
     $display("\n\n");
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     read_receive_buffer;
     fifo_info;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     read_receive_buffer;
     fifo_info;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     read_receive_buffer;
     fifo_info;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     read_receive_buffer;
     fifo_info;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     read_receive_buffer;
     fifo_info;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     read_receive_buffer;
     fifo_info;
 
-    release_rx_buffer;
+    release_rx_buffer_command;
     read_receive_buffer;
     fifo_info;
 
@@ -1317,7 +1427,7 @@ endtask
 task read_receive_buffer;
   integer i;
   begin
-    if(`CAN_CLOCK_DIVIDER_MODE)   // Extended mode
+    if(extended_mode)   // Extended mode
       begin
         for (i=8'd16; i<=8'd28; i=i+1)
           read_register(i);
@@ -1335,7 +1445,7 @@ task read_receive_buffer;
 endtask
 
 
-task release_rx_buffer;
+task release_rx_buffer_command;
   begin
     write_register(8'd1, 8'h4);
     $display("(%0t) Rx buffer released.", $time);
@@ -1343,7 +1453,7 @@ task release_rx_buffer;
 endtask
 
 
-task tx_request;
+task tx_request_command;
   begin
     write_register(8'd1, 8'h1);
     $display("(%0t) Tx requested.", $time);
@@ -1351,7 +1461,7 @@ task tx_request;
 endtask
 
 
-task tx_abort;
+task tx_abort_command;
   begin
     write_register(8'd1, 8'h2);
     $display("(%0t) Tx abort requested.", $time);
@@ -1359,10 +1469,18 @@ task tx_abort;
 endtask
 
 
-task clear_data_overrun;
+task clear_data_overrun_command;
   begin
     write_register(8'd1, 8'h8);
     $display("(%0t) Data overrun cleared.", $time);
+  end
+endtask
+
+
+task self_reception_request_command;
+  begin
+    write_register(8'd1, 8'h10);
+    $display("(%0t) Self reception requested.", $time);
   end
 endtask
 
