@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.20  2003/07/16 14:00:45  mohor
+// Fixed according to the linter.
+//
 // Revision 1.19  2003/07/03 09:30:44  mohor
 // PCI_BIST replaced with CAN_BIST.
 //
@@ -180,12 +183,16 @@ wire          scanb_s_0;
 `else
 `ifdef XILINX_RAM
 `else
+`ifdef ARTISAN_RAM
+  reg           overrun_info[0:63];
+`else
 `ifdef VIRTUALSILICON_RAM
   reg           overrun_info[0:63];
 `else
   reg     [7:0] fifo [0:63];
   reg     [3:0] length_fifo[0:63];
   reg           overrun_info[0:63];
+`endif
 `endif
 `endif
 `endif
@@ -558,6 +565,90 @@ end
     assign overrun = overrun_info[rd_info_pointer];
 
 `else
+`ifdef ARTISAN_RAM
+
+`ifdef CAN_BIST
+    art_hstp_64x8_bist fifo
+    (
+        .CLKR       (clk),
+        .CLKW       (clk),
+        .AR         (read_address),
+        .AW         (wr_pointer),
+        .D          (data_in),
+        .Q          (data_out),
+        .REN        (~fifo_selected),
+        .WEN        (~(wr & (~fifo_full))),
+        .scanb_rst  (scanb_rst),
+        .scanb_clk  (scanb_clk),
+        .scanb_si   (scanb_si),
+        .scanb_so   (scanb_s_0),
+        .scanb_en   (scanb_en)
+    );
+    art_hstp_64x4_bist info_fifo
+    (
+        .CLKR       (clk),
+        .CLKW       (clk),
+        .AR         (rd_info_pointer),
+        .AW         (wr_info_pointer),
+        .D          (len_cnt & {4{~initialize_memories}}),
+        .Q          (length_info),
+        .REN        (1'b0),
+        .WEN        (~(write_length_info & (~info_full) | initialize_memories)),
+        .scanb_rst  (scanb_rst),
+        .scanb_clk  (scanb_clk),
+        .scanb_si   (scanb_s_0),
+        .scanb_so   (scanb_so),
+        .scanb_en   (scanb_en)
+    );
+`else
+    art_hsdp_64x8 fifo
+    (
+        .CENA       (1'b0),
+        .CENB       (1'b0),
+        .CLKA       (clk),
+        .CLKB       (clk),
+        .AA         (read_address),
+        .AB         (wr_pointer),
+        .DA         (8'h00),
+        .DB         (data_in),
+        .QA         (data_out),
+        .QB         (),
+        .RENA       (~fifo_selected),
+        .RENB       (1'b1),
+        .WENA       (1'b1),
+        .WENB       (~(wr & (~fifo_full))),
+    );
+    art_hsdp_64x4 info_fifo
+    (
+        .CENA       (1'b0),
+        .CENB       (1'b0),
+        .CLKA       (clk),
+        .CLKB       (clk),
+        .AA         (rd_info_pointer),
+        .AB         (wr_info_pointer),
+        .DA         (4'h0),
+        .DB         (len_cnt & {4{~initialize_memories}}),
+        .QA         (length_info),
+        .QB         (),
+        .RENA       (1'b0),
+        .RENB       (1'b1),
+        .WENB       (),
+        .WENB       (~(write_length_info & (~info_full) | initialize_memories))
+    );
+`endif
+
+    // overrun_info
+    always @ (posedge clk)
+    begin
+      if (write_length_info & (~info_full) | initialize_memories)
+        overrun_info[wr_info_pointer] <=#Tp (latch_overrun | (wr & fifo_full)) & (~initialize_memories);
+    end
+    
+    
+    // reading overrun
+    assign overrun = overrun_info[rd_info_pointer];
+
+`else
   // writing data to fifo
   always @ (posedge clk)
   begin
@@ -592,6 +683,7 @@ end
   assign overrun = overrun_info[rd_info_pointer];
 
 
+`endif
 `endif
 `endif
 `endif
