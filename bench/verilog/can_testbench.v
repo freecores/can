@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.27  2003/03/01 22:48:26  mohor
+// Actel APA ram supported.
+//
 // Revision 1.26  2003/02/19 14:43:17  mohor
 // CAN core finished. Host interface added. Registers finished.
 // Synchronization to the wishbone finished.
@@ -196,12 +199,12 @@ can_top i_can_top
   .wb_we_i(wb_we_i),
   .wb_adr_i(wb_adr_i),
   .wb_ack_o(wb_ack_o),
-  .clk(clk),
-  .rx(rx_and_tx),
-  .tx(tx),
+  .clk_i(clk),
+  .rx_i(rx_and_tx),
+  .tx_o(tx),
   .tx_oen(tx_oen),
-  .irq(irq),
-  .clkout(clkout)
+  .irq_o(irq),
+  .clkout_o(clkout)
 );
 
 assign tx_3st = tx_oen? 1'bz : tx;

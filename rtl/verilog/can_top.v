@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.21  2003/03/01 22:53:33  mohor
+// Actel APA ram supported.
+//
 // Revision 1.20  2003/02/19 15:09:02  mohor
 // Incomplete sensitivity list fixed.
 //
@@ -136,12 +139,12 @@ module can_top
   wb_we_i,
   wb_adr_i,
   wb_ack_o,
-  clk,
-  rx,
-  tx,
+  clk_i,
+  rx_i,
+  tx_o,
   tx_oen,
-  irq,
-  clkout
+  irq_o,
+  clkout_o
 );
 
 parameter Tp = 1;
@@ -155,12 +158,12 @@ input        wb_stb_i;
 input        wb_we_i;
 input  [7:0] wb_adr_i;
 output       wb_ack_o;
-input        clk;
-input        rx;
-output       tx;
+input        clk_i;
+input        rx_i;
+output       tx_o;
 output       tx_oen;
-output       irq;
-output       clkout;
+output       irq_o;
+output       clkout_o;
 
 reg    [7:0] wb_dat_o;
 reg          wb_ack_o;
@@ -300,14 +303,14 @@ wire   [6:0] rx_message_counter;
 /* Connecting can_registers module */
 can_registers i_can_registers
 ( 
-  .clk(clk),
+  .clk(clk_i),
   .rst(wb_rst_i),
   .cs(cs),
   .we(wb_we_i),
   .addr(wb_adr_i),
   .data_in(wb_dat_i),
   .data_out(data_out_regs),
-  .irq(irq),
+  .irq(irq_o),
 
   .sample_point(sample_point),
   .transmitting(transmitting),
@@ -371,7 +374,7 @@ can_registers i_can_registers
 
   /* Clock Divider register */
   .extended_mode(extended_mode),
-  .clkout(clkout),
+  .clkout(clkout_o),
   
   /* This section is for BASIC and EXTENDED mode */
   /* Acceptance code register */
@@ -423,9 +426,9 @@ can_registers i_can_registers
 /* Connecting can_btl module */
 can_btl i_can_btl
 ( 
-  .clk(clk),
+  .clk(clk_i),
   .rst(wb_rst_i),
-  .rx(rx),
+  .rx(rx_i),
 
   /* Mode register */
   .reset_mode(reset_mode),
@@ -462,7 +465,7 @@ can_btl i_can_btl
 
 can_bsp i_can_bsp
 (
-  .clk(clk),
+  .clk(clk_i),
   .rst(wb_rst_i),
   
   /* From btl module */
@@ -568,7 +571,7 @@ can_bsp i_can_bsp
   /* End: Tx data registers */
   
   /* Tx signal */
-  .tx(tx),
+  .tx(tx_o),
   .tx_oen(tx_oen)
 );
 
@@ -583,7 +586,7 @@ begin
 end
 
 
-always @ (posedge clk)
+always @ (posedge clk_i)
 begin
   if (wb_cyc_i & (~wb_we_i))
     begin
@@ -596,8 +599,8 @@ end
 
 
 
-// Combining wb_cyc_i and wb_stb_i signals to cs signal. Than synchronizing to clk clock domain. 
-always @ (posedge clk or posedge wb_rst_i)
+// Combining wb_cyc_i and wb_stb_i signals to cs signal. Than synchronizing to clk_i clock domain. 
+always @ (posedge clk_i or posedge wb_rst_i)
 begin
   if (wb_rst_i)
     begin
