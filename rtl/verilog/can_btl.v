@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.18  2003/06/17 15:53:33  mohor
+// clk_cnt reduced from [8:0] to [6:0].
+//
 // Revision 1.17  2003/06/17 14:32:17  mohor
 // Removed few signals.
 //
@@ -255,7 +258,7 @@ begin
   if (rst)
     go_sync <= 1'b0;
   else
-    go_sync <=#Tp go_sync_unregistered;
+    go_sync <=#Tp go_sync_unregistered  & (~hard_sync) & (~resync);
 end
 
 
