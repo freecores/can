@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.12  2003/01/15 21:05:11  mohor
+// CRC checking fixed (when bitstuff occurs at the end of a CRC sequence).
+//
 // Revision 1.11  2003/01/15 14:40:23  mohor
 // RX state machine fixed to receive "remote request" frames correctly. No data bytes are written to fifo when such frames are received.
 //
@@ -787,7 +790,7 @@ begin
     wr_fifo <= 1'b0;
   else if (reset_wr_fifo)
     wr_fifo <=#Tp 1'b0;
-  else if (go_rx_ack_lim & id_ok & no_error)          // FIX go_rx_ack_lim
+  else if (go_rx_idle & id_ok & no_error)
     wr_fifo <=#Tp 1'b1;
 end
 
