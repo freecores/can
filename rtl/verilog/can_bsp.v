@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.32  2003/06/17 14:28:32  mohor
+// Form error was detected when stuff bit occured at the end of crc.
+//
 // Revision 1.31  2003/06/16 14:31:29  tadejm
 // Bit stuffing corrected when stuffing comes at the end of the crc.
 //
@@ -1293,7 +1296,7 @@ begin
         begin
           if (ide)              // extended format
             begin
-              case (header_cnt) // synthesis parallel_case 
+              case (header_cnt) /* synthesis full_case synthesis parallel_case */ 
                 3'h0  : data_for_fifo <= {1'b1, rtr2, 2'h0, data_len};
                 3'h1  : data_for_fifo <= id[28:21];
                 3'h2  : data_for_fifo <= id[20:13];
@@ -1304,7 +1307,7 @@ begin
             end
           else                  // standard format
             begin
-              case (header_cnt) // synthesis parallel_case 
+              case (header_cnt) /* synthesis full_case synthesis parallel_case */ 
                 3'h0  : data_for_fifo <= {1'b0, rtr1, 2'h0, data_len};
                 3'h1  : data_for_fifo <= id[10:3];
                 3'h2  : data_for_fifo <= {id[2:0], 5'h0};
@@ -1314,7 +1317,7 @@ begin
         end
       else                    // normal mode
         begin
-          case (header_cnt) // synthesis parallel_case 
+          case (header_cnt) /* synthesis full_case synthesis parallel_case */ 
             3'h0  : data_for_fifo <= id[10:3];
             3'h1  : data_for_fifo <= {id[2:0], rtr1, data_len};
             default: data_for_fifo <= 0;
