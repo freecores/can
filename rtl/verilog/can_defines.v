@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.11  2003/09/05 12:46:42  mohor
+// ALTERA_RAM supported.
+//
 // Revision 1.10  2003/08/14 16:04:52  simons
 // Artisan ram instances added.
 //
@@ -105,3 +108,6 @@
 
 // Uncomment the following line when RAM BIST is needed (ASIC implementation)
 //`define CAN_BIST                    // Bist (for ASIC implementation)
+
+/* width of MBIST control bus */
+`define CAN_MBIST_CTRL_WIDTH 3

@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.23  2003/09/05 12:46:41  mohor
+// ALTERA_RAM supported.
+//
 // Revision 1.22  2003/08/20 09:59:16  mohor
 // Artisan RAM fixed (when not using BIST).
 //
@@ -151,11 +154,9 @@ module can_fifo
 
 `ifdef CAN_BIST
   ,
-  scanb_rst,
-  scanb_clk,
-  scanb_si,
-  scanb_so,
-  scanb_en
+  mbist_si_i,
+  mbist_so_o,
+  mbist_ctrl_i
 `endif
 );
 
@@ -177,12 +178,10 @@ output        info_empty;
 output  [6:0] info_cnt;
 
 `ifdef CAN_BIST
-input         scanb_rst;
-input         scanb_clk;
-input         scanb_si;
-output        scanb_so;
-input         scanb_en;
-wire          scanb_s_0;
+input         mbist_si_i;
+output        mbist_so_o;
+input [`CAN_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift control
+wire          mbist_s_0;
 `endif
 
 `ifdef ALTERA_RAM
@@ -578,11 +577,9 @@ end
     `ifdef CAN_BIST
         ,
         // debug chain signals
-        .scanb_rst  (scanb_rst),
-        .scanb_clk  (scanb_clk),
-        .scanb_si   (scanb_si),
-        .scanb_so   (scanb_s_0),
-        .scanb_en   (scanb_en)
+        .mbist_si_i   (mbist_si_i),
+        .mbist_so_o   (mbist_s_0),
+        .mbist_ctrl_i   (mbist_ctrl_i)
     `endif
     );
 
@@ -603,11 +600,9 @@ end
     `ifdef CAN_BIST
         ,
         // debug chain signals
-        .scanb_rst  (scanb_rst),
-        .scanb_clk  (scanb_clk),
-        .scanb_si   (scanb_s_0),
-        .scanb_so   (scanb_so),
-        .scanb_en   (scanb_en)
+        .mbist_si_i   (mbist_s_0),
+        .mbist_so_o   (mbist_so_o),
+        .mbist_ctrl_i   (mbist_ctrl_i)
     `endif
     );
 
@@ -636,11 +631,9 @@ end
         .Q          (data_out),
         .REN        (~fifo_selected),
         .WEN        (~(wr & (~fifo_full))),
-        .scanb_rst  (scanb_rst),
-        .scanb_clk  (scanb_clk),
-        .scanb_si   (scanb_si),
-        .scanb_so   (scanb_s_0),
-        .scanb_en   (scanb_en)
+        .mbist_si_i   (mbist_si_i),
+        .mbist_so_o   (mbist_s_0),
+        .mbist_ctrl_i   (mbist_ctrl_i)
     );
     art_hstp_64x4_bist info_fifo
     (
@@ -652,11 +645,9 @@ end
         .Q          (length_info),
         .REN        (1'b0),
         .WEN        (~(write_length_info & (~info_full) | initialize_memories)),
-        .scanb_rst  (scanb_rst),
-        .scanb_clk  (scanb_clk),
-        .scanb_si   (scanb_s_0),
-        .scanb_so   (scanb_so),
-        .scanb_en   (scanb_en)
+        .mbist_si_i   (mbist_s_0),
+        .mbist_so_o   (mbist_so_o),
+        .mbist_ctrl_i   (mbist_ctrl_i)
     );
 `else
     art_hsdp_64x8 fifo

@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.37  2003/09/30 20:53:58  mohor
+// Fixing the core to be Bosch VHDL Reference compatible.
+//
 // Revision 1.36  2003/08/20 10:03:20  mohor
 // Artisan RAMs added.
 //
@@ -261,11 +264,9 @@ can_top i_can_top
 `ifdef CAN_BIST
   ,
   // debug chain signals
-  .scanb_rst(1'b1),      // bist scan reset
-  .scanb_clk(1'b0),      // bist scan clock
-  .scanb_si(1'b0),       // bist scan serial in
-  .scanb_so(),           // bist scan serial out
-  .scanb_en(1'b0)        // bist scan shift enable
+  .mbist_si_i(1'b0),       // bist scan serial in
+  .mbist_so_o(),           // bist scan serial out
+  .mbist_ctrl_i(3'b001)    // mbist scan {enable, clock, reset}
 `endif
 );
 

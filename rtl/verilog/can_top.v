@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.45  2003/09/30 00:55:13  mohor
+// Error counters fixed to be compatible with Bosch VHDL reference model.
+// Small synchronization changes.
+//
 // Revision 1.44  2003/09/25 18:55:49  mohor
 // Synchronization changed, error counters fixed.
 //
@@ -232,11 +236,9 @@ module can_top
 `ifdef CAN_BIST
   ,
   // debug chain signals
-  scanb_rst,      // bist scan reset
-  scanb_clk,      // bist scan clock
-  scanb_si,       // bist scan serial in
-  scanb_so,       // bist scan serial out
-  scanb_en        // bist scan shift enable
+  mbist_si_i,       // bist scan serial in
+  mbist_so_o,       // bist scan serial out
+  mbist_ctrl_i        // bist chain shift control
 `endif
 );
 
@@ -287,11 +289,9 @@ output       clkout_o;
 
 // Bist
 `ifdef CAN_BIST
-input   scanb_rst;      // bist scan reset
-input   scanb_clk;      // bist scan clock
-input   scanb_si;       // bist scan serial in
-output  scanb_so;       // bist scan serial out
-input   scanb_en;       // bist scan shift enable
+input   mbist_si_i;       // bist scan serial in
+output  mbist_so_o;       // bist scan serial out
+input [`CAN_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift control
 `endif
 
 reg          data_out_fifo_selected;
@@ -730,11 +730,9 @@ can_bsp i_can_bsp
 `ifdef CAN_BIST
   ,
   /* BIST signals */
-  .scanb_rst(scanb_rst),
-  .scanb_clk(scanb_clk),
-  .scanb_si(scanb_si),
-  .scanb_so(scanb_so),
-  .scanb_en(scanb_en)
+  .mbist_si_i(mbist_si_i),
+  .mbist_so_o(mbist_so_o),
+  .mbist_ctrl_i(mbist_ctrl_i)
 `endif
 );
 

@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.45  2003/09/30 21:14:33  mohor
+// Error counters changed.
+//
 // Revision 1.44  2003/09/30 00:55:12  mohor
 // Error counters fixed to be compatible with Bosch VHDL reference model.
 // Small synchronization changes.
@@ -336,11 +339,9 @@ module can_bsp
   /* Bist */
 `ifdef CAN_BIST
   ,
-  scanb_rst,
-  scanb_clk,
-  scanb_si,
-  scanb_so,
-  scanb_en
+  mbist_si_i,
+  mbist_so_o,
+  mbist_ctrl_i
 `endif
 );
 
@@ -469,11 +470,9 @@ output        send_ack;
 
 /* Bist */
 `ifdef CAN_BIST
-input         scanb_rst;
-input         scanb_clk;
-input         scanb_si;
-output        scanb_so;
-input         scanb_en;
+input         mbist_si_i;
+output        mbist_so_o;
+input [`CAN_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift control
 `endif
 
 reg           reset_mode_q;
@@ -1432,11 +1431,9 @@ can_fifo i_can_fifo
 
 `ifdef CAN_BIST
   ,
-  .scanb_rst(scanb_rst),
-  .scanb_clk(scanb_clk),
-  .scanb_si(scanb_si),
-  .scanb_so(scanb_so),
-  .scanb_en(scanb_en)
+  .mbist_si_i(mbist_si_i),
+  .mbist_so_o(mbist_so_o),
+  .mbist_ctrl_i(mbist_ctrl_i)
 `endif
 );
 
