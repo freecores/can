@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2003/01/08 02:13:15  mohor
+// Acceptance filter added.
+//
 //
 //
 //
@@ -85,7 +88,8 @@ module can_acf
   rtr1,
   rtr2,
   ide,
-  no_data,
+  no_byte0,
+  no_byte1,
 
   
   id_ok
@@ -118,7 +122,8 @@ input   [7:0] data1;
 input         rtr1;
 input         rtr2;
 input         ide;
-input         no_data;
+input         no_byte0;
+input         no_byte1;
 
 
 output        id_ok;
@@ -159,24 +164,25 @@ assign match_sf_std = ( (id[3]  == acceptance_code_0[0] | acceptance_mask_0[0] )
                         (id[1]  == acceptance_code_1[6] | acceptance_mask_1[6] ) &
                         (id[2]  == acceptance_code_1[7] | acceptance_mask_1[7] ) &
 
-                        (data0[0]  == acceptance_code_2[0] | acceptance_mask_2[0] ) &
-                        (data0[1]  == acceptance_code_2[1] | acceptance_mask_2[1] ) &
-                        (data0[2]  == acceptance_code_2[2] | acceptance_mask_2[2] ) &
-                        (data0[3]  == acceptance_code_2[3] | acceptance_mask_2[3] ) &
-                        (data0[4]  == acceptance_code_2[4] | acceptance_mask_2[4] ) &
-                        (data0[5]  == acceptance_code_2[5] | acceptance_mask_2[5] ) &
-                        (data0[6]  == acceptance_code_2[6] | acceptance_mask_2[6] ) &
-                        (data0[7]  == acceptance_code_2[7] | acceptance_mask_2[7] ) &
+                        (data0[0]  == acceptance_code_2[0] | acceptance_mask_2[0] | no_byte0) &
+                        (data0[1]  == acceptance_code_2[1] | acceptance_mask_2[1] | no_byte0) &
+                        (data0[2]  == acceptance_code_2[2] | acceptance_mask_2[2] | no_byte0) &
+                        (data0[3]  == acceptance_code_2[3] | acceptance_mask_2[3] | no_byte0) &
+                        (data0[4]  == acceptance_code_2[4] | acceptance_mask_2[4] | no_byte0) &
+                        (data0[5]  == acceptance_code_2[5] | acceptance_mask_2[5] | no_byte0) &
+                        (data0[6]  == acceptance_code_2[6] | acceptance_mask_2[6] | no_byte0) &
+                        (data0[7]  == acceptance_code_2[7] | acceptance_mask_2[7] | no_byte0) &
 
-                        (data1[0]  == acceptance_code_3[0] | acceptance_mask_3[0] ) &
-                        (data1[1]  == acceptance_code_3[1] | acceptance_mask_3[1] ) &
-                        (data1[2]  == acceptance_code_3[2] | acceptance_mask_3[2] ) &
-                        (data1[3]  == acceptance_code_3[3] | acceptance_mask_3[3] ) &
-                        (data1[4]  == acceptance_code_3[4] | acceptance_mask_3[4] ) &
-                        (data1[5]  == acceptance_code_3[5] | acceptance_mask_3[5] ) &
-                        (data1[6]  == acceptance_code_3[6] | acceptance_mask_3[6] ) &
-                        (data1[7]  == acceptance_code_3[7] | acceptance_mask_3[7] )
+                        (data1[0]  == acceptance_code_3[0] | acceptance_mask_3[0] | no_byte1) &
+                        (data1[1]  == acceptance_code_3[1] | acceptance_mask_3[1] | no_byte1) &
+                        (data1[2]  == acceptance_code_3[2] | acceptance_mask_3[2] | no_byte1) &
+                        (data1[3]  == acceptance_code_3[3] | acceptance_mask_3[3] | no_byte1) &
+                        (data1[4]  == acceptance_code_3[4] | acceptance_mask_3[4] | no_byte1) &
+                        (data1[5]  == acceptance_code_3[5] | acceptance_mask_3[5] | no_byte1) &
+                        (data1[6]  == acceptance_code_3[6] | acceptance_mask_3[6] | no_byte1) &
+                        (data1[7]  == acceptance_code_3[7] | acceptance_mask_3[7] | no_byte1)
                       );
+
 
 
 // Working in extended mode. ID match for extended format (29-bit ID). Using single filter.
@@ -232,14 +238,14 @@ assign match_df_std = (((id[3]  == acceptance_code_0[0] | acceptance_mask_0[0] )
                         (id[1]  == acceptance_code_1[6] | acceptance_mask_1[6] ) &
                         (id[2]  == acceptance_code_1[7] | acceptance_mask_1[7] ) &
 
-                        (data0[0] == acceptance_code_3[0] | acceptance_mask_3[0] | no_data) &
-                        (data0[1] == acceptance_code_3[1] | acceptance_mask_3[1] | no_data) &
-                        (data0[2] == acceptance_code_3[2] | acceptance_mask_3[2] | no_data) &
-                        (data0[3] == acceptance_code_3[3] | acceptance_mask_3[3] | no_data) &
-                        (data0[4] == acceptance_code_1[4] | acceptance_mask_1[4] | no_data) &
-                        (data0[5] == acceptance_code_1[5] | acceptance_mask_1[5] | no_data) &
-                        (data0[6] == acceptance_code_1[6] | acceptance_mask_1[6] | no_data) &
-                        (data0[7] == acceptance_code_1[7] | acceptance_mask_1[7] | no_data) )
+                        (data0[0] == acceptance_code_3[0] | acceptance_mask_3[0] | no_byte0) &
+                        (data0[1] == acceptance_code_3[1] | acceptance_mask_3[1] | no_byte0) &
+                        (data0[2] == acceptance_code_3[2] | acceptance_mask_3[2] | no_byte0) &
+                        (data0[3] == acceptance_code_3[3] | acceptance_mask_3[3] | no_byte0) &
+                        (data0[4] == acceptance_code_1[4] | acceptance_mask_1[4] | no_byte0) &
+                        (data0[5] == acceptance_code_1[5] | acceptance_mask_1[5] | no_byte0) &
+                        (data0[6] == acceptance_code_1[6] | acceptance_mask_1[6] | no_byte0) &
+                        (data0[7] == acceptance_code_1[7] | acceptance_mask_1[7] | no_byte0) )
                         
                        |
 

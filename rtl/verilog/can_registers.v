@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2003/01/10 17:51:34  mohor
+// Temporary version (backup).
+//
 // Revision 1.5  2003/01/09 14:46:58  mohor
 // Temporary files (backup).
 //
@@ -252,11 +255,12 @@ assign sleep_mode = mode[4];
 /* Command register */
 wire   [4:0] command;
 wire   [2:0] command_dummy;
-can_register_syn #(8, 8'h0) COMMAND_REG
+can_register_asyn_syn #(8, 8'h0) COMMAND_REG
 ( .data_in(data_in),
   .data_out({command_dummy, command}),
   .we(we_command),
   .clk(clk),
+  .rst(rst),
   .rst_sync(|command)
 );
 

@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.10  2003/01/10 17:51:28  mohor
+// Temporary version (backup).
+//
 // Revision 1.9  2003/01/09 21:54:39  mohor
 // rx fifo added. Not 100 % verified, yet.
 //
@@ -131,6 +134,7 @@ begin
   rx = 1;
   rst = 1;
   #200 rst = 0;
+  #200 initialize_fifo;
   #200 start_tb = 1;
 end
 
@@ -150,7 +154,7 @@ begin
 
   // Set Clock Divider register
   write_register(8'h31, {`CAN_CLOCK_DIVIDER_MODE, 7'h0});    // Setting the normal mode (not extended)
-
+ 
   // Set Acceptance Code and Acceptance Mask registers (their address differs for basic and extended mode
   if(`CAN_CLOCK_DIVIDER_MODE)   // Extended mode
     begin
@@ -167,7 +171,8 @@ begin
   else
     begin
       // Set Acceptance Code and Acceptance Mask registers
-      write_register(8'h4, 8'ha6); // acceptance code
+//      write_register(8'h4, 8'ha6); // acceptance code
+      write_register(8'h4, 8'h08); // acceptance code
       write_register(8'h5, 8'h00); // acceptance mask
     end
   
@@ -193,40 +198,209 @@ begin
     end
   else
     begin
-      send_frame(0, 1, {26'h00000a6, 3'h5}, 4'h2, 15'h2a11); // mode, rtr, id, length, crc
-
-  read_receive_buffer;
-  $display("\n\n");
-
-      send_frame(0, 1, {26'h00000a6, 3'h5}, 4'h2, 15'h2a11); // mode, rtr, id, length, crc
+//      test_empty_fifo;    test currently switched off
+      test_full_fifo;
     end
 
-  
 
 
-  read_receive_buffer;
-
-  release_rx_buffer;
-  $display("\n\n");
-
-  read_receive_buffer;
-
-  release_rx_buffer;
-  $display("\n\n");
-
-  read_receive_buffer;
-
-  send_frame(0, 1, {26'h00000a6, 3'h5}, 4'h2, 15'h2a11); // mode, rtr, id, length, crc
-
-  $display("\n\n");
-
-  read_receive_buffer;
-
-  $display("CAN Testbench finished.");
+  $display("CAN Testbench finished !");
   $stop;
 end
 
 
+
+
+task test_empty_fifo;
+  begin
+    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h3, 15'h6231); // mode, rtr, id, length, crc
+    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h7, 15'h6047); // mode, rtr, id, length, crc
+
+    read_receive_buffer;
+    fifo_info;
+
+    release_rx_buffer;
+    $display("\n\n");
+    read_receive_buffer;
+    fifo_info;
+
+    release_rx_buffer;
+    $display("\n\n");
+    read_receive_buffer;
+    fifo_info;
+
+    release_rx_buffer;
+    $display("\n\n");
+    read_receive_buffer;
+    fifo_info;
+
+    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h8, 15'h30e1); // mode, rtr, id, length, crc
+
+    $display("\n\n");
+    read_receive_buffer;
+    fifo_info;
+
+    release_rx_buffer;
+    $display("\n\n");
+    read_receive_buffer;
+    fifo_info;
+
+    release_rx_buffer;
+    $display("\n\n");
+    read_receive_buffer;
+    fifo_info;
+  end
+endtask
+
+
+
+task test_full_fifo;
+  begin
+    release_rx_buffer;
+    $display("\n\n");
+    read_receive_buffer;
+    fifo_info;
+
+    read_overrun_info(0, 31);
+
+    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h0, 15'h3d18); // mode, rtr, id, length, crc
+    read_receive_buffer;
+    fifo_info;
+    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h1, 15'h00ca); // mode, rtr, id, length, crc
+    read_receive_buffer;
+    fifo_info;
+    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h2, 15'h744a); // mode, rtr, id, length, crc
+    fifo_info;
+    read_receive_buffer;
+    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h3, 15'h6231); // mode, rtr, id, length, crc
+    fifo_info;
+    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h4, 15'h3051); // mode, rtr, id, length, crc
+    fifo_info;
+    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h5, 15'h52ef); // mode, rtr, id, length, crc
+    fifo_info;
+    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h6, 15'h2c03); // mode, rtr, id, length, crc
+    fifo_info;
+    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h7, 15'h6047); // mode, rtr, id, length, crc
+    fifo_info;
+    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h8, 15'h30e1); // mode, rtr, id, length, crc
+    fifo_info;
+    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h8, 15'h30e1); // mode, rtr, id, length, crc
+    fifo_info;
+    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h8, 15'h30e1); // mode, rtr, id, length, crc
+    fifo_info;
+    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h8, 15'h30e1); // mode, rtr, id, length, crc
+    fifo_info;
+    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h8, 15'h30e1); // mode, rtr, id, length, crc
+    fifo_info;
+    read_overrun_info(0, 15);
+
+    release_rx_buffer;
+    release_rx_buffer;
+    release_rx_buffer;
+    read_receive_buffer;
+    fifo_info;
+    send_frame(0, 1, {26'h0000008, 3'h1}, 4'h8, 15'h30e1); // mode, rtr, id, length, crc
+    fifo_info;
+    read_overrun_info(0, 15);
+    $display("\n\n");
+
+    release_rx_buffer;
+    read_receive_buffer;
+    fifo_info;
+
+    release_rx_buffer;
+    read_receive_buffer;
+    fifo_info;
+
+    release_rx_buffer;
+    read_receive_buffer;
+    fifo_info;
+
+    release_rx_buffer;
+    read_receive_buffer;
+    fifo_info;
+
+    release_rx_buffer;
+    read_receive_buffer;
+    fifo_info;
+
+    release_rx_buffer;
+    read_receive_buffer;
+    fifo_info;
+
+    release_rx_buffer;
+    read_receive_buffer;
+    fifo_info;
+
+    release_rx_buffer;
+    read_receive_buffer;
+    fifo_info;
+
+    release_rx_buffer;
+    read_receive_buffer;
+    fifo_info;
+
+    release_rx_buffer;
+    read_receive_buffer;
+    fifo_info;
+
+    release_rx_buffer;
+    read_receive_buffer;
+    fifo_info;
+
+    release_rx_buffer;
+    read_receive_buffer;
+    fifo_info;
+
+    release_rx_buffer;
+    read_receive_buffer;
+    fifo_info;
+
+
+  end
+endtask
+
+
+
+task initialize_fifo;
+  integer i;
+  begin
+    for (i=0; i<32; i=i+1)
+      begin
+        can_testbench.i_can_top.i_can_bsp.i_can_fifo.length_info[i] = 0;
+        can_testbench.i_can_top.i_can_bsp.i_can_fifo.overrun_info[i] = 0;
+      end
+
+    for (i=0; i<64; i=i+1)
+      begin
+        can_testbench.i_can_top.i_can_bsp.i_can_fifo.fifo[i] = 0;
+      end
+
+    $display("(%0t) Fifo initialized", $time);
+  end
+endtask
+
+
+task read_overrun_info;
+  input [4:0] start_addr;
+  input [4:0] end_addr;
+  integer i;
+  begin
+    for (i=start_addr; i<=end_addr; i=i+1)
+      begin
+        $display("len[0x%0x]=0x%0x", i, can_testbench.i_can_top.i_can_bsp.i_can_fifo.length_info[i]);
+        $display("overrun[0x%0x]=0x%0x\n", i, can_testbench.i_can_top.i_can_bsp.i_can_fifo.overrun_info[i]);
+      end
+  end
+endtask
+
+
+task fifo_info;   // displaying how many packets and how many bytes are in fifo
+  begin
+    $display("(%0t) Currently %0d bytes in fifo (%0d packets)", $time, can_testbench.i_can_top.i_can_bsp.i_can_fifo.fifo_cnt, 
+    (can_testbench.i_can_top.i_can_bsp.i_can_fifo.wr_info_pointer - can_testbench.i_can_top.i_can_bsp.i_can_fifo.rd_info_pointer));
+end
+endtask
 
 
 task read_register;
@@ -276,11 +450,15 @@ task read_receive_buffer;
       begin
         for (i=8'h16; i<=8'h28; i=i+1)
           read_register(i);
+        if (can_testbench.i_can_top.i_can_bsp.i_can_fifo.overrun_info[can_testbench.i_can_top.i_can_bsp.i_can_fifo.rd_info_pointer])
+          $display("\nWARNING: This packet was received with overrun.");
       end
     else
       begin
         for (i=8'h20; i<=8'h29; i=i+1)
           read_register(i);
+        if (can_testbench.i_can_top.i_can_bsp.i_can_fifo.overrun_info[can_testbench.i_can_top.i_can_bsp.i_can_fifo.rd_info_pointer])
+          $display("\nWARNING: This packet was received with overrun.");
       end
   end
 endtask
@@ -288,7 +466,9 @@ endtask
 
 task release_rx_buffer;
   begin
-      write_register(8'h1, 8'h4);
+    write_register(8'h1, 8'h4);
+    $display("(%0t) Rx buffer released.", $time);
+    repeat (2) @ (posedge clk);   // Time to decrement all the counters
   end
 endtask
 
@@ -346,9 +526,13 @@ task send_frame;
   integer total_bits;
   integer stuff_cnt;
   reg [117:0] data;
+  reg         previous_bit;
+  reg xxx;
+  reg stuff;
   begin
 
-    stuff_cnt = 0;
+    stuff_cnt = 1;
+    stuff = 0;
 
     if(mode)          // Extended format
       data = {id[28:18], 1'b1, 1'b1, 1'b0, id[17:0], remote_trans_req, 2'h0, length};
@@ -374,13 +558,37 @@ task send_frame;
     // This is how many bits we need to shift
     total_bits = pointer;
 
-      
+    
     send_bit(0);                        // SOF
+    previous_bit = 0;
 
-    for (cnt=0; cnt<=total_bits; cnt =cnt+1)
+    for (cnt=0; cnt<=total_bits; cnt=cnt+1)
       begin
-        send_bit(data[pointer]);        // Bit stuffing comes here !!!
-        pointer = pointer - 1;
+        
+        xxx = data[pointer];
+        
+        if (stuff_cnt == 5)
+          begin
+            stuff_cnt = 1;
+            total_bits = total_bits + 1;      //    ??????   Check this
+            stuff = 1;
+            send_bit(~data[pointer+1]);
+            previous_bit = ~data[pointer+1];
+          end
+//        else if (data[pointer] == previous_bit)
+//          stuff_cnt <= stuff_cnt + 1;
+        else
+          begin
+            if (data[pointer] == previous_bit)
+              stuff_cnt <= stuff_cnt + 1;
+            else
+              stuff_cnt <= 1;
+            
+            stuff = 0;
+            send_bit(data[pointer]);        // Bit stuffing comes here !!!
+            previous_bit = data[pointer];
+            pointer = pointer - 1;
+          end
       end
 
     
@@ -393,105 +601,6 @@ task send_frame;
 endtask
 
 
-task send_frame_old;
-  input mode;
-  input remote_trans_req;
-  input [28:0] id;
-  input  [3:0] length;
-  input [14:0] crc;
-  integer cnt;
-
-  reg [28:0] data;
-  reg  [3:0] len;
-  begin
-
-    data = id;
-    len  = length;
-
-    send_bit(0);                        // SOF
-
-    if(mode)      // Extended format
-      begin
-        for (cnt=0; cnt<11; cnt=cnt+1)  // 11 bit ID
-          begin
-            send_bit(data[28]);
-            data=data<<1;
-          end
-        send_bit(1);                    // SRR
-        send_bit(1);                    // IDE
-
-        for (cnt=11; cnt<29; cnt=cnt+1)  // 18 bit ID
-          begin
-            send_bit(data[28]);
-            data=data<<1;
-          end
-
-        send_bit(remote_trans_req);
-        send_bit(0);                    // r1 (reserved 1)
-        send_bit(0);                    // r0 (reserved 0)
-
-        for (cnt=0; cnt<4; cnt=cnt+1)   // DLC (length)
-          begin
-            send_bit(len[3]);
-            len=len<<1;
-          end
-      end
-    else                  // Standard format
-      begin
-        for (cnt=0; cnt<11; cnt=cnt+1)  // 11 bit ID
-          begin
-            send_bit(data[10]);
-            data=data<<1;
-          end
-        send_bit(remote_trans_req);
-        
-        send_bit(0);                    // IDE
-        send_bit(0);                    // r0 (reserved 0)
-
-        for (cnt=0; cnt<4; cnt=cnt+1)   // DLC (length)
-          begin
-            send_bit(len[3]);
-            len=len<<1;
-          end
-      end                 // End header
-
-
-    if(length)    // Send data if length is > 0
-      begin
-        for (cnt=1; cnt<=(2*length); cnt=cnt+1)  // data   (we are sending nibbles)
-          begin
-            send_bit(cnt[3]);
-            send_bit(cnt[2]);
-            send_bit(cnt[1]);
-            send_bit(cnt[0]);
-          end
-      end
-      
-    // Send CRC
-    data[14:0] = crc[14:0];
-    for (cnt=0; cnt<15; cnt=cnt+1)  // 15 bit CRC
-      begin
-        send_bit(data[14]);
-        data=data<<1;
-      end
-
-    // Send CRC delimiter
-    send_bit(1);
-    
-    // Send ACK slot
-    send_bit(1);
-    
-    // Send Ack delimiter
-    send_bit(1);
-    
-    
-    // Nothing send after the data (just recessive bit)
-    send_bit(1);
-
-
-
-  end
-endtask
 
 
 // State machine monitor (btl)
@@ -525,5 +634,27 @@ begin
 end
 */
 
+/*
+// CRC monitor (used until proper CRC generation is used in testbench
+always @ (posedge clk)
+begin
+  if (can_testbench.i_can_top.i_can_bsp.crc_error)
+    $display("Calculated crc = 0x%0x, crc_in = 0x%0x", can_testbench.i_can_top.i_can_bsp.calculated_crc, can_testbench.i_can_top.i_can_bsp.crc_in);
+end
+*/
+
+
+
+
+/*
+// overrun monitor
+always @ (posedge clk)
+begin
+  if (can_testbench.i_can_top.i_can_bsp.i_can_fifo.wr & can_testbench.i_can_top.i_can_bsp.i_can_fifo.fifo_full)
+    $display("(%0t)overrun", $time);
+end
+*/
+
 
 endmodule
+

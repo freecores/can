@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.8  2003/01/10 17:51:33  mohor
+// Temporary version (backup).
+//
 // Revision 1.7  2003/01/09 21:54:45  mohor
 // rx fifo added. Not 100 % verified, yet.
 //
@@ -660,9 +663,11 @@ can_crc i_can_crc_rx
 
 
 wire          id_ok;        // If received ID matches ID set in registers
-wire          no_data;      // There is no data (RTR bit set to 1 or DLC field equal to 0)
+wire          no_byte0;     // There is no byte 0 (RTR bit set to 1 or DLC field equal to 0). Signal used for acceptance filter.
+wire          no_byte1;     // There is no byte 1 (RTR bit set to 1 or DLC field equal to 1). Signal used for acceptance filter.
 
-assign no_data = rtr1 | (~(|data_len));
+assign no_byte0 = rtr1 | (data_len<1);
+assign no_byte1 = rtr1 | (data_len<2);
 
 can_acf i_can_acf
 (
@@ -707,7 +712,8 @@ can_acf i_can_acf
   .rtr1(rtr1),
   .rtr2(rtr2),
   .ide(ide),
-  .no_data(no_data),
+  .no_byte0(no_byte0),
+  .no_byte1(no_byte1),
 
   .id_ok(id_ok)
 
@@ -723,15 +729,13 @@ reg [7:0]   data_for_fifo;  // Multiplexed data that is stored to 64-byte fifo
 
 wire [2:0]  header_len;
 wire        storing_header;
-wire        data_cnt_en;
 wire [3:0]  limited_data_len;
-wire        reset_wr_fifo_normal_mode;
+wire        reset_wr_fifo;
 
-assign header_len[2:0] = extended_mode ? (ide? (3'h5) : (3'h3)) : 3'h2;    // + 1 because data_cnt need to start with 0
+assign header_len[2:0] = extended_mode ? (ide? (3'h5) : (3'h3)) : 3'h2;
 assign storing_header = header_cnt < header_len;
-assign data_cnt_en = header_cnt == header_len;
 assign limited_data_len[3:0] = (data_len < 8)? (data_len -1'b1) : 4'h7;   // - 1 because counter counts from 0
-assign reset_wr_fifo_normal_mode = data_cnt == limited_data_len;
+assign reset_wr_fifo = data_cnt == limited_data_len + header_len;
 
 
 // Write enable signal for 64-byte rx fifo
@@ -739,10 +743,10 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     wr_fifo <= 1'b0;
-  if (go_rx_ack_lim & (~extended_mode) & id_ok & (~crc_error))
-    wr_fifo <=#Tp 1'b1;
-  else if (reset_wr_fifo_normal_mode)
+  else if (reset_wr_fifo)
     wr_fifo <=#Tp 1'b0;
+  else if (go_rx_ack_lim & (~extended_mode) & id_ok & (~crc_error))
+    wr_fifo <=#Tp 1'b1;
 end
 
 
@@ -751,10 +755,10 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     header_cnt <= 0;
-  if (wr_fifo)
-    header_cnt <=#Tp header_cnt + 1;
-  else if (reset_wr_fifo_normal_mode)
+  else if (reset_wr_fifo)
     header_cnt <=#Tp 0;
+  else if (wr_fifo & storing_header)
+    header_cnt <=#Tp header_cnt + 1;
 end
 
 
@@ -763,10 +767,10 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     data_cnt <= 0;
-  if (data_cnt_en)
-    data_cnt <=#Tp data_cnt + 1;
-  else if (reset_wr_fifo_normal_mode)
+  else if (reset_wr_fifo)
     data_cnt <=#Tp 0;
+  else if (wr_fifo)
+    data_cnt <=#Tp data_cnt + 1;
 end
 
 
@@ -807,7 +811,7 @@ begin
         end
     end
   else
-    data_for_fifo <= tmp_fifo[data_cnt];
+    data_for_fifo <= tmp_fifo[data_cnt-header_len];
 end
 
 

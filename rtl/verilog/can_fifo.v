@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2003/01/09 21:54:45  mohor
+// rx fifo added. Not 100 % verified, yet.
+//
 // Revision 1.2  2003/01/09 14:46:58  mohor
 // Temporary files (backup).
 //
@@ -97,15 +100,18 @@ reg     [7:0] fifo [0:63];
 reg     [5:0] rd_pointer;
 reg     [5:0] wr_pointer;
 reg     [5:0] read_address;
-reg     [3:0] length_info[0:31];
-reg     [4:0] wr_info_pointer;
-reg     [4:0] rd_info_pointer;
-reg           overrun_info[0:31];
+reg     [3:0] length_info[0:63];
+reg     [5:0] wr_info_pointer;
+reg     [5:0] rd_info_pointer;
+reg           overrun_info[0:63];
 reg           wr_q;
 reg     [3:0] len_cnt;
+reg     [6:0] fifo_cnt;
+reg           latch_overrun;
 
 wire          write_length_info;
-
+wire          fifo_empty;
+wire          fifo_full;
 
 assign write_length_info = (~wr) & wr_q;
 
@@ -128,7 +134,7 @@ begin
     len_cnt <= 0;
   else if (reset_mode | write_length_info)
     len_cnt <=#Tp 1'b0;
-  else if (wr)
+  else if (wr & (~fifo_full))
     len_cnt <=#Tp len_cnt + 1'b1;
 end
 
@@ -153,6 +159,15 @@ begin
 end
 
 
+// overrun_info
+always @ (posedge clk)
+begin
+  if (write_length_info)
+    overrun_info[wr_info_pointer] <=#Tp latch_overrun | (wr & fifo_full);
+end
+
+
+
 // rd_info_pointer
 always @ (posedge clk or posedge rst)
 begin
@@ -160,12 +175,9 @@ begin
     rd_info_pointer <= 0;
   else if (reset_mode)
     rd_info_pointer <=#Tp 0;
-  else if (release_buffer)
+  else if (release_buffer & (~fifo_empty))
     rd_info_pointer <=#Tp rd_info_pointer + 1'b1;
 end
-
-
-
 
 
 // rd_pointer
@@ -173,7 +185,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rd_pointer <= 0;
-  else if (release_buffer)
+  else if (release_buffer & (~fifo_empty))
     rd_pointer <=#Tp rd_pointer + length_info[rd_info_pointer];
   else if (reset_mode)
     rd_pointer <=#Tp 0;
@@ -185,17 +197,49 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     wr_pointer <= 0;
-  else if (wr)
+  else if (wr & (~fifo_full))
     wr_pointer <=#Tp wr_pointer + 1'b1;
   else if (reset_mode)
     wr_pointer <=#Tp 0;
 end
 
 
+// latch_overrun
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    latch_overrun <= 0;
+  else if (reset_mode | write_length_info)
+    latch_overrun <=#Tp 0;
+  else if (wr & fifo_full)
+    latch_overrun <=#Tp 1'b1;
+end
+
+
+// Counting data in fifo
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    fifo_cnt <= 0;
+  else if (wr & (~release_buffer) & (~fifo_full))
+    fifo_cnt <=#Tp fifo_cnt + 1'b1;
+  else if ((~wr) & release_buffer & (~fifo_empty))
+    fifo_cnt <=#Tp fifo_cnt - length_info[rd_info_pointer];
+  else if (wr & release_buffer & (~fifo_full) & (~fifo_empty))
+    fifo_cnt <=#Tp fifo_cnt - length_info[rd_info_pointer] + 1'b1;
+  else if (reset_mode)
+    fifo_cnt <=#Tp 0;
+end
+
+assign fifo_full = fifo_cnt == 64;
+assign fifo_empty = fifo_cnt == 0;
+
+
+
 // writing data to fifo
 always @ (posedge clk or posedge rst)
 begin
-  if (wr)
+  if (wr & (~fifo_full))
     fifo[wr_pointer] <=#Tp data_in;
 end
 
