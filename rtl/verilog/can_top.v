@@ -17,7 +17,7 @@
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2002, 2003 Authors                             ////
+//// Copyright (C) 2002, 2003, 2004 Authors                       ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.46  2003/10/17 05:55:20  markom
+// mbist signals updated according to newest convention
+//
 // Revision 1.45  2003/09/30 00:55:13  mohor
 // Error counters fixed to be compatible with Bosch VHDL reference model.
 // Small synchronization changes.
@@ -228,7 +231,7 @@ module can_top
   clk_i,
   rx_i,
   tx_o,
-  tx_oen_o,
+  bus_off_on,
   irq_on,
   clkout_o
 
@@ -283,7 +286,7 @@ parameter Tp = 1;
 input        clk_i;
 input        rx_i;
 output       tx_o;
-output       tx_oen_o;
+output       bus_off_on;
 output       irq_on;
 output       clkout_o;
 
@@ -425,8 +428,6 @@ wire         go_overload_frame;
 wire         go_error_frame;
 wire         go_tx;
 wire         send_ack;
-
-
 
 wire         rst;
 wire         we;
@@ -719,7 +720,7 @@ can_bsp i_can_bsp
   /* Tx signal */
   .tx(tx_o),
   .tx_next(tx_next),
-  .tx_oen(tx_oen_o),
+  .bus_off_on(bus_off_on),
 
   .go_overload_frame(go_overload_frame),
   .go_error_frame(go_error_frame),
@@ -832,7 +833,7 @@ end
 `else
 
   // Latching address
-  always @ (negedge clk_i or posedge rst)
+  always @ (posedge clk_i or posedge rst)
   begin
     if (rst)
       addr_latched <= 8'h0;
