@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.19  2003/03/10 17:34:25  mohor
+// Doubled declarations removed.
+//
 // Revision 1.18  2003/03/01 22:52:11  mohor
 // Data is latched on read.
 //
@@ -682,7 +685,7 @@ wire   [2:0] cd;
 reg    [2:0] clkout_div;
 reg    [2:0] clkout_cnt;
 reg          clkout_tmp;
-reg          clkout;
+//reg          clkout;
 
 can_register #(1) CLOCK_DIVIDER_REG_7
 ( .data_in(data_in[7]),
@@ -750,16 +753,20 @@ begin
 end
 
 
-
-always @ (cd or clk or clkout_tmp or clock_off)
+/*
+//always @ (cd or clk or clkout_tmp or clock_off)
+always @ (cd or clkout_tmp or clock_off)
 begin
   if (clock_off)
     clkout <=#Tp 1'b1;
-  else if (&cd)
-    clkout <=#Tp clk;
+//  else if (&cd)
+//    clkout <=#Tp clk;
   else
     clkout <=#Tp clkout_tmp;
 end
+*/
+assign clkout = clock_off ? 1'b1 : ((&cd)? clk : clkout_tmp);
+
 
 
 /* End Clock Divider register */
