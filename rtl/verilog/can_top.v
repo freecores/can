@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.26  2003/03/12 04:39:40  mohor
+// rd_i and wr_i are active high signals. If 8051 is connected, these two signals
+// need to be negated one level higher.
+//
 // Revision 1.25  2003/03/12 04:17:36  mohor
 // 8051 interface added (besides WISHBONE interface). Selection is made in
 // can_defines.v file.
@@ -158,9 +162,9 @@ module can_top
     ale_i,
     rd_i,
     wr_i,
-    port_0_i,
+    port_0_io,
   `endif
-  cs_can,
+  cs_can_i,
   clk_i,
   rx_i,
   tx_o,
@@ -196,14 +200,14 @@ parameter Tp = 1;
   input        ale_i;
   input        rd_i;
   input        wr_i;
-  inout  [7:0] port_0_i;
+  inout  [7:0] port_0_io;
   
   reg    [7:0] addr_latched;
   reg          wr_i_q;
   reg          rd_i_q;
 `endif
 
-input        cs_can;
+input        cs_can_i;
 input        clk_i;
 input        rx_i;
 output       tx_o;
@@ -656,7 +660,7 @@ end
       end
     else
       begin
-        cs_sync1     <=#Tp wb_cyc_i & wb_stb_i & (~cs_sync_rst2) & cs_can;
+        cs_sync1     <=#Tp wb_cyc_i & wb_stb_i & (~cs_sync_rst2) & cs_can_i;
         cs_sync2     <=#Tp cs_sync1            & (~cs_sync_rst2);
         cs_sync3     <=#Tp cs_sync2            & (~cs_sync_rst2);
         cs_sync_rst1 <=#Tp cs_ack3;
@@ -698,7 +702,7 @@ end
     if (rst)
       addr_latched <= 8'h0;
     else if (ale_i)
-      addr_latched <=#Tp port_0_i;
+      addr_latched <=#Tp port_0_io;
   end
 
 
@@ -718,14 +722,14 @@ end
   end
 
 
-  assign cs = (wr_i & (~wr_i_q)) | (rd_i & (~rd_i_q)) & cs_can;
+  assign cs = (wr_i & (~wr_i_q)) | (rd_i & (~rd_i_q)) & cs_can_i;
 
 
-  assign rst      = rst_i;
-  assign we       = wr_i;
-  assign addr     = addr_latched;
-  assign data_in  = port_0_i;
-  assign port_0_i = (cs_can & rd_i)? data_out : 8'hz;
+  assign rst       = rst_i;
+  assign we        = wr_i;
+  assign addr      = addr_latched;
+  assign data_in   = port_0_io;
+  assign port_0_io = (cs_can_i & rd_i)? data_out : 8'hz;
 
 `endif
 

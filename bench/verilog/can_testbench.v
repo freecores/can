@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.31  2003/03/12 04:40:00  mohor
+// rd_i and wr_i are active high signals. If 8051 is connected, these two signals
+// need to be negated one level higher.
+//
 // Revision 1.30  2003/03/12 04:16:40  mohor
 // 8051 interface added (besides WISHBONE interface). Selection is made in
 // can_defines.v file.
@@ -226,9 +230,9 @@ can_top i_can_top
   .ale_i(ale_i),
   .rd_i(rd_i),
   .wr_i(wr_i),
-  .port_0_i(port_0),
+  .port_0_io(port_0),
 `endif
-  .cs_can(cs_can),
+  .cs_can_i(cs_can),
   .clk_i(clk),
   .rx_i(rx_and_tx),
   .tx_o(tx),
