@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.32  2003/03/12 05:57:36  mohor
+// Bidirectional port_0_i changed to port_0_io.
+// input cs_can changed to cs_can_i.
+//
 // Revision 1.31  2003/03/12 04:40:00  mohor
 // rd_i and wr_i are active high signals. If 8051 is connected, these two signals
 // need to be negated one level higher.
@@ -1638,10 +1642,12 @@ task read_register;
       @ (posedge clk);
       #1;
       cs_can = 1;
+      @ (negedge clk);
+      #1;
       ale_i = 1;
       port_0_en = 1;
       port_0_o = reg_addr;
-      @ (posedge clk);
+      @ (negedge clk);
       #1;
       ale_i = 0;
       #90;            // 73 - 103 ns
@@ -1692,10 +1698,12 @@ task write_register;
       @ (posedge clk);
       #1;
       cs_can = 1;
+      @ (negedge clk);
+      #1;
       ale_i = 1;
       port_0_en = 1;
       port_0_o = reg_addr;
-      @ (posedge clk);
+      @ (negedge clk);
       #1;
       ale_i = 0;
       #90;            // 73 - 103 ns
