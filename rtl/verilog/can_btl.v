@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.26  2003/09/25 18:55:49  mohor
+// Synchronization changed, error counters fixed.
+//
 // Revision 1.25  2003/07/16 13:40:35  mohor
 // Fixed according to the linter.
 //
@@ -164,7 +167,7 @@ module can_btl
   
   /* Output from can_bsp module */
   rx_idle,
-  not_first_bit_of_inter,
+  rx_inter,
   transmitting,
   transmitter,
   go_rx_inter,
@@ -196,7 +199,7 @@ input         triple_sampling;
 
 /* Output from can_bsp module */
 input         rx_idle;
-input         not_first_bit_of_inter;
+input         rx_inter;
 input         transmitting;
 input         transmitter;
 input         go_rx_inter;
@@ -245,8 +248,8 @@ wire          resync;
 
 
 assign preset_cnt = (baud_r_presc + 1'b1)<<1;        // (BRP+1)*2
-assign hard_sync  =   (rx_idle | not_first_bit_of_inter)    & (~rx) & sampled_bit & (~hard_sync_blocked);  // Hard synchronization
-assign resync     =  (~rx_idle) & (~not_first_bit_of_inter) & (~rx) & sampled_bit & (~sync_blocked);       // Re-synchronization
+assign hard_sync  =   (rx_idle | rx_inter)    & (~rx) & sampled_bit & (~hard_sync_blocked);  // Hard synchronization
+assign resync     =  (~rx_idle) & (~rx_inter) & (~rx) & sampled_bit & (~sync_blocked);       // Re-synchronization
 
 
 /* Generating general enable signal that defines baud rate. */
@@ -452,10 +455,11 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     hard_sync_blocked <=#Tp 1'b0;
-  else if (hard_sync & clk_en_q | transmitting & transmitter & tx_point)
+//  else if (hard_sync & clk_en_q | transmitting & transmitter & tx_point)
+  else if (hard_sync & clk_en_q | transmitting & transmitter & tx_point & (~tx_next))
     hard_sync_blocked <=#Tp 1'b1;
 //  else if (go_rx_inter)
-  else if (go_rx_inter | (rx_idle | not_first_bit_of_inter) & sample_point & sampled_bit)  // When a glitch performed synchronization
+  else if (go_rx_inter | (rx_idle | rx_inter) & sample_point & sampled_bit)  // When a glitch performed synchronization
     hard_sync_blocked <=#Tp 1'b0;
 end
 

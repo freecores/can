@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.44  2003/09/25 18:55:49  mohor
+// Synchronization changed, error counters fixed.
+//
 // Revision 1.43  2003/08/20 09:57:39  mohor
 // Tristate signal tx_o is separated to tx_o and tx_oen_o. Both signals need
 // to be joined together on higher level.
@@ -581,7 +584,7 @@ can_btl i_can_btl
   
   /* output from can_bsp module */
   .rx_idle(rx_idle),
-  .not_first_bit_of_inter(not_first_bit_of_inter),
+  .rx_inter(rx_inter),
   .transmitting(transmitting),
   .transmitter(transmitter),
   .go_rx_inter(go_rx_inter),
@@ -658,6 +661,7 @@ can_bsp i_can_bsp
   .transmitter(transmitter),
   .go_rx_inter(go_rx_inter),
   .not_first_bit_of_inter(not_first_bit_of_inter),
+  .rx_inter(rx_inter),
   .set_reset_mode(set_reset_mode),
   .node_bus_off(node_bus_off),
   .error_status(error_status),
