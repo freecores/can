@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2002/12/25 23:44:16  mohor
+// Commented lines removed.
+//
 // Revision 1.2  2002/12/25 14:17:00  mohor
 // Synchronization working.
 //
@@ -109,7 +112,7 @@ input   [2:0] time_segment2;
 input         triple_sampling;
 
 /* Output signals from this module */
-output        take_sample;
+output        take_sample;      // NOT USED, YET
 output        clk_en;
 
 input         idle;
@@ -129,6 +132,7 @@ reg           seg1;
 reg           seg2;
 reg           resync_latched;
 reg           sample_pulse;
+reg     [1:0] sample;
 
 wire          go_sync;
 wire          go_seg1;
@@ -168,7 +172,8 @@ end
 
 
 /* Changing states */
-assign go_sync = clk_en & (seg2 & (~resync) & ((quant_cnt == time_segment2)));
+//assign go_sync = clk_en & (seg2 & (~resync) & ((quant_cnt == time_segment2)));
+assign go_sync = clk_en & (seg2 & ((quant_cnt == time_segment2)));
 assign go_seg1 = clk_en & (sync | hard_sync | (resync & seg2 & sync_window) | (resync_latched & sync_window));
 assign go_seg2 = clk_en & (seg1 & (quant_cnt == (time_segment1 + delay)));
 
@@ -251,7 +256,17 @@ end
 assign sync_window = ((time_segment2 - quant_cnt) < ( sync_jump_width + 1));
 
 
-// Sampling data 
+// Sampling data (memorizing two samples all the time).
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    sample <= 2'b11;
+  else if (clk_en)
+    sample <= {sample[0], rx};
+end
+
+
+// When enabled, tripple sampling is done here.
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
@@ -259,10 +274,16 @@ begin
       sampled_bit <= 1;
       sample_pulse <= 0;
     end
-  else if (go_seg2)
+  else if (clk_en)
     begin
-      sampled_bit <=#Tp rx;
-      sample_pulse <=#Tp 1;
+      if (seg1 & (quant_cnt == (time_segment1 + delay)))
+        begin
+          sample_pulse <=#Tp 1;
+          if (triple_sampling)
+            sampled_bit <=#Tp (sample[0] & sample[1]) | ( sample[0] & rx) | (sample[1] & rx);
+          else
+            sampled_bit <=#Tp rx;
+        end
     end
   else
     sample_pulse <=#Tp 0;       // Sample pulse is for development purposes only. REMOVE ME.

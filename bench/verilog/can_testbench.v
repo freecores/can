@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2002/12/25 23:44:12  mohor
+// Commented lines removed.
+//
 // Revision 1.2  2002/12/25 14:16:54  mohor
 // Synchronization working.
 //
@@ -160,6 +163,7 @@ begin
   idle = 0;
   repeat (10*4) @ (posedge clk);
 
+
   repeat (50000) @ (posedge clk);
   $display("CAN Testbench finished.");
   $stop;
@@ -187,4 +191,19 @@ task write_register;
     rw = 'hz;
   end
 endtask
+
+
+
+/* State machine monitor (btl) */
+always @ (posedge clk)
+begin
+  if(can_testbench.i_can_top.i_can_btl.go_sync & can_testbench.i_can_top.i_can_btl.go_seg1 | can_testbench.i_can_top.i_can_btl.go_sync & can_testbench.i_can_top.i_can_btl.go_seg2 | 
+     can_testbench.i_can_top.i_can_btl.go_seg1 & can_testbench.i_can_top.i_can_btl.go_seg2)
+     $display("(%0t) ERROR multiple go_sync, go_seg1 or go_seg2 occurance", $time);
+
+  if(can_testbench.i_can_top.i_can_btl.sync & can_testbench.i_can_top.i_can_btl.seg1 | can_testbench.i_can_top.i_can_btl.sync & can_testbench.i_can_top.i_can_btl.seg2 | 
+     can_testbench.i_can_top.i_can_btl.seg1 & can_testbench.i_can_top.i_can_btl.seg2)
+     $display("(%0t) ERROR multiple sync, seg1 or seg2 occurance", $time);
+end
+
 endmodule
