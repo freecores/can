@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.13  2003/03/01 22:53:33  mohor
+// Actel APA ram supported.
+//
 // Revision 1.12  2003/02/19 14:44:03  mohor
 // CAN core finished. Host interface added. Registers finished.
 // Synchronization to the wishbone finished.
@@ -140,9 +143,12 @@ output  [6:0] info_cnt;
 
 `ifdef ACTEL_APA_RAM
 `else
+`ifdef XILINX_RAM
+`else
   reg     [7:0] fifo [0:63];
   reg     [3:0] length_fifo[0:63];
   reg           overrun_info[0:63];
+`endif
 `endif
 
 reg     [5:0] rd_pointer;
@@ -343,6 +349,107 @@ end
     .RADDR   (rd_info_pointer)
   );
 `else
+`ifdef XILINX_RAM
+
+/*
+  ram_64x8_sync fifo
+  (
+    .addra(wr_pointer),
+    .addrb(read_address),
+    .clka(clk),
+    .clkb(clk),
+    .dina(data_in),
+    .doutb(data_out),
+    .wea(wr & (~fifo_full))
+  );
+*/
+
+  RAMB4_S8_S8 fifo
+  (
+    .DOA(),
+    .DOB(data_out),
+    .ADDRA({3'h0, wr_pointer}),
+    .CLKA(clk),
+    .DIA(data_in),
+    .ENA(1'b1),
+    .RSTA(1'b0),
+    .WEA(wr & (~fifo_full)),
+    .ADDRB({3'h0, read_address}),
+    .CLKB(clk),
+    .DIB(8'h0),
+    .ENB(1'b1),
+    .RSTB(1'b0),
+    .WEB(1'b0)
+  );
+
+
+
+/*
+  ram_64x4_sync info_fifo
+  (
+    .addra(wr_info_pointer),
+    .addrb(rd_info_pointer),
+    .clka(clk),
+    .clkb(clk),
+    .dina(len_cnt),
+    .doutb(length_info),
+    .wea(write_length_info & (~info_full))
+  );
+*/
+  RAMB4_S4_S4 info_fifo
+  (
+    .DOA(),
+    .DOB(length_info),
+    .ADDRA({4'h0, wr_info_pointer}),
+    .CLKA(clk),
+    .DIA(len_cnt),
+    .ENA(1'b1),
+    .RSTA(1'b0),
+    .WEA(write_length_info & (~info_full)),
+    .ADDRB({4'h0, rd_info_pointer}),
+    .CLKB(clk),
+    .DIB(4'h0),
+    .ENB(1'b1),
+    .RSTB(1'b0),
+    .WEB(1'b0)
+  );
+
+/*
+  ram_64x1_sync overrun_fifo
+  (
+    .addra(wr_info_pointer),
+    .addrb(rd_info_pointer),
+    .clka(clk),
+    .clkb(clk),
+    .dina(latch_overrun | (wr & fifo_full)),
+    .doutb(overrun),
+    .wea(write_length_info & (~info_full))
+  );
+*/
+
+
+  RAMB4_S1_S1 overrun_fifo
+  (
+    .DOA(),
+    .DOB(overrun),
+    .ADDRA({6'h0, wr_info_pointer}),
+    .CLKA(clk),
+    .DIA(latch_overrun | (wr & fifo_full)),
+    .ENA(1'b1),
+    .RSTA(1'b0),
+    .WEA(write_length_info & (~info_full)),
+    .ADDRB({6'h0, rd_info_pointer}),
+    .CLKB(clk),
+    .DIB(1'h0),
+    .ENB(1'b1),
+    .RSTB(1'b0),
+    .WEB(1'b0)
+  );
+
+
+
+
+`else
   // writing data to fifo
   always @ (posedge clk)
   begin
@@ -376,6 +483,7 @@ end
   assign overrun = overrun_info[rd_info_pointer];
 
 
+`endif
 `endif
 
 

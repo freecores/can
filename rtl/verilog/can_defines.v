@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2003/03/01 22:52:47  mohor
+// Actel APA ram supported.
+//
 // Revision 1.3  2003/02/09 02:24:33  mohor
 // Bosch license warning added. Error counters finished. Overload frames
 // still need to be fixed.
@@ -65,4 +68,7 @@
 
 
 // Uncomment following line if you want to use CAN in Actel APA devices (embedded memory used)
-//`define   ACTEL_APA_RAM
+// `define   ACTEL_APA_RAM
+
+// Uncomment following line if you want to use CAN in Xilinx devices (embedded memory used)
+// `define   XILINX_RAM
