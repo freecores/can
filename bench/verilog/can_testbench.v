@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.18  2003/02/04 14:34:45  mohor
+// *** empty log message ***
+//
 // Revision 1.17  2003/01/31 01:13:31  mohor
 // backup.
 //
@@ -282,7 +285,7 @@ task send_frame;    // CAN IP core sends frames
     else
       begin
         write_register(8'd10, 8'hea); // Writing ID[10:3] = 0xea
-        write_register(8'd11, 8'h18); // Writing ID[3:0] = 0x0, rtr = 1, length = 8
+        write_register(8'd11, 8'h28); // Writing ID[3:0] = 0x1, rtr = 0, length = 8
         write_register(8'd12, 8'h56); // data byte 1
         write_register(8'd13, 8'h78); // data byte 2
         write_register(8'd14, 8'h9a); // data byte 3
@@ -870,7 +873,6 @@ task receive_frame;           // CAN IP core receives frames
       while (~arbitration_lost)
         begin
           #1 wait (can_testbench.i_can_top.sample_point);
-//          $display("(%0t)", $time);
           if (mode)
             begin
               if (cnt<32 & tmp & (~rx_and_tx))
@@ -892,8 +894,6 @@ task receive_frame;           // CAN IP core receives frames
 
     join
 
-//    // Nothing send after the data (just recessive bit)
-//    repeat (13) send_bit(1);         // CRC delimiter + ack + ack delimiter + EOF + intermission= 1 + 1 + 1 + 7 + 3
   end
 endtask
 

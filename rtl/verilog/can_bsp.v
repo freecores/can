@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.16  2003/02/04 14:34:52  mohor
+// *** empty log message ***
+//
 // Revision 1.15  2003/01/31 01:13:37  mohor
 // backup.
 //
@@ -327,12 +330,12 @@ reg           priority_lost;
 reg           tx_q;
 
 wire          error_frame_ended;
-wire          bit_error = 0; // FIX ME !!!
+wire          bit_error;
 wire          acknowledge_error;
-reg           need_to_tx; // When the CAN core has something to transmit and a dominant bit is sampled at the third bit
-                          // of intermission, it starts reading the identifier (and transmitting its own). // FIX ME !!!
-wire          overload_needed = 0;  // When receiver is busy, it needs to send overload frame. Only 2 overload frames are allowed to
-                                    // be send in a row. Counter?   FIX ME
+reg           need_to_tx;               // When the CAN core has something to transmit and a dominant bit is sampled at the third bit
+                                        // of intermission, it starts reading the identifier (and transmitting its own).
+wire          overload_needed = 0;      // When receiver is busy, it needs to send overload frame. Only 2 overload frames are allowed to
+                                        // be send in a row. This is not implemented because host can not send an overload request. FIX ME !!!!
 
 wire          id_ok;        // If received ID matches ID set in registers
 wire          no_byte0;     // There is no byte 0 (RTR bit set to 1 or DLC field equal to 0). Signal used for acceptance filter.
@@ -355,7 +358,6 @@ wire          no_error;
 
 
 assign go_rx_idle     =                   sample_point &  sampled_bit & rx_inter & (bit_cnt == 2);  // Look the following line for TX
-//assign go_rx_id1      =                   sample_point &  (~sampled_bit) & (rx_idle | rx_inter & (bit_cnt == 2) & need_to_tx);
 assign go_rx_id1      =                   sample_point &  (~sampled_bit) & (rx_idle | rx_inter & (bit_cnt == 2));
 assign go_rx_rtr1     = (~bit_de_stuff) & sample_point &  rx_id1  & (bit_cnt == 10);
 assign go_rx_ide      = (~bit_de_stuff) & sample_point &  rx_rtr1;
@@ -392,6 +394,8 @@ assign remote_rq = ((~ide) & rtr1) | (ide & rtr2);
 assign limited_data_len = (data_len < 8)? data_len : 4'h8;
 
 assign acknowledge_error = rx_ack & sample_point & sampled_bit & tx_state;
+assign bit_error = tx_state & sample_point & tx & (~sampled_bit) & (~rx_ack) & (~rx_id1) & (~rx_rtr1) & (~rx_ide) & (~rx_id2) & (~rx_rtr2);
+
 
 
 
@@ -1002,20 +1006,6 @@ can_fifo i_can_fifo
 );
 
 
-
-// transmitting signals that core is a transmitter. No synchronization is done meanwhile.
-always @ (posedge clk or posedge rst)
-begin
-  if (rst)
-    transmitting <= 1'b0;
-  else if (go_rx_idle | reset_mode | priority_lost)
-    transmitting <=#Tp 1'b0;
-  else if (~no_error | go_tx)
-    transmitting <=#Tp 1'b1;
-end
-
-
-
 // Transmitting error frame. The same counters are used for sending overload frame, too.
 always @ (posedge clk or posedge rst)
 begin
@@ -1212,7 +1202,7 @@ begin
 end
 
 
-wire rst_need_to_tx = go_rx_inter & (~error_frame & (~priority_lost));    // FIX ME !!! When there is no error until the end-of-frame, tx is ok (finished).
+wire rst_need_to_tx = go_rx_inter & (~error_frame) & (~priority_lost);
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
@@ -1225,8 +1215,8 @@ end
 
 
 
-assign go_early_tx      = need_to_tx & (~tx_state) & sample_point & (~sampled_bit) & (rx_idle | rx_inter & (bit_cnt == 2));
-assign go_tx            = need_to_tx & (~tx_state) & sample_point & (go_early_tx | sampled_bit & rx_idle);
+assign go_early_tx = need_to_tx & (~tx_state) & sample_point & (~sampled_bit) & (rx_idle | rx_inter & (bit_cnt == 2));
+assign go_tx       = need_to_tx & (~tx_state) & sample_point & (go_early_tx | sampled_bit & rx_idle);
 
 
 // Tx state
@@ -1238,6 +1228,19 @@ begin
     tx_state <=#Tp 1'b0;
   else if (go_tx)
     tx_state <=#Tp 1'b1;
+end
+
+
+
+// transmitting signals that core is a transmitter. No synchronization is done meanwhile.
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    transmitting <= 1'b0;
+  else if (go_rx_idle | reset_mode | priority_lost) // FIX ME !!! This line might not be ok. 
+    transmitting <=#Tp 1'b0;
+  else if (~no_error | go_tx)
+    transmitting <=#Tp 1'b1;
 end
 
 
