@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.17  2003/06/17 14:32:17  mohor
+// Removed few signals.
+//
 // Revision 1.16  2003/06/16 13:57:58  mohor
 // tx_point generated one clk earlier. rx_i registered. Data corrected when
 // using extended mode.
@@ -175,7 +178,7 @@ output        hard_sync;
 
 
 
-reg     [8:0] clk_cnt;
+reg     [6:0] clk_cnt;
 reg           clk_en;
 reg           clk_en_q;
 reg           sync_blocked;
