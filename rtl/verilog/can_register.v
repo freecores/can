@@ -17,7 +17,7 @@
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2002, 2003 Authors                             ////
+//// Copyright (C) 2002, 2003, 2004 Authors                       ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2003/03/20 16:58:50  mohor
+// unix.
+//
 // Revision 1.4  2003/03/11 16:32:34  mohor
 // timescale.v is used for simulation only.
 //

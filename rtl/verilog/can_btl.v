@@ -17,7 +17,7 @@
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2002, 2003 Authors                             ////
+//// Copyright (C) 2002, 2003, 2004 Authors                       ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.27  2003/09/30 00:55:13  mohor
+// Error counters fixed to be compatible with Bosch VHDL reference model.
+// Small synchronization changes.
+//
 // Revision 1.26  2003/09/25 18:55:49  mohor
 // Synchronization changed, error counters fixed.
 //
@@ -300,7 +304,6 @@ begin
   else
     tx_point <=#Tp ~tx_point & seg2 & (  clk_en & (quant_cnt[2:0] == time_segment2)
                                        | clk_en_q & (resync | hard_sync)
-//                                       | clk_en & (resync | hard_sync)
                                       );    // When transmitter we should transmit as soon as possible.
 end
 
@@ -370,7 +373,6 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     delay <= 4'h0;
-//  else if (resync & seg1 & (~transmitting | transmitting & tx_next_sp))  // when transmitting 0 with positive error delay is set to 0
   else if (resync & seg1 & (~transmitting | transmitting & (tx_next_sp | (tx & (~rx)))))  // when transmitting 0 with positive error delay is set to 0
     delay <=#Tp (quant_cnt > {2'h0, sync_jump_width})? ({2'h0, sync_jump_width} + 1'b1) : (quant_cnt + 1'b1);
   else if (go_sync | go_seg1)
@@ -455,10 +457,8 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     hard_sync_blocked <=#Tp 1'b0;
-//  else if (hard_sync & clk_en_q | transmitting & transmitter & tx_point)
   else if (hard_sync & clk_en_q | transmitting & transmitter & tx_point & (~tx_next))
     hard_sync_blocked <=#Tp 1'b1;
-//  else if (go_rx_inter)
   else if (go_rx_inter | (rx_idle | rx_inter) & sample_point & sampled_bit)  // When a glitch performed synchronization
     hard_sync_blocked <=#Tp 1'b0;
 end

@@ -17,7 +17,7 @@
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2002, 2003 Authors                             ////
+//// Copyright (C) 2002, 2003, 2004 Authors                       ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2003/07/16 13:16:51  mohor
+// Fixed according to the linter.
+//
 // Revision 1.3  2003/02/10 16:02:11  mohor
 // CAN is working according to the specification. WB interface and more
 // registers (status, IRQ, ...) needs to be added.

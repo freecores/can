@@ -17,7 +17,7 @@
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2002, 2003 Authors                             ////
+//// Copyright (C) 2002, 2003, 2004 Authors                       ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.12  2003/10/17 05:55:20  markom
+// mbist signals updated according to newest convention
+//
 // Revision 1.11  2003/09/05 12:46:42  mohor
 // ALTERA_RAM supported.
 //

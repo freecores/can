@@ -17,7 +17,7 @@
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2002, 2003 Authors                             ////
+//// Copyright (C) 2002, 2003, 2004 Authors                       ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.25  2003/10/23 16:52:17  mohor
+// Active high/low problem when Altera devices are used. Bug fixed by
+// Rojhalat Ibrahim.
+//
 // Revision 1.24  2003/10/17 05:55:20  markom
 // mbist signals updated according to newest convention
 //
@@ -465,19 +469,6 @@ end
 `else
 `ifdef XILINX_RAM
 
-/*
-  ram_64x8_sync fifo
-  (
-    .addra(wr_pointer),
-    .addrb(read_address),
-    .clka(clk),
-    .clkb(clk),
-    .dina(data_in),
-    .doutb(data_out),
-    .wea(wr & (~fifo_full))
-  );
-*/
-
   RAMB4_S8_S8 fifo
   (
     .DOA(),
@@ -497,19 +488,6 @@ end
   );
 
 
-
-/*
-  ram_64x4_sync info_fifo
-  (
-    .addra(wr_info_pointer),
-    .addrb(rd_info_pointer),
-    .clka(clk),
-    .clkb(clk),
-    .dina(len_cnt),
-    .doutb(length_info),
-    .wea(write_length_info & (~info_full))
-  );
-*/
   RAMB4_S4_S4 info_fifo
   (
     .DOA(),
@@ -527,19 +505,6 @@ end
     .RSTB(1'b0),
     .WEB(1'b0)
   );
-
-/*
-  ram_64x1_sync overrun_fifo
-  (
-    .addra(wr_info_pointer),
-    .addrb(rd_info_pointer),
-    .clka(clk),
-    .clkb(clk),
-    .dina(latch_overrun | (wr & fifo_full)),
-    .doutb(overrun),
-    .wea(write_length_info & (~info_full))
-  );
-*/
 
 
   RAMB4_S1_S1 overrun_fifo
