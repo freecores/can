@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.30  2003/07/16 15:19:34  mohor
+// Fixed according to the linter.
+// Case statement for data_out joined.
+//
 // Revision 1.29  2003/07/10 01:59:04  tadejm
 // Synchronization fixed. In some strange cases it didn't work according to
 // the VHDL reference model.
@@ -197,6 +201,8 @@ module can_registers
   single_shot_transmission,
   tx_state,
   tx_state_q,
+  overload_request,
+  overload_frame,
 
   /* Arbitration Lost Capture Register */
   read_arbitration_lost_capture_reg,
@@ -320,6 +326,9 @@ output        self_rx_request;
 output        single_shot_transmission;
 input         tx_state;
 input         tx_state_q;
+output        overload_request;
+input         overload_frame;
+
 
 /* Arbitration Lost Capture Register */
 output        read_arbitration_lost_capture_reg;
@@ -404,7 +413,6 @@ reg           node_error_passive_q;
 reg           transmit_buffer_status;
 reg           single_shot_transmission;
 reg           self_rx_request;
-
 
 // Some interrupts exist in basic mode and in extended mode. Since they are in different registers they need to be multiplexed.
 wire          data_overrun_irq_en;
@@ -583,6 +591,31 @@ begin
   else if ((~tx_state) & tx_state_q)
     single_shot_transmission <=#Tp 1'b0;
 end
+
+
+/*
+can_register_asyn_syn #(1, 1'h0) COMMAND_REG_OVERLOAD  // Uncomment this to enable overload requests !!!
+( .data_in(data_in[5]),
+  .data_out(overload_request),
+  .we(we_command),
+  .clk(clk),
+  .rst(rst),
+  .rst_sync(overload_frame & ~overload_frame_q)
+);
+
+reg           overload_frame_q;
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    overload_frame_q <= 1'b0;
+  else
+    overload_frame_q <=#Tp overload_frame;
+end
+*/
+assign overload_request = 0;  // Overload requests are not supported, yet !!!
+
+
 
 
 

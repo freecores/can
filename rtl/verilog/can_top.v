@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.43  2003/08/20 09:57:39  mohor
+// Tristate signal tx_o is separated to tx_o and tx_oen_o. Both signals need
+// to be joined together on higher level.
+//
 // Revision 1.42  2003/07/16 15:11:28  mohor
 // Fixed according to the linter.
 //
@@ -309,6 +313,9 @@ wire         self_rx_request;
 wire         single_shot_transmission;
 wire         tx_state;
 wire         tx_state_q;
+wire         overload_request;
+wire         overload_frame;
+
 
 /* Arbitration Lost Capture Register */
 wire         read_arbitration_lost_capture_reg;
@@ -387,6 +394,8 @@ wire         hard_sync;
 /* output from can_bsp module */
 wire         rx_idle;
 wire         transmitting;
+wire         transmitter;
+wire         go_rx_inter;
 wire         not_first_bit_of_inter;
 wire         set_reset_mode;
 wire         node_bus_off;
@@ -407,13 +416,22 @@ wire   [4:0] arbitration_lost_capture;
 wire         node_error_passive;
 wire         node_error_active;
 wire   [6:0] rx_message_counter;
+wire         tx_next;
+
+wire         go_overload_frame;
+wire         go_error_frame;
+wire         go_tx;
+wire         send_ack;
+
+
 
 wire         rst;
 wire         we;
 wire   [7:0] addr;
 wire   [7:0] data_in;
 reg    [7:0] data_out;
-reg          rx_registered;
+reg          rx_sync_tmp;
+reg          rx_sync;
 
 /* Connecting can_registers module */
 can_registers i_can_registers
@@ -463,6 +481,8 @@ can_registers i_can_registers
   .single_shot_transmission(single_shot_transmission),
   .tx_state(tx_state),
   .tx_state_q(tx_state_q),
+  .overload_request(overload_request),
+  .overload_frame(overload_frame),
 
   /* Arbitration Lost Capture Register */
   .read_arbitration_lost_capture_reg(read_arbitration_lost_capture_reg),
@@ -539,7 +559,8 @@ can_btl i_can_btl
 ( 
   .clk(clk_i),
   .rst(rst),
-  .rx(rx_registered),
+  .rx(rx_sync), 
+  .tx(tx_o),
 
   /* Bus Timing 0 register */
   .baud_r_presc(baud_r_presc),
@@ -561,7 +582,16 @@ can_btl i_can_btl
   /* output from can_bsp module */
   .rx_idle(rx_idle),
   .not_first_bit_of_inter(not_first_bit_of_inter),
-  .transmitting(transmitting)
+  .transmitting(transmitting),
+  .transmitter(transmitter),
+  .go_rx_inter(go_rx_inter),
+  .tx_next(tx_next),
+
+  .go_overload_frame(go_overload_frame),
+  .go_error_frame(go_error_frame),
+  .go_tx(go_tx),
+  .send_ack(send_ack),
+  .node_error_passive(node_error_passive)
   
 
 
@@ -600,6 +630,8 @@ can_bsp i_can_bsp
   .single_shot_transmission(single_shot_transmission),
   .tx_state(tx_state),
   .tx_state_q(tx_state_q),
+  .overload_request(overload_request),
+  .overload_frame(overload_frame),
 
   /* Arbitration Lost Capture Register */
   .read_arbitration_lost_capture_reg(read_arbitration_lost_capture_reg),
@@ -623,6 +655,7 @@ can_bsp i_can_bsp
   /* output from can_bsp module */
   .rx_idle(rx_idle),
   .transmitting(transmitting),
+  .transmitter(transmitter),
   .go_rx_inter(go_rx_inter),
   .not_first_bit_of_inter(not_first_bit_of_inter),
   .set_reset_mode(set_reset_mode),
@@ -681,7 +714,14 @@ can_bsp i_can_bsp
   
   /* Tx signal */
   .tx(tx_o),
-  .tx_oen(tx_oen_o)
+  .tx_next(tx_next),
+  .tx_oen(tx_oen_o),
+
+  .go_overload_frame(go_overload_frame),
+  .go_error_frame(go_error_frame),
+  .go_tx(go_tx),
+  .send_ack(send_ack)
+
 
 `ifdef CAN_BIST
   ,
@@ -722,9 +762,15 @@ end
 always @ (posedge clk_i or posedge rst)
 begin
   if (rst)
-    rx_registered <= 1'b1;
+    begin
+      rx_sync_tmp <= 1'b1;
+      rx_sync     <= 1'b1;
+    end
   else
-    rx_registered <=#Tp rx_i;
+    begin
+      rx_sync_tmp <=#Tp rx_i;
+      rx_sync     <=#Tp rx_sync_tmp;
+    end
 end
 
 
