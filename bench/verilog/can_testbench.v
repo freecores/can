@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2002/12/27 00:12:48  mohor
+// Header changed, testbench improved to send a frame (crc still missing).
+//
 // Revision 1.5  2002/12/26 16:00:29  mohor
 // Testbench define file added. Clock divider register added.
 //
@@ -85,7 +88,6 @@ wire  [7:0] data_out;
 reg         cs, rw;
 reg   [7:0] addr;
 reg         rx;
-reg         idle;
 integer     start_tb;
 
 /* Instantiate can_top module */
@@ -98,8 +100,7 @@ can_top i_can_top
   .cs(cs),
   .rw(rw),
   .addr(addr),
-  .rx(rx),
-  .idle(idle)
+  .rx(rx)
 );
 
 
@@ -119,7 +120,6 @@ begin
   addr = 'hz;
   rx = 1;
   rst = 1;
-  idle = 1;
   #200 rst = 0;
   #200 start_tb = 1;
 end
@@ -139,9 +139,18 @@ begin
   #10;
   repeat (1000) @ (posedge clk);
   
+  /* Switch-off reset mode */
+  write_register(8'h0, {7'h0, ~(`CAN_MODE_RESET)});
+
+  repeat (BRP) @ (posedge clk);   // At least BRP clocks needed before bus goes to dominant level. Otherwise 1 quant difference is possible
+                                  // This difference is resynchronized later.
+
 //  test_synchronization;
-  repeat (2) @ (posedge clk);   // So we are not synchronized to anything
-  send_frame(1, 29'h12345678, 1); // mode, id, length
+
+  repeat (7) send_bit(1);         // Sending EOF
+
+
+  send_frame(1, 29'h00075678, 1); // mode, id, length
   
 
   repeat (50000) @ (posedge clk);
@@ -176,10 +185,9 @@ endtask
 task test_synchronization;
   begin
     // Hard synchronization
-    repeat (2) @ (posedge clk);   // So we are not synchronized to anything
     #1 rx=0;
     repeat (2*BRP) @ (posedge clk);
-    #1 idle = 0;
+//    #1 idle = 0;
     repeat (8*BRP) @ (posedge clk);
     #1 rx=1;
     repeat (10*BRP) @ (posedge clk);
@@ -188,7 +196,7 @@ task test_synchronization;
     #1 rx=0;
     repeat (10*BRP) @ (posedge clk);
     #1 rx=1;
-    idle = 0;
+//    idle = 0;
     repeat (10*BRP) @ (posedge clk);
   
     // Resynchronization late
@@ -197,14 +205,14 @@ task test_synchronization;
     #1 rx=0;
     repeat (10*BRP) @ (posedge clk);
     #1 rx=1;
-    idle = 0;
+//    idle = 0;
   
     // Resynchronization early
     repeat (8*BRP) @ (posedge clk);   // two frames too early
     #1 rx=0;
     repeat (10*BRP) @ (posedge clk);
     #1 rx=1;
-    idle = 0;
+//    idle = 0;
     repeat (10*BRP) @ (posedge clk);
   end
 endtask
@@ -216,7 +224,7 @@ task send_bit;
   begin
     #1 rx=bit;
     repeat ((`CAN_TIMING1_TSEG1 + `CAN_TIMING1_TSEG2 + 3)*BRP) @ (posedge clk);
-    idle=0;
+//    idle=0;
   end
 endtask
 
@@ -304,11 +312,31 @@ always @ (posedge clk)
 begin
   if(can_testbench.i_can_top.i_can_btl.go_sync & can_testbench.i_can_top.i_can_btl.go_seg1 | can_testbench.i_can_top.i_can_btl.go_sync & can_testbench.i_can_top.i_can_btl.go_seg2 | 
      can_testbench.i_can_top.i_can_btl.go_seg1 & can_testbench.i_can_top.i_can_btl.go_seg2)
-     $display("(%0t) ERROR multiple go_sync, go_seg1 or go_seg2 occurance", $time);
+    begin
+      $display("(%0t) ERROR multiple go_sync, go_seg1 or go_seg2 occurance\n\n", $time);
+      #1000;
+      $stop;
+    end
 
   if(can_testbench.i_can_top.i_can_btl.sync & can_testbench.i_can_top.i_can_btl.seg1 | can_testbench.i_can_top.i_can_btl.sync & can_testbench.i_can_top.i_can_btl.seg2 | 
      can_testbench.i_can_top.i_can_btl.seg1 & can_testbench.i_can_top.i_can_btl.seg2)
-     $display("(%0t) ERROR multiple sync, seg1 or seg2 occurance", $time);
+    begin
+      $display("(%0t) ERROR multiple sync, seg1 or seg2 occurance\n\n", $time);
+      #1000;
+      $stop;
+    end
 end
+
+/* stuff_error monitor (bsp)
+always @ (posedge clk)
+begin
+  if(can_testbench.i_can_top.i_can_bsp.stuff_error)
+    begin
+      $display("\n\n(%0t) Stuff error occured in can_bsp.v file\n\n", $time);
+      $stop;                                      After everything is finished add another condition (something like & (~idle)) and enable stop
+    end
+end
+*/
+
 
 endmodule

@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2002/12/27 00:12:52  mohor
+// Header changed, testbench improved to send a frame (crc still missing).
+//
 // Revision 1.4  2002/12/26 01:33:05  mohor
 // Tripple sampling supported.
 //
@@ -72,7 +75,7 @@ module can_btl
   rx,
 
   /* Mode register */
-  reset_mode,           // Not used !!!
+  reset_mode,
 
   /* Bus Timing 0 register */
   baud_r_presc,
@@ -84,11 +87,14 @@ module can_btl
   triple_sampling,
 
   /* Output signals from this module */
-  take_sample,
   clk_en,
+  sample_point,
+  sampled_bit,
+  sampled_bit_q,
   
-  /* States */
-  idle
+  /* Output from can_bsp module */
+  rx_idle
+  
   
 
 
@@ -100,7 +106,7 @@ input         clk;
 input         rst;
 input         rx;
 
-/* Mode register */
+  /* Mode register */
 input         reset_mode;
 
 /* Bus Timing 0 register */
@@ -112,24 +118,29 @@ input   [3:0] time_segment1;
 input   [2:0] time_segment2;
 input         triple_sampling;
 
-/* Output signals from this module */
-output        take_sample;      // NOT USED, YET
-output        clk_en;
+/* Output from can_bsp module */
+input         rx_idle;
 
-input         idle;
+/* Output signals from this module */
+output        clk_en;
+output        sample_point;
+output        sampled_bit;
+output        sampled_bit_q;
+
 
 
 reg     [8:0] clk_cnt;
 reg           clk_en;
 reg           sync_blocked;
 reg           sampled_bit;
+reg           sampled_bit_q;
 reg     [7:0] quant_cnt;
 reg     [3:0] delay;
 reg           sync;
 reg           seg1;
 reg           seg2;
 reg           resync_latched;
-reg           sample_pulse;
+reg           sample_point;
 reg     [1:0] sample;
 
 wire          go_sync;
@@ -143,37 +154,39 @@ wire          sync_window;
 
 
 assign preset_cnt = (baud_r_presc + 1'b1)<<1;        // (BRP+1)*2
-assign hard_sync  =   idle  & (~rx) & sampled_bit & (~sync_blocked);  // Hard synchronization
-assign resync     = (~idle) & (~rx) & sampled_bit & (~sync_blocked);  // Re-synchronization
+assign hard_sync  =  rx_idle   & (~rx) & sampled_bit & (~sync_blocked);  // Hard synchronization
+assign resync     = (~rx_idle) & (~rx) & sampled_bit & (~sync_blocked);  // Re-synchronization
 
 
 /* Generating general enable signal that defines baud rate. */
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    begin
-      clk_cnt <= 0;
-      clk_en  <= 1'b0;
-    end
-  else if (clk_cnt == (preset_cnt-1))
-    begin
-      clk_cnt <=#Tp 0;
-      clk_en  <=#Tp 1'b1;
-    end
+    clk_cnt <= 0;
+  else if (clk_cnt == (preset_cnt-1) | reset_mode)
+    clk_cnt <=#Tp 0;
   else
-    begin
-      clk_cnt <=#Tp clk_cnt + 1;
-      clk_en  <=#Tp 1'b0;
-    end
+    clk_cnt <=#Tp clk_cnt + 1;
+end
+
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    clk_en  <= 1'b0;
+  else if (clk_cnt == (preset_cnt-1))
+    clk_en  <=#Tp 1'b1;
+  else
+    clk_en  <=#Tp 1'b0;
 end
 
 
 
 /* Changing states */
-//assign go_sync = clk_en & (seg2 & (~resync) & ((quant_cnt == time_segment2)));
-assign go_sync = clk_en & (seg2 & ((quant_cnt == time_segment2)));
-assign go_seg1 = clk_en & (sync | hard_sync | (resync & seg2 & sync_window) | (resync_latched & sync_window));
-assign go_seg2 = clk_en & (seg1 & (quant_cnt == (time_segment1 + delay)));
+ assign go_sync = clk_en & (seg2 & (~hard_sync) & (~resync) & ((quant_cnt == time_segment2)));
+ assign go_seg1 = clk_en & (sync | hard_sync | (resync & seg2 & sync_window) | (resync_latched & sync_window));
+ assign go_seg2 = clk_en & (seg1 & (~hard_sync) & (quant_cnt == (time_segment1 + delay)));
+
 
 
 /* When early edge is detected outside of the SJW field, synchronization request is latched and performed when
@@ -194,7 +207,7 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    sync <= 1;
+    sync <= 0;
   else if (go_sync)
     sync <=#Tp 1'b1;
   else if (go_seg1)
@@ -206,7 +219,7 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    seg1 <= 0;
+    seg1 <= 1;
   else if (go_seg1)
     seg1 <=#Tp 1'b1;
   else if (go_seg2)
@@ -270,13 +283,15 @@ begin
   if (rst)
     begin
       sampled_bit <= 1;
-      sample_pulse <= 0;
+      sampled_bit_q <= 1;
+      sample_point <= 0;
     end
   else if (clk_en)
     begin
       if (seg1 & (quant_cnt == (time_segment1 + delay)))
         begin
-          sample_pulse <=#Tp 1;
+          sample_point <=#Tp 1;
+          sampled_bit_q <=#Tp sampled_bit;
           if (triple_sampling)
             sampled_bit <=#Tp (sample[0] & sample[1]) | ( sample[0] & rx) | (sample[1] & rx);
           else
@@ -284,7 +299,7 @@ begin
         end
     end
   else
-    sample_pulse <=#Tp 0;       // Sample pulse is for development purposes only. REMOVE ME.
+    sample_point <=#Tp 0;
 end
 
 

@@ -45,12 +45,18 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2002/12/27 00:12:48  mohor
+// Header changed, testbench improved to send a frame (crc still missing).
+//
 // Revision 1.1  2002/12/26 16:00:29  mohor
 // Testbench define file added. Clock divider register added.
 //
 //
 //
 //
+
+// Mode register
+`define CAN_MODE_RESET                  1'h1    // Reset mode
 
 // Bit Timing 0 register value
 `define CAN_TIMING0_BRP                 6'h1    // Baud rate prescaler (2*(value+1))

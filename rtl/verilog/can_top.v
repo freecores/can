@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2002/12/27 00:12:52  mohor
+// Header changed, testbench improved to send a frame (crc still missing).
+//
 // Revision 1.2  2002/12/26 16:00:34  mohor
 // Testbench define file added. Clock divider register added.
 //
@@ -66,8 +69,7 @@ module can_top
   data_in,
   data_out,
   cs, rw, addr,
-  rx,
-  idle    /* REMOVE and use correct "idle state" signal instead */
+  rx
 );
 
 parameter Tp = 1;
@@ -79,7 +81,6 @@ output [7:0] data_out;
 input        cs, rw;
 input  [7:0] addr;
 input        rx;
-input        idle;   /* REMOVE and use correct "idle state" signal instead */
 
 
 /* Mode register */
@@ -143,8 +144,13 @@ can_registers i_can_registers
 
 
 /* Output signals from can_btl module */
-wire        take_sample;
 wire        clk_en;
+wire        sample_point;
+wire        sampled_bit;
+wire        sampled_bit_q;
+
+/* output from can_bsp module */
+wire        rx_idle;
 
 
 
@@ -169,11 +175,13 @@ can_btl i_can_btl
   .triple_sampling(triple_sampling),
 
   /* Output signals from this module */
-  .take_sample(take_sample),
   .clk_en(clk_en),
+  .sample_point(sample_point),
+  .sampled_bit(sampled_bit),
+  .sampled_bit_q(sampled_bit_q),
   
-  /* States */
-  .idle(idle)
+  /* output from can_bsp module */
+  .rx_idle(rx_idle)
   
 
 
@@ -184,7 +192,19 @@ can_btl i_can_btl
 can_bsp i_can_bsp
 (
   .clk(clk),
-  .rst(rst)
+  .rst(rst),
+  
+  /* From btl module */
+  .sample_point(sample_point),
+  .sampled_bit(sampled_bit),
+  .sampled_bit_q(sampled_bit_q),
+
+  /* Mode register */
+  .reset_mode(reset_mode),
+  
+  /* output from can_bsp module */
+  .rx_idle(rx_idle)
+  
 
 );
 
