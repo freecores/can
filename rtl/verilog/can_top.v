@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.15  2003/02/12 14:25:30  mohor
+// abort_tx added.
+//
 // Revision 1.14  2003/02/11 00:56:06  mohor
 // Wishbone interface added.
 //
@@ -119,7 +122,8 @@ module can_top
   clk,
   rx,
   tx,
-  tx_oen
+  tx_oen,
+  irq,
 );
 
 parameter Tp = 1;
@@ -137,17 +141,21 @@ input        clk;
 input        rx;
 output       tx;
 output       tx_oen;
+output       irq;
 
+reg    [7:0] wb_dat_o;
 reg          wb_ack_o;
 reg          data_out_fifo_selected;
 
 reg          cs_sync1;
 reg          cs_sync2;
 reg          cs_sync3;
+reg          cs_sync_rst1;
+reg          cs_sync_rst2;
 
-reg          cs_rst1;
-reg          cs_rst2;
-reg          cs_rst3;
+reg          cs_ack1;
+reg          cs_ack2;
+reg          cs_ack3;
 
 wire   [7:0] data_out_fifo;
 wire   [7:0] data_out_regs;
@@ -172,6 +180,15 @@ wire   [1:0] sync_jump_width;
 wire   [3:0] time_segment1;
 wire   [2:0] time_segment2;
 wire         triple_sampling;
+
+/* Error Warning Limit register */
+wire   [7:0] error_warning_limit;
+
+/* Rx Error Counter register */
+wire         we_rx_err_cnt;
+
+/* Tx Error Counter register */
+wire         we_tx_err_cnt;
 
 /* Clock Divider register */
 wire         extended_mode;
@@ -219,19 +236,33 @@ wire   [7:0] tx_data_12;
 wire         cs;
 
 /* Output signals from can_btl module */
-wire        clk_en;
-wire        sample_point;
-wire        sampled_bit;
-wire        sampled_bit_q;
-wire        tx_point;
-wire        hard_sync;
-wire        resync;
+wire         clk_en;
+wire         sample_point;
+wire         sampled_bit;
+wire         sampled_bit_q;
+wire         tx_point;
+wire         hard_sync;
+wire         resync;
 
 
 /* output from can_bsp module */
-wire        rx_idle;
-wire        transmitting;
-wire        last_bit_of_inter;
+wire         rx_idle;
+wire         transmitting;
+wire         last_bit_of_inter;
+wire         set_reset_mode;
+wire         node_bus_off;
+wire         error_status;
+wire   [7:0] rx_err_cnt;
+wire   [7:0] tx_err_cnt;
+wire         rx_err_cnt_dummy;  // The MSB is not displayed. It is just used for easier calculation (no counter overflow).
+wire         tx_err_cnt_dummy;  // The MSB is not displayed. It is just used for easier calculation (no counter overflow).
+wire         transmit_status;
+wire         receive_status;
+wire         tx_successful;
+wire         need_to_tx;
+wire         overrun;
+wire         info_empty;
+
 
 
 /* Connecting can_registers module */
@@ -244,9 +275,21 @@ can_registers i_can_registers
   .addr(wb_adr_i),
   .data_in(wb_dat_i),
   .data_out(data_out_regs),
+  .irq(irq),
 
   .sample_point(sample_point),
   .transmitting(transmitting),
+  .set_reset_mode(set_reset_mode),
+  .node_bus_off(node_bus_off),
+  .error_status(error_status),
+  .rx_err_cnt(rx_err_cnt),
+  .tx_err_cnt(tx_err_cnt),
+  .transmit_status(transmit_status),
+  .receive_status(receive_status),
+  .tx_successful(tx_successful),
+  .need_to_tx(need_to_tx),
+  .overrun(overrun),
+  .info_empty(info_empty),
 
   /* Mode register */
   .reset_mode(reset_mode),
@@ -269,6 +312,15 @@ can_registers i_can_registers
   .time_segment1(time_segment1),
   .time_segment2(time_segment2),
   .triple_sampling(triple_sampling),
+
+  /* Error Warning Limit register */
+  .error_warning_limit(error_warning_limit),
+
+  /* Rx Error Counter register */
+  .we_rx_err_cnt(we_rx_err_cnt),
+
+  /* Tx Error Counter register */
+  .we_tx_err_cnt(we_tx_err_cnt),
 
   /* Clock Divider register */
   .extended_mode(extended_mode),
@@ -376,6 +428,7 @@ can_bsp i_can_bsp
   .hard_sync(hard_sync),
 
   .addr(wb_adr_i),
+  .data_in(wb_dat_i),
   .data_out(data_out_fifo),
 
   /* Mode register */
@@ -387,6 +440,15 @@ can_bsp i_can_bsp
   .tx_request(tx_request),
   .abort_tx(abort_tx),
 
+  /* Error Warning Limit register */
+  .error_warning_limit(error_warning_limit),
+
+  /* Rx Error Counter register */
+  .we_rx_err_cnt(we_rx_err_cnt),
+
+  /* Tx Error Counter register */
+  .we_tx_err_cnt(we_tx_err_cnt),
+
   /* Clock Divider register */
   .extended_mode(extended_mode),
 
@@ -394,6 +456,17 @@ can_bsp i_can_bsp
   .rx_idle(rx_idle),
   .transmitting(transmitting),
   .last_bit_of_inter(last_bit_of_inter),
+  .set_reset_mode(set_reset_mode),
+  .node_bus_off(node_bus_off),
+  .error_status(error_status),
+  .rx_err_cnt({rx_err_cnt_dummy, rx_err_cnt[7:0]}),   // The MSB is not displayed. It is just used for easier calculation (no counter overflow).
+  .tx_err_cnt({tx_err_cnt_dummy, tx_err_cnt[7:0]}),   // The MSB is not displayed. It is just used for easier calculation (no counter overflow).
+  .transmit_status(transmit_status),
+  .receive_status(receive_status),
+  .tx_successful(tx_successful),
+  .need_to_tx(need_to_tx),
+  .overrun(overrun),
+  .info_empty(info_empty),
   
   /* This section is for BASIC and EXTENDED mode */
   /* Acceptance code register */
@@ -447,14 +520,24 @@ begin
 end
 
 
-assign wb_dat_o = data_out_fifo_selected ? data_out_fifo : data_out_regs;
+always @ (posedge clk)
+begin
+  if (cs & (~wb_we_i))
+    begin
+      if (data_out_fifo_selected)
+        wb_dat_o <=#Tp data_out_fifo;
+      else
+        wb_dat_o <=#Tp data_out_regs;
+    end
+end
 
 
 
+// FIX ME !!! This wishbone interface is not OK, yet.
 // Combining wb_cyc_i and wb_stb_i signals to cs signal. Than synchronizing to clk clock domain. 
 always @ (posedge clk)
 begin
-  if (cs_rst2)
+  if (cs_ack2)
     begin
       cs_sync1 <=#Tp 1'b0;
       cs_sync2 <=#Tp 1'b0;
@@ -476,15 +559,15 @@ always @ (posedge wb_clk_i)
 begin
   if (wb_ack_o)
     begin
-      cs_rst1 <=#Tp 1'b0;
-      cs_rst2 <=#Tp 1'b0;
-      cs_rst3 <=#Tp 1'b0;
+      cs_ack1 <=#Tp 1'b0;
+      cs_ack2 <=#Tp 1'b0;
+      cs_ack3 <=#Tp 1'b0;
     end
   else
     begin
-      cs_rst1 <=#Tp cs_sync2;
-      cs_rst2 <=#Tp cs_rst1;
-      cs_rst3 <=#Tp cs_rst2;
+      cs_ack1 <=#Tp cs_sync2;
+      cs_ack2 <=#Tp cs_ack1;
+      cs_ack3 <=#Tp cs_ack2;
     end
 end
 
@@ -493,9 +576,66 @@ end
 // Generating acknowledge signal
 always @ (posedge wb_clk_i)
 begin
-  wb_ack_o <=#Tp (cs_rst2 & (~cs_rst3));
+  wb_ack_o <=#Tp (cs_ack2 & (~cs_ack3));
 end
 
+
+
+
+
+/*
+// Combining wb_cyc_i and wb_stb_i signals to cs signal. Than synchronizing to clk clock domain. 
+reg rst_blocked_ack;
+
+always @ (posedge clk)
+begin
+  if (cs_sync_rst2 & ({~rst_blocked_ack} ))
+    begin
+      cs_sync1 <=#Tp 1'b0;
+      cs_sync2 <=#Tp 1'b0;
+      cs_sync3 <=#Tp 1'b0;
+      cs_sync_rst1 <=#Tp 1'b0;
+      cs_sync_rst2 <=#Tp 1'b0;
+    end
+  else
+    begin
+      cs_sync1 <=#Tp (wb_cyc_i & wb_stb_i);
+      cs_sync2 <=#Tp cs_sync1;
+      cs_sync3 <=#Tp cs_sync2;
+      cs_sync_rst1 <=#Tp cs_ack3;
+      cs_sync_rst2 <=#Tp cs_sync_rst1;
+    end
+end
+
+
+
+assign cs = cs_sync2 & (~cs_sync3);
+
+
+always @ (posedge wb_clk_i)
+begin
+  cs_ack1 <=#Tp cs_sync3;
+  cs_ack2 <=#Tp cs_ack1;
+  cs_ack3 <=#Tp cs_ack2;
+end
+
+
+
+// Generating acknowledge signal
+always @ (posedge wb_clk_i)
+begin
+  wb_ack_o <=#Tp (cs_ack2 & (~cs_ack3));
+end
+
+
+always @ (posedge wb_clk_i)
+begin
+  if (cs_ack3)
+    rst_blocked_ack <=#Tp 1'b0;
+  else if (cs_ack1)
+    rst_blocked_ack <=#Tp 1'b1;
+end
+*/
 
 
 

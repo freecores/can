@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.23  2003/02/12 14:28:30  mohor
+// Errors monitoring improved. arbitration_lost improved.
+//
 // Revision 1.22  2003/02/11 00:57:19  mohor
 // Wishbone interface added.
 //
@@ -156,6 +159,7 @@ reg         rx;
 wire        tx;
 wire        tx_oen;
 wire        wb_ack_o;
+wire        irq;
 
 wire        tx_3st;
 wire        rx_and_tx;
@@ -182,21 +186,22 @@ can_top i_can_top
   .clk(clk),
   .rx(rx_and_tx),
   .tx(tx),
-  .tx_oen(tx_oen)
+  .tx_oen(tx_oen),
+  .irq(irq)
 );
 
 assign tx_3st = tx_oen? 1'bz : tx;
 
 
-// Generate wishbone clock signal 10 MHz
+// Generate wishbone clock signal 10 MHz  FIX ME
 initial
 begin
   wb_clk_i=0;
-  forever #50 wb_clk_i = ~wb_clk_i;
+  forever #20 wb_clk_i = ~wb_clk_i;
 end
 
 
-// Generate clock signal 24 MHz
+// Generate clock signal 24 MHz FIX ME
 initial
 begin
   clk=0;
@@ -251,7 +256,6 @@ begin
   write_register(8'd7, {`CAN_TIMING1_SAM, `CAN_TIMING1_TSEG2, `CAN_TIMING1_TSEG1});
 
 
-
   // Set Clock Divider register
   write_register(8'd31, {`CAN_CLOCK_DIVIDER_MODE, 7'h0});    // Setting the normal mode (not extended)
  
@@ -303,8 +307,10 @@ begin
     begin
 //      test_empty_fifo;    // test currently switched off
 //      test_full_fifo;     // test currently switched off
-      send_frame;         // test currently switched on
-//      manual_frame;         // test currently switched off
+      send_frame;         // test currently switched off
+//      bus_off_test;       // test currently switched off
+//      manual_frame;       // test currently switched off
+//      forced_bus_off;       // test currently switched on
     end
 
 
@@ -313,82 +319,44 @@ begin
 end
 
 
+task forced_bus_off;    // Forcing bus-off by writinf to tx_err_cnt register
+  begin
+
+    // Switch-on reset mode
+    write_register(8'd0, {7'h0, `CAN_MODE_RESET});
+
+    // Set Clock Divider register
+    write_register(8'd31, {1'b1, 7'h0});    // Setting the extended mode (not normal)
+
+    // Write 255 to tx_err_cnt register - Forcing bus-off
+    write_register(8'd15, 255);
+
+    // Switch-off reset mode
+    write_register(8'd0, {7'h0, ~(`CAN_MODE_RESET)});
+
+//    #1000000;
+    #2500000;
+
+
+    // Switch-on reset mode
+    write_register(8'd0, {7'h0, `CAN_MODE_RESET});
+
+    // Write 245 to tx_err_cnt register
+    write_register(8'd15, 245);
+
+    // Switch-off reset mode
+    write_register(8'd0, {7'h0, ~(`CAN_MODE_RESET)});
+
+    #1000000;
+
+
+  end
+endtask   // forced_bus_off
+
+
 task manual_frame;    // Testbench sends a frame
   begin
-/*
-    begin
 
-      $display("\n\nTestbench sends a frame bit by bit");
-      send_bit(0);  // SOF
-      send_bit(1);  // ID
-      send_bit(1);  // ID
-      send_bit(1);  // ID
-      send_bit(0);  // ID
-      send_bit(1);  // ID
-      send_bit(0);  // ID
-      send_bit(0);  // ID
-      send_bit(0);  // ID
-      send_bit(1);  // ID
-      send_bit(0);  // ID
-      send_bit(1);  // ID
-      send_bit(1);  // RTR
-      send_bit(0);  // IDE
-      send_bit(0);  // r0
-      send_bit(0);  // DLC
-      send_bit(1);  // DLC
-      send_bit(0);  // DLC
-      send_bit(0);  // DLC
-      send_bit(1);  // CRC
-      send_bit(0);  // CRC
-      send_bit(0);  // CRC
-      send_bit(0);  // CRC
-      send_bit(1);  // CRC
-      send_bit(0);  // CRC
-      send_bit(1);  // CRC
-      send_bit(1);  // CRC
-      send_bit(0);  // CRC
-      send_bit(1);  // CRC
-      send_bit(0);  // CRC
-      send_bit(1);  // CRC
-      send_bit(1);  // CRC
-      send_bit(0);  // CRC
-      send_bit(0);  // CRC          // error
-      send_bit(1);  // CRC DELIM
-      send_bit(0);  // ACK
-      send_bit(1);  // ACK DELIM
-      send_bit(0);  // EOF        // error comes here
-      send_bit(0);  // EOF        // error comes here
-
-//tx_bypassed=1;
-      send_bit(0);  // EOF        // error comes here
-//tx_bypassed=0;
-
-      send_bit(0);  // EOF        // error comes here
-      send_bit(0);  // EOF        // error comes here
-      send_bit(0);  // EOF        // error comes here
-      send_bit(1);  // EOF        // delimiter
-      send_bit(1);  // INTER      // delimiter
-      send_bit(1);  // INTER      // delimiter
-      send_bit(1);  // INTER      // delimiter
-      send_bit(1);  // IDLE       // delimiter
-      send_bit(1);  // IDLE       // delimiter
-      send_bit(1);  // IDLE       // delimiter
-      send_bit(0);  // IDLE       // delimiter
-      send_bit(1);  // IDLE       // delimiter
-      send_bit(1);  // IDLE       // delimiter
-      send_bit(1);  // IDLE       // delimiter
-      send_bit(1);  // IDLE       // delimiter
-      send_bit(1);  // IDLE       // delimiter
-      send_bit(1);  // IDLE       // delimiter
-      send_bit(1);  // IDLE
-      send_bit(1);  // IDLE
-      send_bit(1);  // IDLE
-
-    end
-*/
-// tx_bypassed=1;
-
-  
     write_register(8'd10, 8'he8); // Writing ID[10:3] = 0xe8
     write_register(8'd11, 8'hb7); // Writing ID[2:0] = 0x5, rtr = 1, length = 7
     write_register(8'd12, 8'h00); // data byte 1
@@ -406,203 +374,221 @@ task manual_frame;    // Testbench sends a frame
       end
 
       begin
-        #520;
+        #2000;
 
-    repeat (16)
-    begin
-        send_bit(0);  // SOF
-        send_bit(1);  // ID
-        send_bit(1);  // ID
-        send_bit(1);  // ID
-        send_bit(0);  // ID
-        send_bit(1);  // ID
-        send_bit(0);  // ID
-        send_bit(0);  // ID
-        send_bit(0);  // ID
-        send_bit(1);  // ID
-        send_bit(0);  // ID
-        send_bit(1);  // ID
-        send_bit(1);  // RTR
-        send_bit(0);  // IDE
-        send_bit(0);  // r0
-        send_bit(0);  // DLC
-        send_bit(1);  // DLC
-        send_bit(1);  // DLC
-        send_bit(1);  // DLC
-        send_bit(1);  // CRC
-        send_bit(0);  // CRC
-        send_bit(0);  // CRC
-        send_bit(1);  // CRC
-        send_bit(1);  // CRC
-        send_bit(1);  // CRC
-        send_bit(0);  // CRC
-        send_bit(1);  // CRC
-        send_bit(0);  // CRC
-        send_bit(0);  // CRC
-        send_bit(1);  // CRC
-        send_bit(1);  // CRC
-        send_bit(1);  // CRC
-        send_bit(1);  // CRC
-        send_bit(1);  // CRC
-        send_bit(1);  // CRC DELIM
-        send_bit(1);  // ACK            ack error
-        send_bit(0);  // ERROR
-        send_bit(0);  // ERROR
-        send_bit(0);  // ERROR
-        send_bit(0);  // ERROR
-        send_bit(0);  // ERROR
-        send_bit(0);  // ERROR
-        send_bit(1);  // ERROR DELIM
-        send_bit(1);  // ERROR DELIM
-        send_bit(1);  // ERROR DELIM
-        send_bit(1);  // ERROR DELIM
-        send_bit(1);  // ERROR DELIM
-        send_bit(1);  // ERROR DELIM
-        send_bit(1);  // ERROR DELIM
-        send_bit(1);  // ERROR DELIM
-        send_bit(1);  // INTER
-        send_bit(1);  // INTER
-        send_bit(1);  // INTER
-    end // repeat
+        repeat (16)
+        begin
+          send_bit(0);  // SOF
+          send_bit(1);  // ID
+          send_bit(1);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(0);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(1);  // RTR
+          send_bit(0);  // IDE
+          send_bit(0);  // r0
+          send_bit(0);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC DELIM
+          send_bit(1);  // ACK            ack error
+          send_bit(0);  // ERROR
+          send_bit(0);  // ERROR
+          send_bit(0);  // ERROR
+          send_bit(0);  // ERROR
+          send_bit(0);  // ERROR
+          send_bit(0);  // ERROR
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // INTER
+          send_bit(1);  // INTER
+          send_bit(1);  // INTER
+        end // repeat
 
-    // Node is error passive now.
-    repeat (20)
-    begin
-        send_bit(0);  // SOF
-        send_bit(1);  // ID
-        send_bit(1);  // ID
-        send_bit(1);  // ID
-        send_bit(0);  // ID
-        send_bit(1);  // ID
-        send_bit(0);  // ID
-        send_bit(0);  // ID
-        send_bit(0);  // ID
-        send_bit(1);  // ID
-        send_bit(0);  // ID
-        send_bit(1);  // ID
-        send_bit(1);  // RTR
-        send_bit(0);  // IDE
-        send_bit(0);  // r0
-        send_bit(0);  // DLC
-        send_bit(1);  // DLC
-        send_bit(1);  // DLC
-        send_bit(1);  // DLC
-        send_bit(1);  // CRC
-        send_bit(0);  // CRC
-        send_bit(0);  // CRC
-        send_bit(1);  // CRC
-        send_bit(1);  // CRC
-        send_bit(1);  // CRC
-        send_bit(0);  // CRC
-        send_bit(1);  // CRC
-        send_bit(0);  // CRC
-        send_bit(0);  // CRC
-        send_bit(1);  // CRC
-        send_bit(1);  // CRC
-        send_bit(1);  // CRC
-        send_bit(1);  // CRC
-        send_bit(1);  // CRC
-        send_bit(1);  // CRC DELIM
-        send_bit(1);  // ACK            ack error
-        send_bit(0);  // ERROR
-        send_bit(0);  // ERROR
-        send_bit(0);  // ERROR
-        send_bit(0);  // ERROR
-        send_bit(0);  // ERROR
-        send_bit(0);  // ERROR
-        send_bit(1);  // ERROR DELIM
-        send_bit(1);  // ERROR DELIM
-        send_bit(1);  // ERROR DELIM
-        send_bit(1);  // ERROR DELIM
-        send_bit(1);  // ERROR DELIM
-        send_bit(1);  // ERROR DELIM
-        send_bit(1);  // ERROR DELIM
-        send_bit(1);  // ERROR DELIM
-        send_bit(1);  // INTER
-        send_bit(1);  // INTER
-        send_bit(1);  // INTER
-        send_bit(1);  // SUSPEND
-        send_bit(1);  // SUSPEND
-        send_bit(1);  // SUSPEND
-        send_bit(1);  // SUSPEND
-        send_bit(1);  // SUSPEND
-        send_bit(1);  // SUSPEND
-        send_bit(1);  // SUSPEND
-        send_bit(1);  // SUSPEND
-   end // repeat
+        // Node is error passive now.
+        repeat (20)
+        
+        begin
+          send_bit(0);  // SOF
+          send_bit(1);  // ID
+          send_bit(1);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(0);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(1);  // RTR
+          send_bit(0);  // IDE
+          send_bit(0);  // r0
+          send_bit(0);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC DELIM
+          send_bit(1);  // ACK            ack error
+          send_bit(0);  // ERROR
+          send_bit(0);  // ERROR
+          send_bit(0);  // ERROR
+          send_bit(0);  // ERROR
+          send_bit(0);  // ERROR
+          send_bit(0);  // ERROR
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // INTER
+          send_bit(1);  // INTER
+          send_bit(1);  // INTER
+          send_bit(1);  // SUSPEND
+          send_bit(1);  // SUSPEND
+          send_bit(1);  // SUSPEND
+          send_bit(1);  // SUSPEND
+          send_bit(1);  // SUSPEND
+          send_bit(1);  // SUSPEND
+          send_bit(1);  // SUSPEND
+          send_bit(1);  // SUSPEND
+        end // repeat
 
-    // Node is bus-off now
-    repeat (20)
-    begin
-        send_bit(0);  // SOF
-        send_bit(1);  // ID
-        send_bit(1);  // ID
-        send_bit(1);  // ID
-        send_bit(0);  // ID
-        send_bit(1);  // ID
-        send_bit(0);  // ID
-        send_bit(0);  // ID
-        send_bit(0);  // ID
-        send_bit(1);  // ID
-        send_bit(0);  // ID
-        send_bit(1);  // ID
-        send_bit(1);  // RTR
-        send_bit(0);  // IDE
-        send_bit(0);  // r0
-        send_bit(0);  // DLC
-        send_bit(1);  // DLC
-        send_bit(1);  // DLC
-        send_bit(1);  // DLC
-        send_bit(1);  // CRC
-        send_bit(0);  // CRC
-        send_bit(0);  // CRC
-        send_bit(1);  // CRC
-        send_bit(1);  // CRC
-        send_bit(1);  // CRC
-        send_bit(0);  // CRC
-        send_bit(1);  // CRC
-        send_bit(0);  // CRC
-        send_bit(0);  // CRC
-        send_bit(1);  // CRC
-        send_bit(1);  // CRC
-        send_bit(1);  // CRC
-        send_bit(1);  // CRC
-        send_bit(1);  // CRC
-        send_bit(1);  // CRC DELIM
-        send_bit(0);  // ACK
-        send_bit(1);  // ACK DELIM
-        send_bit(1);  // EOF
-        send_bit(1);  // EOF
-        send_bit(1);  // EOF
-        send_bit(1);  // EOF
-        send_bit(1);  // EOF
-        send_bit(1);  // EOF
-        send_bit(1);  // EOF
-        send_bit(1);  // INTER
-        send_bit(1);  // INTER
-        send_bit(1);  // INTER
-   end // repeat
+        // Node is bus-off now
 
-    repeat (128 * 11)
-    begin
-        send_bit(1);
-    end // repeat
+        #100000;
 
+        // Switch-off reset mode
+        write_register(8'd0, {7'h0, ~(`CAN_MODE_RESET)});
 
-
-
+        repeat (128 * 11)
+        begin
+          send_bit(1);
+        end // repeat
 
       end
     
     
     join
 
+
+
+    fork
+      begin
+        tx_request;
+      end
+
+      begin
+        #1100;
+
+        send_bit(1);    // To spend some time before transmitter is ready.
+
+        repeat (1)
+        begin
+          send_bit(0);  // SOF
+          send_bit(1);  // ID
+          send_bit(1);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(0);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(1);  // RTR
+          send_bit(0);  // IDE
+          send_bit(0);  // r0
+          send_bit(0);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC DELIM
+          send_bit(0);  // ACK
+          send_bit(1);  // ACK DELIM
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // INTER
+          send_bit(1);  // INTER
+          send_bit(1);  // INTER
+        end // repeat
+      end
+
+    join
+
+
+
+
+
     read_receive_buffer;
     release_rx_buffer;
-
-
-//    #7300000;
-//    tx_request;
 
     read_receive_buffer;
     release_rx_buffer;
@@ -612,6 +598,252 @@ task manual_frame;    // Testbench sends a frame
 
   end
 endtask
+
+
+
+task bus_off_test;    // Testbench sends a frame
+  begin
+
+    write_register(8'd10, 8'he8); // Writing ID[10:3] = 0xe8
+    write_register(8'd11, 8'hb7); // Writing ID[2:0] = 0x5, rtr = 1, length = 7
+    write_register(8'd12, 8'h00); // data byte 1
+    write_register(8'd13, 8'h00); // data byte 2
+    write_register(8'd14, 8'h00); // data byte 3
+    write_register(8'd15, 8'h00); // data byte 4
+    write_register(8'd16, 8'h00); // data byte 5
+    write_register(8'd17, 8'h00); // data byte 6
+    write_register(8'd18, 8'h00); // data byte 7
+    write_register(8'd19, 8'h00); // data byte 8
+
+    fork
+      begin
+        tx_request;
+      end
+
+      begin
+        #2000;
+
+        repeat (16)
+        begin
+          send_bit(0);  // SOF
+          send_bit(1);  // ID
+          send_bit(1);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(0);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(1);  // RTR
+          send_bit(0);  // IDE
+          send_bit(0);  // r0
+          send_bit(0);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC DELIM
+          send_bit(1);  // ACK            ack error
+          send_bit(0);  // ERROR
+          send_bit(0);  // ERROR
+          send_bit(0);  // ERROR
+          send_bit(0);  // ERROR
+          send_bit(0);  // ERROR
+          send_bit(0);  // ERROR
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // INTER
+          send_bit(1);  // INTER
+          send_bit(1);  // INTER
+        end // repeat
+
+        // Node is error passive now.
+        repeat (20)
+        
+        begin
+          send_bit(0);  // SOF
+          send_bit(1);  // ID
+          send_bit(1);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(0);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(1);  // RTR
+          send_bit(0);  // IDE
+          send_bit(0);  // r0
+          send_bit(0);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC DELIM
+          send_bit(1);  // ACK            ack error
+          send_bit(0);  // ERROR
+          send_bit(0);  // ERROR
+          send_bit(0);  // ERROR
+          send_bit(0);  // ERROR
+          send_bit(0);  // ERROR
+          send_bit(0);  // ERROR
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // ERROR DELIM
+          send_bit(1);  // INTER
+          send_bit(1);  // INTER
+          send_bit(1);  // INTER
+          send_bit(1);  // SUSPEND
+          send_bit(1);  // SUSPEND
+          send_bit(1);  // SUSPEND
+          send_bit(1);  // SUSPEND
+          send_bit(1);  // SUSPEND
+          send_bit(1);  // SUSPEND
+          send_bit(1);  // SUSPEND
+          send_bit(1);  // SUSPEND
+        end // repeat
+
+        // Node is bus-off now
+
+        #100000;
+
+        // Switch-off reset mode
+        write_register(8'd0, {7'h0, ~(`CAN_MODE_RESET)});
+
+        repeat (128 * 11)
+        begin
+          send_bit(1);
+        end // repeat
+
+      end
+    
+    
+    join
+
+
+
+    fork
+      begin
+        tx_request;
+      end
+
+      begin
+        #1100;
+
+        send_bit(1);    // To spend some time before transmitter is ready.
+
+        repeat (1)
+        begin
+          send_bit(0);  // SOF
+          send_bit(1);  // ID
+          send_bit(1);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(0);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(1);  // RTR
+          send_bit(0);  // IDE
+          send_bit(0);  // r0
+          send_bit(0);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC DELIM
+          send_bit(0);  // ACK
+          send_bit(1);  // ACK DELIM
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // INTER
+          send_bit(1);  // INTER
+          send_bit(1);  // INTER
+        end // repeat
+      end
+
+    join
+
+    read_receive_buffer;
+    release_rx_buffer;
+    read_receive_buffer;
+    release_rx_buffer;
+    read_receive_buffer;
+
+    #4000000;
+
+    receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h1, 15'h30bb); // mode, rtr, id, length, crc
+
+    #1000000;
+
+  end
+endtask   // bus_off_test
 
 
 
@@ -649,6 +881,11 @@ task send_frame;    // CAN IP core sends frames
         write_register(8'd18, 8'h0f); // data byte 7
         write_register(8'd19, 8'hed); // data byte 8
       end
+
+
+    // Enable irqs (basic mode)
+    write_register(8'd0, 8'h1e);
+
 
   
     fork
@@ -692,8 +929,12 @@ task send_frame;    // CAN IP core sends frames
 
     read_receive_buffer;
 
+    // Read irq register
+    read_register(8'd3);
+    #1000;
+
   end
-endtask
+endtask   // send_frame
 
 
 
@@ -785,20 +1026,21 @@ endtask
 
 task test_full_fifo;
   begin
+
+    // Enable irqs (basic mode)
+    write_register(8'd0, 8'h1e);
+
     release_rx_buffer;
     $display("\n\n");
     read_receive_buffer;
     fifo_info;
 
     receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h0, 15'h4edd); // mode, rtr, id, length, crc
-    read_receive_buffer;
     fifo_info;
     receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h1, 15'h1ccf); // mode, rtr, id, length, crc
-    read_receive_buffer;
     fifo_info;
     receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h2, 15'h73f4); // mode, rtr, id, length, crc
     fifo_info;
-    read_receive_buffer;
     receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h3, 15'h7bcb); // mode, rtr, id, length, crc
     fifo_info;
     receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h4, 15'h37da); // mode, rtr, id, length, crc
@@ -813,16 +1055,27 @@ task test_full_fifo;
     fifo_info;
     receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h8, 15'h57a0); // mode, rtr, id, length, crc
     fifo_info;
+$display("FIFO should be full now");
+
+    // Following one is accepted with overrun
     receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h8, 15'h57a0); // mode, rtr, id, length, crc
     fifo_info;
-    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h8, 15'h57a0); // mode, rtr, id, length, crc
+
+    release_rx_buffer;
     fifo_info;
+
+    // Space just enough for the following frame.
+    receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h0, 15'h4edd); // mode, rtr, id, length, crc
+    fifo_info;
+
+    // Following accepted with overrun
     receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h8, 15'h57a0); // mode, rtr, id, length, crc
     fifo_info;
     read_overrun_info(0, 15);
 
     release_rx_buffer;
     release_rx_buffer;
+
     release_rx_buffer;
     read_receive_buffer;
     fifo_info;
@@ -855,9 +1108,17 @@ task test_full_fifo;
     read_receive_buffer;
     fifo_info;
 
+    clear_data_overrun;
+
     release_rx_buffer;
     read_receive_buffer;
     fifo_info;
+
+    release_rx_buffer;
+    read_receive_buffer;
+    fifo_info;
+
+    clear_data_overrun;
 
     release_rx_buffer;
     read_receive_buffer;
@@ -879,9 +1140,12 @@ task test_full_fifo;
     read_receive_buffer;
     fifo_info;
 
-    release_rx_buffer;
-    read_receive_buffer;
-    fifo_info;
+    // Read irq register
+    read_register(8'd3);
+
+    // Read irq register
+    read_register(8'd3);
+    #1000;
 
   end
 endtask
@@ -1091,6 +1355,14 @@ task tx_abort;
   begin
     write_register(8'd1, 8'h2);
     $display("(%0t) Tx abort requested.", $time);
+  end
+endtask
+
+
+task clear_data_overrun;
+  begin
+    write_register(8'd1, 8'h8);
+    $display("(%0t) Data overrun cleared.", $time);
   end
 endtask
 
@@ -1315,7 +1587,7 @@ begin
       can_testbench.i_can_top.i_can_bsp.sample_point & 
       can_testbench.i_can_top.i_can_bsp.crc_err
      )
-    $display("(*E) (%0t) ERROR: CRC error (Calculated crc = 0x%0x, crc_in = 0x%0x)", $time, can_testbench.i_can_top.i_can_bsp.calculated_crc, can_testbench.i_can_top.i_can_bsp.crc_in);
+    $display("*E (%0t) ERROR: CRC error (Calculated crc = 0x%0x, crc_in = 0x%0x)", $time, can_testbench.i_can_top.i_can_bsp.calculated_crc, can_testbench.i_can_top.i_can_bsp.crc_in);
 end
 
 
@@ -1336,7 +1608,7 @@ end
 always @ (posedge clk)
 begin
   if (can_testbench.i_can_top.i_can_bsp.form_err)
-    $display("(*E) (%0t) ERROR: form_error", $time);
+    $display("*E (%0t) ERROR: form_error", $time);
 end
 
 
@@ -1345,7 +1617,7 @@ end
 always @ (posedge clk)
 begin
   if (can_testbench.i_can_top.i_can_bsp.ack_err)
-    $display("(*E) (%0t) ERROR: acknowledge_error", $time);
+    $display("*E (%0t) ERROR: acknowledge_error", $time);
 end
 
 

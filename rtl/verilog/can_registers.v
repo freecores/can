@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.13  2003/02/12 14:25:30  mohor
+// abort_tx added.
+//
 // Revision 1.12  2003/02/11 00:56:06  mohor
 // Wishbone interface added.
 //
@@ -107,9 +110,22 @@ module can_registers
   addr,
   data_in,
   data_out,
+  irq,
 
   sample_point,
   transmitting,
+  set_reset_mode,
+  node_bus_off,
+  error_status,
+  rx_err_cnt,
+  tx_err_cnt,
+  transmit_status,
+  receive_status,
+  tx_successful,
+  need_to_tx,
+  overrun,
+  info_empty,
+
 
   /* Mode register */
   reset_mode,
@@ -134,6 +150,15 @@ module can_registers
   time_segment2,
   triple_sampling,
   
+  /* Error Warning Limit register */
+  error_warning_limit,
+
+  /* Rx Error Counter register */
+  we_rx_err_cnt,
+
+  /* Tx Error Counter register */
+  we_tx_err_cnt,
+
   /* Clock Divider register */
   extended_mode,
   rx_int_enable,
@@ -194,8 +219,23 @@ input   [7:0] data_in;
 output  [7:0] data_out;
 reg     [7:0] data_out;
 
+output        irq;
+
 input         sample_point;
 input         transmitting;
+input         set_reset_mode;
+input         node_bus_off;
+input         error_status;
+input   [7:0] rx_err_cnt;
+input   [7:0] tx_err_cnt;
+input         transmit_status;
+input         receive_status;
+input         tx_successful;
+input         need_to_tx;
+input         overrun;
+input         info_empty;
+
+
 
 /* Mode register */
 output        reset_mode;
@@ -219,6 +259,15 @@ output  [1:0] sync_jump_width;
 output  [3:0] time_segment1;
 output  [2:0] time_segment2;
 output        triple_sampling;
+
+/* Error Warning Limit register */
+output  [7:0] error_warning_limit;
+
+/* Rx Error Counter register */
+output        we_rx_err_cnt;
+
+/* Tx Error Counter register */
+output        we_tx_err_cnt;
 
 /* Clock Divider register */
 output        extended_mode;
@@ -250,7 +299,7 @@ output  [7:0] acceptance_mask_3;
 
 /* End: This section is for EXTENDED mode */
 
-  /* Tx data registers. Holding identifier (basic mode), tx frame information (extended mode) and data */
+/* Tx data registers. Holding identifier (basic mode), tx frame information (extended mode) and data */
 output  [7:0] tx_data_0;
 output  [7:0] tx_data_1;
 output  [7:0] tx_data_2;
@@ -264,7 +313,18 @@ output  [7:0] tx_data_9;
 output  [7:0] tx_data_10;
 output  [7:0] tx_data_11;
 output  [7:0] tx_data_12;
-  /* End: Tx data registers */
+/* End: Tx data registers */
+
+
+// Some interrupts exist in basic mode and in extended mode. Since they are in different registers they need to be multiplexed.
+wire          data_overrun_irq_en;
+wire          error_warning_irq_en;
+wire          transmit_irq_en;
+wire          receive_irq_en;
+
+reg           transmit_buffer_status;
+
+wire    [7:0] irq_reg;
 
 
 
@@ -277,34 +337,39 @@ wire we_clock_divider_low     = cs & we & (addr == 8'd31);
 wire we_clock_divider_hi      = we_clock_divider_low & reset_mode;
 
 wire read = cs & (~we);
+wire read_irq_reg = read & (addr == 8'd3);
 
 
 /* This section is for BASIC and EXTENDED mode */
 wire we_acceptance_code_0       = cs & we &   reset_mode  & ((~extended_mode) & (addr == 8'd4)  | extended_mode & (addr == 8'd16));
 wire we_acceptance_mask_0       = cs & we &   reset_mode  & ((~extended_mode) & (addr == 8'd5)  | extended_mode & (addr == 8'd20));
-wire we_tx_data_0               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd10) | extended_mode & (addr == 8'd16));
-wire we_tx_data_1               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd11) | extended_mode & (addr == 8'd17));
-wire we_tx_data_2               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd12) | extended_mode & (addr == 8'd18));
-wire we_tx_data_3               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd13) | extended_mode & (addr == 8'd19));
-wire we_tx_data_4               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd14) | extended_mode & (addr == 8'd20));
-wire we_tx_data_5               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd15) | extended_mode & (addr == 8'd21));
-wire we_tx_data_6               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd16) | extended_mode & (addr == 8'd22));
-wire we_tx_data_7               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd17) | extended_mode & (addr == 8'd23));
-wire we_tx_data_8               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd18) | extended_mode & (addr == 8'd24));
-wire we_tx_data_9               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd19) | extended_mode & (addr == 8'd25));
-wire we_tx_data_10              = cs & we & (~reset_mode) & (                                     extended_mode & (addr == 8'd26));
-wire we_tx_data_11              = cs & we & (~reset_mode) & (                                     extended_mode & (addr == 8'd27));
-wire we_tx_data_12              = cs & we & (~reset_mode) & (                                     extended_mode & (addr == 8'd28));
+wire we_tx_data_0               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd10) | extended_mode & (addr == 8'd16)) & transmit_buffer_status;
+wire we_tx_data_1               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd11) | extended_mode & (addr == 8'd17)) & transmit_buffer_status;
+wire we_tx_data_2               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd12) | extended_mode & (addr == 8'd18)) & transmit_buffer_status;
+wire we_tx_data_3               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd13) | extended_mode & (addr == 8'd19)) & transmit_buffer_status;
+wire we_tx_data_4               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd14) | extended_mode & (addr == 8'd20)) & transmit_buffer_status;
+wire we_tx_data_5               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd15) | extended_mode & (addr == 8'd21)) & transmit_buffer_status;
+wire we_tx_data_6               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd16) | extended_mode & (addr == 8'd22)) & transmit_buffer_status;
+wire we_tx_data_7               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd17) | extended_mode & (addr == 8'd23)) & transmit_buffer_status;
+wire we_tx_data_8               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd18) | extended_mode & (addr == 8'd24)) & transmit_buffer_status;
+wire we_tx_data_9               = cs & we & (~reset_mode) & ((~extended_mode) & (addr == 8'd19) | extended_mode & (addr == 8'd25)) & transmit_buffer_status;
+wire we_tx_data_10              = cs & we & (~reset_mode) & (                                     extended_mode & (addr == 8'd26)) & transmit_buffer_status;
+wire we_tx_data_11              = cs & we & (~reset_mode) & (                                     extended_mode & (addr == 8'd27)) & transmit_buffer_status;
+wire we_tx_data_12              = cs & we & (~reset_mode) & (                                     extended_mode & (addr == 8'd28)) & transmit_buffer_status;
 /* End: This section is for BASIC and EXTENDED mode */
 
 
 /* This section is for EXTENDED mode */
-wire we_acceptance_code_1     = cs & we & (addr == 8'd17) & reset_mode & extended_mode;
-wire we_acceptance_code_2     = cs & we & (addr == 8'd18) & reset_mode & extended_mode;
-wire we_acceptance_code_3     = cs & we & (addr == 8'd19) & reset_mode & extended_mode;
-wire we_acceptance_mask_1     = cs & we & (addr == 8'd21) & reset_mode & extended_mode;
-wire we_acceptance_mask_2     = cs & we & (addr == 8'd22) & reset_mode & extended_mode;
-wire we_acceptance_mask_3     = cs & we & (addr == 8'd23) & reset_mode & extended_mode;
+wire   we_interrupt_enable      = cs & we & (addr == 8'd4)  & extended_mode;
+wire   we_error_warning_limit   = cs & we & (addr == 8'd13) & reset_mode & extended_mode;
+assign we_rx_err_cnt            = cs & we & (addr == 8'd14) & reset_mode & extended_mode;
+assign we_tx_err_cnt            = cs & we & (addr == 8'd15) & reset_mode & extended_mode;
+wire   we_acceptance_code_1     = cs & we & (addr == 8'd17) & reset_mode & extended_mode;
+wire   we_acceptance_code_2     = cs & we & (addr == 8'd18) & reset_mode & extended_mode;
+wire   we_acceptance_code_3     = cs & we & (addr == 8'd19) & reset_mode & extended_mode;
+wire   we_acceptance_mask_1     = cs & we & (addr == 8'd21) & reset_mode & extended_mode;
+wire   we_acceptance_mask_2     = cs & we & (addr == 8'd22) & reset_mode & extended_mode;
+wire   we_acceptance_mask_3     = cs & we & (addr == 8'd23) & reset_mode & extended_mode;
 /* End: This section is for EXTENDED mode */
 
 
@@ -313,29 +378,48 @@ wire we_acceptance_mask_3     = cs & we & (addr == 8'd23) & reset_mode & extende
 
 
 /* Mode register */
-wire   [7:0] mode;
+wire   [0:0] mode;
+wire   [4:1] mode_basic;
+wire   [4:1] mode_ext;
 wire         receive_irq_en_basic;
 wire         transmit_irq_en_basic;
 wire         error_irq_en_basic;
 wire         overrun_irq_en_basic;
 
-can_register_asyn #(8, 8'h1) MODE_REG
-( .data_in(data_in),
-  .data_out(mode),
+can_register_asyn_syn #(1, 1'h1) MODE_REG0
+( .data_in(data_in[0]),
+  .data_out(mode[0]),
+  .we(we_mode),
+  .clk(clk),
+  .rst(rst),
+  .rst_sync(set_reset_mode)
+);
+
+can_register_asyn #(4, 0) MODE_REG_BASIC
+( .data_in(data_in[4:1]),
+  .data_out(mode_basic[4:1]),
   .we(we_mode),
   .clk(clk),
   .rst(rst)
 );
 
-assign reset_mode = mode[0];
-assign listen_only_mode = mode[1];
-assign acceptance_filter_mode = mode[3];
-assign sleep_mode = mode[4];
+can_register_asyn #(4, 0) MODE_REG_EXT
+( .data_in(data_in[4:1]),
+  .data_out(mode_ext[4:1]),
+  .we(we_mode),
+  .clk(clk),
+  .rst(rst)
+);
 
-assign receive_irq_en_basic = mode[1];
-assign transmit_irq_en_basic = mode[2];
-assign error_irq_en_basic = mode[3];
-assign overrun_irq_en_basic = mode[4];
+assign reset_mode             = mode[0];
+assign listen_only_mode       = mode_ext[1];
+assign acceptance_filter_mode = mode_ext[3];
+assign sleep_mode             = mode_ext[4];
+
+assign receive_irq_en_basic  = mode_basic[1];
+assign transmit_irq_en_basic = mode_basic[2];
+assign error_irq_en_basic    = mode_basic[3];
+assign overrun_irq_en_basic  = mode_basic[4];
 /* End Mode register */
 
 
@@ -377,8 +461,78 @@ assign tx_request = command[0];
 
 
 /* Status register */
-/*
+
 wire   [7:0] status;
+reg          tx_successful_q;
+reg          overrun_q;
+reg          overrun_status;
+reg          transmission_complete;
+reg          transmit_buffer_status_q;
+reg          receive_buffer_status;
+reg          info_empty_q;
+
+assign status[7] = node_bus_off;
+assign status[6] = error_status;
+assign status[5] = transmit_status;
+assign status[4] = receive_status;
+assign status[3] = transmission_complete;
+assign status[2] = transmit_buffer_status;
+assign status[1] = overrun_status;
+assign status[0] = receive_buffer_status;
+
+
+always @ (posedge clk)
+begin
+  tx_successful_q           <=#Tp tx_successful;
+  overrun_q                 <=#Tp overrun;
+  transmit_buffer_status_q  <=#Tp transmit_buffer_status;
+  info_empty_q              <=#Tp info_empty;
+end
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    transmission_complete <= 1'b1;
+  else if (tx_successful & (~tx_successful_q) | abort_tx)
+    transmission_complete <=#Tp 1'b1;
+  else if (tx_request)
+    transmission_complete <=#Tp 1'b0;
+end
+
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    transmit_buffer_status <= 1'b1;
+  else if (tx_request)
+    transmit_buffer_status <=#Tp 1'b0;
+  else if (~need_to_tx)
+    transmit_buffer_status <=#Tp 1'b1;
+end
+
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    overrun_status <= 1'b0;
+  else if (overrun & (~overrun_q))
+    overrun_status <=#Tp 1'b1;
+  else if (clear_data_overrun)
+    overrun_status <=#Tp 1'b0;
+end
+
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    receive_buffer_status <= 1'b1;
+  else if (release_buffer)
+    receive_buffer_status <=#Tp 1'b0;
+  else if (~info_empty)
+    receive_buffer_status <=#Tp 1'b1;
+end
+
+/*
 can_register_asyn_syn #(1, 0) BUS_STATUS_REG_0
 ( .data_in(),
   .data_out(status[0]),
@@ -414,7 +568,7 @@ can_register_asyn_syn #(1, 0) BUS_STATUS_REG_0
   .rst(rst),
   .rst_sync()
 );
-
+     
 can_register_asyn_syn #(1, 0) BUS_STATUS_REG_0
 ( .data_in(),
   .data_out(status[0]),
@@ -422,8 +576,8 @@ can_register_asyn_syn #(1, 0) BUS_STATUS_REG_0
   .clk(clk)
   .rst(rst),
   .rst_sync()
-);
-
+);    
+      
 can_register_asyn_syn #(1, 0) BUS_STATUS_REG_0
 ( .data_in(),
   .data_out(status[0]),
@@ -471,6 +625,34 @@ can_register_asyn #(1, 0) BUS_STATUS_REG_7
 /* End Status register */
 
 
+/* Interrupt Enable register (extended mode) */
+wire   [7:0] irq_en_ext;
+wire         bus_error_irq_en;
+wire         arbitration_lost_irq_en;
+wire         error_passive_irq_en;
+wire         data_overrun_irq_en_ext;
+wire         error_warning_irq_en_ext;
+wire         transmit_irq_en_ext;
+wire         receive_irq_en_ext;
+
+can_register #(8) IRQ_EN_REG
+( .data_in(data_in),
+  .data_out(irq_en_ext),
+  .we(we_interrupt_enable),
+  .clk(clk)
+);
+
+
+assign bus_error_irq_en             = irq_en_ext[7];
+assign arbitration_lost_irq_en      = irq_en_ext[6];
+assign error_passive_irq_en         = irq_en_ext[5];
+assign data_overrun_irq_en_ext      = irq_en_ext[3];
+assign error_warning_irq_en_ext     = irq_en_ext[2];
+assign transmit_irq_en_ext          = irq_en_ext[1];
+assign receive_irq_en_ext           = irq_en_ext[0];
+/* End Bus Timing 0 register */
+
+
 /* Bus Timing 0 register */
 wire   [7:0] bus_timing_0;
 can_register #(8) BUS_TIMING_0_REG
@@ -498,6 +680,18 @@ assign time_segment1 = bus_timing_1[3:0];
 assign time_segment2 = bus_timing_1[6:4];
 assign triple_sampling = bus_timing_1[7];
 /* End Bus Timing 1 register */
+
+
+/* Error Warning Limit register */
+can_register_asyn #(8, 96) ERROR_WARNING_REG
+( .data_in(data_in),
+  .data_out(error_warning_limit),
+  .we(we_error_warning_limit),
+  .clk(clk),
+  .rst(rst)
+);
+/* End Error Warning Limit register */
+
 
 
 /* Clock Divider register */
@@ -760,7 +954,8 @@ always @ ( addr or read or extended_mode or mode or bus_timing_0 or bus_timing_1
            acceptance_code_0 or acceptance_code_1 or acceptance_code_2 or acceptance_code_3 or
            acceptance_mask_0 or acceptance_mask_1 or acceptance_mask_2 or acceptance_mask_3 or
            reset_mode or tx_data_0 or tx_data_1 or tx_data_2 or tx_data_3 or tx_data_4 or 
-           tx_data_5 or tx_data_6 or tx_data_7 or tx_data_8 or tx_data_9
+           tx_data_5 or tx_data_6 or tx_data_7 or tx_data_8 or tx_data_9 or status or 
+           error_warning_limit or rx_err_cnt or tx_err_cnt or irq_en_ext or irq_reg
          )
 begin
   if(read)  // read
@@ -768,10 +963,16 @@ begin
       if (extended_mode)    // EXTENDED mode (Different register map depends on mode)
         begin
           case(addr)
-            8'd0  :  data_out <= mode;
+            8'd0  :  data_out <= {3'b000, mode_ext[4:1], mode[0]};
             8'd1  :  data_out <= 8'h0;
+            8'd2  :  data_out <= status;
+            8'd3  :  data_out <= irq_reg;
+            8'd4  :  data_out <= irq_en_ext;
             8'd6  :  data_out <= bus_timing_0;
             8'd7  :  data_out <= bus_timing_1;
+            8'd13 :  data_out <= error_warning_limit;
+            8'd14 :  data_out <= rx_err_cnt;
+            8'd15 :  data_out <= tx_err_cnt;
             8'd16 :  data_out <= acceptance_code_0;
             8'd17 :  data_out <= acceptance_code_1;
             8'd18 :  data_out <= acceptance_code_2;
@@ -794,8 +995,10 @@ begin
       else                  // BASIC mode
         begin
           case(addr)
-            8'd0  :  data_out <= mode;
+            8'd0  :  data_out <= {3'b001, mode_basic[4:1], mode[0]};
             8'd1  :  data_out <= 8'hff;
+            8'd2  :  data_out <= status;
+            8'd3  :  data_out <= {4'hf, irq_reg[3:0]};
             8'd4  :  data_out <= reset_mode? acceptance_code_0 : 8'hff;
             8'd5  :  data_out <= reset_mode? acceptance_mask_0 : 8'hff;
             8'd6  :  data_out <= reset_mode? bus_timing_0 : 8'hff;
@@ -821,11 +1024,56 @@ begin
 end
 
 
+// Some interrupts exist in basic mode and in extended mode. Since they are in different registers they need to be multiplexed.
+assign data_overrun_irq_en  = extended_mode ? data_overrun_irq_en_ext  : overrun_irq_en_basic;
+assign error_warning_irq_en = extended_mode ? error_warning_irq_en_ext : error_irq_en_basic;
+assign transmit_irq_en      = extended_mode ? transmit_irq_en_ext      : transmit_irq_en_basic;
+assign receive_irq_en       = extended_mode ? receive_irq_en_ext       : receive_irq_en_basic;
+
+
+reg data_overrun_irq;
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    data_overrun_irq <= 1'b0;
+  else if (overrun & (~overrun_q) & data_overrun_irq_en)
+    data_overrun_irq <=#Tp 1'b1;
+  else if (read_irq_reg)
+    data_overrun_irq <=#Tp 1'b0;
+end
+
+
+reg transmit_irq;
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    transmit_irq <= 1'b0;
+  else if (transmit_buffer_status & (~transmit_buffer_status_q) & transmit_irq_en)
+    transmit_irq <=#Tp 1'b1;
+  else if (read_irq_reg)
+    transmit_irq <=#Tp 1'b0;
+end
+
+
+reg receive_irq;
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    receive_irq <= 1'b1;
+  else if (release_buffer)
+    receive_irq <=#Tp 1'b0;
+  else if ((~info_empty) & (~receive_irq) & receive_irq_en)
+    receive_irq <=#Tp 1'b1;
+end
 
 
 
 
+// FIX ME !!!
+assign irq_reg = {4'h0, data_overrun_irq, 1'b0, transmit_irq, 1'b0};
 
+// FIX ME !!!
+assign irq = data_overrun_irq | transmit_irq;
 
 
 

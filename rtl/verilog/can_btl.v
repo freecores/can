@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.11  2003/02/09 18:40:29  mohor
+// Overload fixed. Hard synchronization also enabled at the last bit of
+// interframe.
+//
 // Revision 1.10  2003/02/09 02:24:33  mohor
 // Bosch license warning added. Error counters finished. Overload frames
 // still need to be fixed.
@@ -194,7 +198,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     clk_cnt <= 0;
-  else if (clk_cnt == (preset_cnt-1) | reset_mode)
+  else if (clk_cnt == (preset_cnt-1))
     clk_cnt <=#Tp 0;
   else
     clk_cnt <=#Tp clk_cnt + 1;
@@ -277,7 +281,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     quant_cnt <= 0;
-  else if (go_sync | go_seg1 | go_seg2 | reset_mode)
+  else if (go_sync | go_seg1 | go_seg2)
     quant_cnt <=#Tp 0;
   else if (clk_en)
     quant_cnt <=#Tp quant_cnt + 1'b1;
@@ -338,13 +342,14 @@ end
 
 
 /* Blocking synchronization (can occur only once in a bit time) */
+
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
     sync_blocked <=#Tp 1'b0;
   else if (clk_en)
     begin
-      if (hard_sync || resync)
+      if (hard_sync | resync)
         sync_blocked <=#Tp 1'b1;
       else if (seg2 & quant_cnt == time_segment2)
         sync_blocked <=#Tp 1'b0;

@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.10  2003/02/11 00:56:06  mohor
+// Wishbone interface added.
+//
 // Revision 1.9  2003/02/09 02:24:33  mohor
 // Bosch license warning added. Error counters finished. Overload frames
 // still need to be fixed.
@@ -103,7 +106,9 @@ module can_fifo
 
   reset_mode,
   release_buffer,
-  extended_mode
+  extended_mode,
+  overrun,
+  info_empty
 
 );
 
@@ -119,6 +124,8 @@ input         release_buffer;
 input         extended_mode;
 
 output  [7:0] data_out;
+output        overrun;
+output        info_empty;
 
 
 reg     [7:0] fifo [0:63];
@@ -139,7 +146,6 @@ wire          write_length_info;
 wire          fifo_empty;
 wire          fifo_full;
 wire          info_full;
-wire          info_empty;
 
 assign write_length_info = (~wr) & wr_q;
 
@@ -195,6 +201,8 @@ begin
 end
 
 
+// reading overrun
+assign overrun = overrun_info[rd_info_pointer];
 
 // rd_info_pointer
 always @ (posedge clk or posedge rst)

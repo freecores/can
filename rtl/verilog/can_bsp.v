@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.22  2003/02/12 14:23:59  mohor
+// abort_tx added. Bit destuff fixed.
+//
 // Revision 1.21  2003/02/11 00:56:06  mohor
 // Wishbone interface added.
 //
@@ -142,7 +145,9 @@ module can_bsp
   hard_sync,
 
   addr,
+  data_in,
   data_out,
+  
 
 
   /* Mode register */
@@ -154,12 +159,33 @@ module can_bsp
   tx_request,
   abort_tx,
 
+  /* Error Warning Limit register */
+  error_warning_limit,
+
+  /* Rx Error Counter register */
+  we_rx_err_cnt,
+
+  /* Tx Error Counter register */
+  we_tx_err_cnt,
+
   /* Clock Divider register */
   extended_mode,
 
   rx_idle,
   transmitting,
   last_bit_of_inter,
+  set_reset_mode,
+  node_bus_off,
+  error_status,
+  rx_err_cnt,
+  tx_err_cnt,
+  transmit_status,
+  receive_status,
+  tx_successful,
+  need_to_tx,
+  overrun,
+  info_empty,
+
 
   /* This section is for BASIC and EXTENDED mode */
   /* Acceptance code register */
@@ -213,6 +239,7 @@ input         sampled_bit_q;
 input         tx_point;
 input         hard_sync;
 input   [7:0] addr;
+input   [7:0] data_in;
 output  [7:0] data_out;
 
 
@@ -220,14 +247,35 @@ input         reset_mode;
 input         acceptance_filter_mode;
 input         extended_mode;
 
+
 /* Command register */
 input         release_buffer;
 input         tx_request;
 input         abort_tx;
 
+/* Error Warning Limit register */
+input   [7:0] error_warning_limit;
+
+/* Rx Error Counter register */
+input         we_rx_err_cnt;
+
+/* Tx Error Counter register */
+input         we_tx_err_cnt;
+
 output        rx_idle;
 output        transmitting;
 output        last_bit_of_inter;
+output        set_reset_mode;
+output        node_bus_off;
+output        error_status;
+output  [8:0] rx_err_cnt;
+output  [8:0] tx_err_cnt;
+output        transmit_status;
+output        receive_status;
+output        tx_successful;
+output        need_to_tx;
+output        overrun;
+output        info_empty;
 
 
 /* This section is for BASIC and EXTENDED mode */
@@ -308,6 +356,7 @@ reg     [7:0] tmp_fifo [0:7];
 reg           write_data_to_tmp_fifo;
 reg     [2:0] byte_cnt;
 reg           bit_stuff_cnt_en;
+reg           bit_stuff_cnt_tx_en;
 reg           crc_enable;
 
 reg     [2:0] eof_cnt;
@@ -344,13 +393,17 @@ reg           tx_state;
 reg           transmitter;
 reg           finish_msg;
 
-reg     [9:0] rx_err_cnt;
-reg     [9:0] tx_err_cnt;
+reg     [8:0] rx_err_cnt;
+reg     [8:0] tx_err_cnt;
 reg           rx_err_cnt_blocked;
-reg    [10:0] recessive_cnt;
+reg     [3:0] bus_free_cnt;
+reg           bus_free_cnt_en;
+reg           bus_free;
+reg           waiting_for_bus_free;
 
 reg           node_error_passive;
 reg           node_bus_off;
+reg           node_bus_off_q;
 reg           ack_err_latched;
 reg           bit_err_latched;
 reg           stuff_err_latched;
@@ -403,7 +456,6 @@ wire   [15:0] r_calculated_crc;
 wire          remote_rq;
 wire    [3:0] limited_data_len;
 wire          form_err;
-wire          set_form_error;
 
 wire          error_frame_ended;
 wire          overload_frame_ended;
@@ -424,8 +476,6 @@ wire    [3:0] limited_data_len_minus1;
 wire          reset_wr_fifo;
 wire          err;
 
-wire          tx_successful;
-wire          recessive_cnt_ok;
 wire          arbitration_field;
 
 wire   [18:0] basic_chain;
@@ -460,7 +510,7 @@ wire          error_flag_over;
 wire          overload_flag_over;
 
 
-assign go_rx_idle     =                   sample_point &  sampled_bit & last_bit_of_inter;
+assign go_rx_idle     =                   sample_point &  sampled_bit & last_bit_of_inter | bus_free & (~node_bus_off);
 assign go_rx_id1      =                   sample_point &  (~sampled_bit) & (rx_idle | last_bit_of_inter);
 assign go_rx_rtr1     = (~bit_de_stuff) & sample_point &  rx_id1  & (bit_cnt == 10);
 assign go_rx_ide      = (~bit_de_stuff) & sample_point &  rx_rtr1;
@@ -475,7 +525,7 @@ assign go_rx_crc      = (~bit_de_stuff) & sample_point & (rx_dlc  & (bit_cnt == 
 assign go_rx_crc_lim  = (~bit_de_stuff) & sample_point &  rx_crc  & (bit_cnt == 14);
 assign go_rx_ack      =                   sample_point &  rx_crc_lim;
 assign go_rx_ack_lim  =                   sample_point &  rx_ack;
-assign go_rx_eof      =                   sample_point &  rx_ack_lim  | (~reset_mode) & reset_mode_q;
+assign go_rx_eof      =                   sample_point &  rx_ack_lim;
 assign go_rx_inter    =                 ((sample_point &  rx_eof  & (eof_cnt == 6)) | error_frame_ended | overload_frame_ended) & (~overload_needed);
 
 assign go_error_frame = (form_err | stuff_err | bit_err | ack_err | (crc_err & go_rx_eof));
@@ -698,7 +748,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_inter <= 1'b0;
-  else if (go_rx_idle | go_rx_id1 | go_overload_frame | go_error_frame)
+  else if (reset_mode | go_rx_idle | go_rx_id1 | go_overload_frame | go_error_frame)
     rx_inter <=#Tp 1'b0;
   else if (go_rx_inter)
     rx_inter <=#Tp 1'b1;
@@ -780,7 +830,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     byte_cnt <= 0;
-  else if (write_data_to_tmp_fifo)
+  else if (reset_mode | write_data_to_tmp_fifo)
     byte_cnt <=#Tp byte_cnt + 1;
   else if (sample_point & go_rx_crc_lim)
     byte_cnt <=#Tp 0;
@@ -825,7 +875,7 @@ begin
     eof_cnt <= 0;
   else if (sample_point)
     begin
-      if (go_rx_inter | go_error_frame | go_overload_frame)
+      if (reset_mode | go_rx_inter | go_error_frame | go_overload_frame)
         eof_cnt <=#Tp 0;
       else if (rx_eof)
         eof_cnt <=#Tp eof_cnt + 1'b1;
@@ -864,6 +914,18 @@ begin
 end
 
 
+// Enabling bit de-stuffing for tx
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    bit_stuff_cnt_tx_en <= 1'b0;
+  else if (bit_de_stuff_set & transmitting)
+    bit_stuff_cnt_tx_en <=#Tp 1'b1;
+  else if (bit_de_stuff_reset)
+    bit_stuff_cnt_tx_en <=#Tp 1'b0;
+end
+
+
 // bit_stuff_cnt_tx
 always @ (posedge clk or posedge rst)
 begin
@@ -893,10 +955,11 @@ assign stuff_err = sample_point & bit_stuff_cnt_en & bit_de_stuff & (sampled_bit
 
 
 
-// Generating delayed reset_mode signal
+// Generating delayed signals
 always @ (posedge clk)
 begin
   reset_mode_q <=#Tp reset_mode;
+  node_bus_off_q <=#Tp node_bus_off;
 end
 
 
@@ -1038,7 +1101,7 @@ can_crc i_can_crc_rx
   .clk(clk),
   .data(sampled_bit),
   .enable(crc_enable & sample_point & (~bit_de_stuff)),
-  .initialize(rx_eof | go_error_frame | go_overload_frame),
+  .initialize(go_crc_enable),
   .crc(calculated_crc)
 );
 
@@ -1208,7 +1271,9 @@ can_fifo i_can_fifo
 
   .reset_mode(reset_mode),
   .release_buffer(release_buffer),
-  .extended_mode(extended_mode)
+  .extended_mode(extended_mode),
+  .overrun(overrun),
+  .info_empty(info_empty)
 
   
 );
@@ -1518,7 +1583,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     need_to_tx <= 1'b0;
-  else if (tx_successful | node_bus_off | (abort_tx & (~transmitting)))
+  else if (tx_successful | reset_mode | (abort_tx & (~transmitting)))
     need_to_tx <=#Tp 1'h0;
   else if (tx_request & sample_point)
     need_to_tx <=#Tp 1'b1;
@@ -1535,7 +1600,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     tx_state <= 1'b0;
-  else if (go_rx_inter | error_frame | priority_lost)
+  else if (reset_mode | go_rx_inter | error_frame | priority_lost)
     tx_state <=#Tp 1'b0;
   else if (go_tx)
     tx_state <=#Tp 1'b1;
@@ -1550,7 +1615,7 @@ begin
     transmitter <= 1'b0;
   else if (go_tx)
     transmitter <=#Tp 1'b1;
-  else if (go_rx_inter)
+  else if (reset_mode | go_rx_inter)
     transmitter <=#Tp 1'b0;
 end
 
@@ -1631,7 +1696,9 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_err_cnt <= 'h0;
-  else if (reset_mode)
+  else if (we_rx_err_cnt & (~node_bus_off))
+    rx_err_cnt <=#Tp {1'b0, data_in};
+  else if (set_reset_mode)
     rx_err_cnt <=#Tp 'h0;
   else
     begin
@@ -1642,7 +1709,7 @@ begin
           else
             rx_err_cnt <=#Tp rx_err_cnt - 1'b1;
         end
-      else if ((rx_err_cnt < 1023) & (~transmitter))
+      else if ((rx_err_cnt < 248) & (~transmitter))   // 248 + 8 = 256
         begin
           if (go_error_frame_q & (~rule5))                                                                          // 1  (rule 5 is just the opposite then rule 1 exception
             rx_err_cnt <=#Tp rx_err_cnt + 1'b1;
@@ -1660,13 +1727,15 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     tx_err_cnt <= 'h0;
-  else if (reset_mode | node_bus_off)
-    tx_err_cnt <=#Tp 'h0;
+  else if (we_tx_err_cnt)
+    tx_err_cnt <=#Tp {1'b0, data_in};
   else
     begin
-      if ((tx_err_cnt > 0) & tx_successful)
+      if (set_reset_mode)
+        tx_err_cnt <=#Tp 127;
+      else if ((tx_err_cnt > 0) & (tx_successful | bus_free))
         tx_err_cnt <=#Tp tx_err_cnt - 1'h1;
-      else if ((tx_err_cnt < 1023) & transmitter)
+      else if (transmitter)
         begin
           if ( (sample_point & (~sampled_bit) & (delayed_dominant_cnt == 7)                     ) |       // 6
                (error_flag_over & (~error_flag_over_blocked) & rule5                            ) |       // 4  (rule 5 is the same as rule 4)
@@ -1695,9 +1764,9 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     node_error_passive <= 1'b0;
-  else if (reset_mode | node_bus_off | ((rx_err_cnt < 128) & (tx_err_cnt < 128) & error_frame_ended))
+  else if ((rx_err_cnt < 128) & (tx_err_cnt < 128) & error_frame_ended)
     node_error_passive <=#Tp 1'b0;
-  else if (((rx_err_cnt >= 128) | (tx_err_cnt >= 128)) & error_frame_ended)
+  else if (((rx_err_cnt >= 128) | (tx_err_cnt >= 128)) & (error_frame_ended | (~reset_mode) & reset_mode_q) & (~node_bus_off))
     node_error_passive <=#Tp 1'b1;
 end
 
@@ -1706,31 +1775,70 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     node_bus_off <= 1'b0;
-  else if (reset_mode | ((rx_err_cnt == 0) & (tx_err_cnt == 0) & recessive_cnt_ok))
+  else if ((rx_err_cnt == 0) & (tx_err_cnt == 0) & (~reset_mode) | (we_tx_err_cnt & (data_in < 255)))
     node_bus_off <=#Tp 1'b0;
-  else if (tx_err_cnt >= 256)
+  else if ((tx_err_cnt >= 256) | (we_tx_err_cnt & (data_in == 255)))
     node_bus_off <=#Tp 1'b1;
+end
+
+
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    bus_free_cnt <= 0;
+  else if (reset_mode)
+    bus_free_cnt <=#Tp 0;
+  else if (sample_point)
+    begin
+      if (sampled_bit & bus_free_cnt_en & (bus_free_cnt < 10))
+        bus_free_cnt <=#Tp bus_free_cnt + 1'b1;
+      else
+        bus_free_cnt <=#Tp 0;
+    end
 end
 
 
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    recessive_cnt <= 1'b0;
-  else if (sample_point)
-    begin
-      if (node_bus_off & sampled_bit)
-        recessive_cnt <=#Tp recessive_cnt + 1'b1;
-      else
-        recessive_cnt <=#Tp 0;
-    end
+    bus_free_cnt_en <= 1'b0;
+  else if ((~reset_mode) & reset_mode_q | node_bus_off_q & (~reset_mode))
+    bus_free_cnt_en <=#Tp 1'b1;
+  else if (sample_point &  (bus_free_cnt==10) & (~node_bus_off))
+    bus_free_cnt_en <=#Tp 1'b0;
 end
 
 
-assign recessive_cnt_ok = recessive_cnt == 128 * 11;
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    bus_free <= 1'b0;
+  else if (sample_point & sampled_bit & (bus_free_cnt==10))
+    bus_free <=#Tp 1'b1;
+  else
+    bus_free <=#Tp 1'b0;
+end
+
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    waiting_for_bus_free <= 1'b1;
+  else if (bus_free & (~node_bus_off))
+    waiting_for_bus_free <=#Tp 1'b0;
+  else if ((~reset_mode) & reset_mode_q | node_bus_off_q & (~reset_mode))
+    waiting_for_bus_free <=#Tp 1'b1;
+end
 
 
 assign tx_oen = node_bus_off;
 
+assign set_reset_mode = node_bus_off & (~node_bus_off_q);
+assign error_status = (~reset_mode) & extended_mode? ((rx_err_cnt >= error_warning_limit) | (tx_err_cnt >= error_warning_limit))    :
+                                                     ((rx_err_cnt >= 96) | (tx_err_cnt >= 96))                                      ;
+
+assign transmit_status = transmitting                 | (extended_mode & waiting_for_bus_free);
+assign receive_status  = (~rx_idle) & (~transmitting) | (extended_mode & waiting_for_bus_free);
 
 endmodule
