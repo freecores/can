@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2003/01/15 13:16:47  mohor
+// When a frame with "remote request" is received, no data is stored to fifo, just the frame information (identifier, ...). Data length that is stored is the received data length and not the actual data length that is stored to fifo.
+//
 // Revision 1.5  2003/01/14 17:25:09  mohor
 // Addresses corrected to decimal values (previously hex).
 //
@@ -241,7 +244,7 @@ assign fifo_empty = fifo_cnt == 0;
 
 
 // writing data to fifo
-always @ (posedge clk or posedge rst)
+always @ (posedge clk)
 begin
   if (wr & (~fifo_full))
     fifo[wr_pointer] <=#Tp data_in;
