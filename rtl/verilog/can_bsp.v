@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.52  2004/11/18 12:39:21  igorm
+// Fixes for compatibility after the SW reset.
+//
 // Revision 1.51  2004/11/15 18:23:21  igorm
 // When CAN was reset by setting the reset_mode signal in mode register, it
 // was possible that CAN was blocked for a short period of time. Problem
@@ -550,9 +553,9 @@ reg           crc_err;
 
 reg           arbitration_lost;
 reg           arbitration_lost_q;
-reg           read_arbitration_lost_capture_reg_q;
+reg           arbitration_field_d;
 reg     [4:0] arbitration_lost_capture;
-reg           arbitration_cnt_en;
+reg     [4:0] arbitration_cnt;
 reg           arbitration_blocked;
 reg           tx_q;
 
@@ -727,13 +730,13 @@ assign go_crc_enable  = hard_sync | go_tx;
 assign rst_crc_enable = go_rx_crc;
 
 assign bit_de_stuff_set   = go_rx_id1 & (~go_error_frame);
-assign bit_de_stuff_reset = go_rx_ack | reset_mode | go_error_frame | go_overload_frame;
+assign bit_de_stuff_reset = go_rx_ack | go_error_frame | go_overload_frame;
 
 assign remote_rq = ((~ide) & rtr1) | (ide & rtr2);
 assign limited_data_len = (data_len < 4'h8)? data_len : 4'h8;
 
 assign ack_err = rx_ack & sample_point & sampled_bit & tx_state & (~self_test_mode);
-assign bit_err = (tx_state | error_frame | overload_frame | rx_ack) & sample_point & (tx != sampled_bit) & (~bit_err_exc1) & (~bit_err_exc2) & (~bit_err_exc3) & (~bit_err_exc4) & (~bit_err_exc5) & (~bit_err_exc6);
+assign bit_err = (tx_state | error_frame | overload_frame | rx_ack) & sample_point & (tx != sampled_bit) & (~bit_err_exc1) & (~bit_err_exc2) & (~bit_err_exc3) & (~bit_err_exc4) & (~bit_err_exc5) & (~bit_err_exc6) & (~reset_mode);
 assign bit_err_exc1 = tx_state & arbitration_field & tx;
 assign bit_err_exc2 = rx_ack & tx;
 assign bit_err_exc3 = error_frame & node_error_passive & (error_cnt1 < 3'd7);
@@ -752,7 +755,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_idle <= 1'b0;
-  else if (reset_mode | go_rx_id1 | go_error_frame)
+  else if (go_rx_id1 | go_error_frame)
     rx_idle <=#Tp 1'b0;
   else if (go_rx_idle)
     rx_idle <=#Tp 1'b1;
@@ -764,7 +767,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_id1 <= 1'b0;
-  else if (reset_mode | go_rx_rtr1 | go_error_frame)
+  else if (go_rx_rtr1 | go_error_frame)
     rx_id1 <=#Tp 1'b0;
   else if (go_rx_id1)
     rx_id1 <=#Tp 1'b1;
@@ -776,7 +779,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_rtr1 <= 1'b0;
-  else if (reset_mode | go_rx_ide | go_error_frame)
+  else if (go_rx_ide | go_error_frame)
     rx_rtr1 <=#Tp 1'b0;
   else if (go_rx_rtr1)
     rx_rtr1 <=#Tp 1'b1;
@@ -788,7 +791,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_ide <= 1'b0;
-  else if (reset_mode | go_rx_r0 | go_rx_id2 | go_error_frame)
+  else if (go_rx_r0 | go_rx_id2 | go_error_frame)
     rx_ide <=#Tp 1'b0;
   else if (go_rx_ide)
     rx_ide <=#Tp 1'b1;
@@ -800,7 +803,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_id2 <= 1'b0;
-  else if (reset_mode | go_rx_rtr2 | go_error_frame)
+  else if (go_rx_rtr2 | go_error_frame)
     rx_id2 <=#Tp 1'b0;
   else if (go_rx_id2)
     rx_id2 <=#Tp 1'b1;
@@ -812,7 +815,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_rtr2 <= 1'b0;
-  else if (reset_mode | go_rx_r1 | go_error_frame)
+  else if (go_rx_r1 | go_error_frame)
     rx_rtr2 <=#Tp 1'b0;
   else if (go_rx_rtr2)
     rx_rtr2 <=#Tp 1'b1;
@@ -824,7 +827,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_r1 <= 1'b0;
-  else if (reset_mode | go_rx_r0 | go_error_frame)
+  else if (go_rx_r0 | go_error_frame)
     rx_r1 <=#Tp 1'b0;
   else if (go_rx_r1)
     rx_r1 <=#Tp 1'b1;
@@ -836,7 +839,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_r0 <= 1'b0;
-  else if (reset_mode | go_rx_dlc | go_error_frame)
+  else if (go_rx_dlc | go_error_frame)
     rx_r0 <=#Tp 1'b0;
   else if (go_rx_r0)
     rx_r0 <=#Tp 1'b1;
@@ -848,7 +851,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_dlc <= 1'b0;
-  else if (reset_mode | go_rx_data | go_rx_crc | go_error_frame)
+  else if (go_rx_data | go_rx_crc | go_error_frame)
     rx_dlc <=#Tp 1'b0;
   else if (go_rx_dlc)
     rx_dlc <=#Tp 1'b1;
@@ -860,7 +863,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_data <= 1'b0;
-  else if (reset_mode | go_rx_crc | go_error_frame)
+  else if (go_rx_crc | go_error_frame)
     rx_data <=#Tp 1'b0;
   else if (go_rx_data)
     rx_data <=#Tp 1'b1;
@@ -872,7 +875,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_crc <= 1'b0;
-  else if (reset_mode | go_rx_crc_lim | go_error_frame)
+  else if (go_rx_crc_lim | go_error_frame)
     rx_crc <=#Tp 1'b0;
   else if (go_rx_crc)
     rx_crc <=#Tp 1'b1;
@@ -884,7 +887,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_crc_lim <= 1'b0;
-  else if (reset_mode | go_rx_ack | go_error_frame)
+  else if (go_rx_ack | go_error_frame)
     rx_crc_lim <=#Tp 1'b0;
   else if (go_rx_crc_lim)
     rx_crc_lim <=#Tp 1'b1;
@@ -896,7 +899,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_ack <= 1'b0;
-  else if (reset_mode | go_rx_ack_lim | go_error_frame)
+  else if (go_rx_ack_lim | go_error_frame)
     rx_ack <=#Tp 1'b0;
   else if (go_rx_ack)
     rx_ack <=#Tp 1'b1;
@@ -908,7 +911,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_ack_lim <= 1'b0;
-  else if (reset_mode | go_rx_eof | go_error_frame)
+  else if (go_rx_eof | go_error_frame)
     rx_ack_lim <=#Tp 1'b0;
   else if (go_rx_ack_lim)
     rx_ack_lim <=#Tp 1'b1;
@@ -920,7 +923,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_eof <= 1'b0;
-  else if (reset_mode | go_rx_inter | go_error_frame | go_overload_frame)
+  else if (go_rx_inter | go_error_frame | go_overload_frame)
     rx_eof <=#Tp 1'b0;
   else if (go_rx_eof)
     rx_eof <=#Tp 1'b1;
@@ -933,7 +936,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_inter <= 1'b0;
-  else if (reset_mode | go_rx_idle | go_rx_id1 | go_overload_frame | go_error_frame)
+  else if (go_rx_idle | go_rx_id1 | go_overload_frame | go_error_frame)
     rx_inter <=#Tp 1'b0;
   else if (go_rx_inter)
     rx_inter <=#Tp 1'b1;
@@ -945,8 +948,6 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     id <= 29'h0;
-  else if (reset_mode)
-    id <= 29'h0;
   else if (sample_point & (rx_id1 | rx_id2) & (~bit_de_stuff))
     id <=#Tp {id[27:0], sampled_bit};
 end
@@ -956,8 +957,6 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    rtr1 <= 1'b0;
-  else if (reset_mode)
     rtr1 <= 1'b0;
   else if (sample_point & rx_rtr1 & (~bit_de_stuff))
     rtr1 <=#Tp sampled_bit;
@@ -969,8 +968,6 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rtr2 <= 1'b0;
-  else if (reset_mode)
-    rtr2 <= 1'b0;
   else if (sample_point & rx_rtr2 & (~bit_de_stuff))
     rtr2 <=#Tp sampled_bit;
 end
@@ -980,8 +977,6 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    ide <= 1'b0;
-  else if (reset_mode)
     ide <= 1'b0;
   else if (sample_point & rx_ide & (~bit_de_stuff))
     ide <=#Tp sampled_bit;
@@ -993,8 +988,6 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     data_len <= 4'b0;
-  else if (reset_mode)
-    data_len <= 4'b0;
   else if (sample_point & rx_dlc & (~bit_de_stuff))
     data_len <=#Tp {data_len[2:0], sampled_bit};
 end
@@ -1005,8 +998,6 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     tmp_data <= 8'h0;
-  else if (reset_mode)
-    tmp_data <= 8'h0;
   else if (sample_point & rx_data & (~bit_de_stuff))
     tmp_data <=#Tp {tmp_data[6:0], sampled_bit};
 end
@@ -1015,8 +1006,6 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    write_data_to_tmp_fifo <= 1'b0;
-  else if (reset_mode)
     write_data_to_tmp_fifo <= 1'b0;
   else if (sample_point & rx_data & (~bit_de_stuff) & (&bit_cnt[2:0]))
     write_data_to_tmp_fifo <=#Tp 1'b1;
@@ -1028,8 +1017,6 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    byte_cnt <= 3'h0;
-  else if (reset_mode)
     byte_cnt <= 3'h0;
   else if (write_data_to_tmp_fifo)
     byte_cnt <=#Tp byte_cnt + 1'b1;
@@ -1051,8 +1038,6 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     crc_in <= 15'h0;
-  else if (reset_mode)
-    crc_in <= 15'h0;
   else if (sample_point & rx_crc & (~bit_de_stuff))
     crc_in <=#Tp {crc_in[13:0], sampled_bit};
 end
@@ -1062,8 +1047,6 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    bit_cnt <= 6'd0;
-  else if (reset_mode)
     bit_cnt <= 6'd0;
   else if (go_rx_id1 | go_rx_id2 | go_rx_dlc | go_rx_data | go_rx_crc | 
            go_rx_ack | go_rx_eof | go_rx_inter | go_error_frame | go_overload_frame)
@@ -1077,8 +1060,6 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    eof_cnt <= 3'd0;
-  else if (reset_mode)
     eof_cnt <= 3'd0;
   else if (sample_point)
     begin
@@ -1095,8 +1076,6 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     bit_stuff_cnt_en <= 1'b0;
-  else if (reset_mode)
-    bit_stuff_cnt_en <= 1'b0;
   else if (bit_de_stuff_set)
     bit_stuff_cnt_en <=#Tp 1'b1;
   else if (bit_de_stuff_reset)
@@ -1108,8 +1087,6 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    bit_stuff_cnt <= 3'h1;
-  else if (reset_mode)
     bit_stuff_cnt <= 3'h1;
   else if (bit_de_stuff_reset)
     bit_stuff_cnt <=#Tp 3'h1;
@@ -1130,9 +1107,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     bit_stuff_cnt_tx <= 3'h1;
-  else if (reset_mode)
-    bit_stuff_cnt_tx <= 3'h1;
-  else if (bit_de_stuff_reset)
+  else if (reset_mode || bit_de_stuff_reset)
     bit_stuff_cnt_tx <=#Tp 3'h1;
   else if (tx_point_q & bit_stuff_cnt_en)
     begin
@@ -1177,7 +1152,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     crc_enable <= 1'b0;
-  else if (reset_mode | rst_crc_enable)
+  else if (rst_crc_enable)
     crc_enable <=#Tp 1'b0;
   else if (go_crc_enable)
     crc_enable <=#Tp 1'b1;
@@ -1238,7 +1213,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rule3_exc1_1 <= 1'b0;
-  else if (reset_mode | error_flag_over | rule3_exc1_2)
+  else if (error_flag_over | rule3_exc1_2)
     rule3_exc1_1 <=#Tp 1'b0;
   else if (transmitter & node_error_passive & ack_err)
     rule3_exc1_1 <=#Tp 1'b1;
@@ -1250,7 +1225,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rule3_exc1_2 <= 1'b0;
-  else if (reset_mode | go_error_frame | rule3_exc1_2)
+  else if (go_error_frame | rule3_exc1_2)
     rule3_exc1_2 <=#Tp 1'b0;
   else if (rule3_exc1_1 & (error_cnt1 < 3'd7) & sample_point & (~sampled_bit))
     rule3_exc1_2 <=#Tp 1'b1;
@@ -1353,7 +1328,7 @@ can_acf i_can_acf
 assign header_len[2:0] = extended_mode ? (ide? (3'h5) : (3'h3)) : 3'h2;
 assign storing_header = header_cnt < header_len;
 assign limited_data_len_minus1[3:0] = remote_rq? 4'hf : ((data_len < 4'h8)? (data_len -1'b1) : 4'h7);   // - 1 because counter counts from 0
-assign reset_wr_fifo = (data_cnt == (limited_data_len_minus1 + {1'b0, header_len})) | reset_mode;
+assign reset_wr_fifo = (data_cnt == (limited_data_len_minus1 + {1'b0, header_len})) || reset_mode;
 
 assign err = form_err | stuff_err | bit_err | ack_err | form_err_latched | stuff_err_latched | bit_err_latched | ack_err_latched | crc_err;
 
@@ -1453,18 +1428,20 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     error_frame <= 1'b0;
-  else if (reset_mode | error_frame_ended | go_overload_frame)
+//  else if (reset_mode || error_frame_ended || go_overload_frame)
+  else if (set_reset_mode || error_frame_ended || go_overload_frame)
     error_frame <=#Tp 1'b0;
   else if (go_error_frame)
     error_frame <=#Tp 1'b1;
 end
 
 
+
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
     error_cnt1 <= 3'd0;
-  else if (reset_mode | error_frame_ended | go_error_frame | go_overload_frame)
+  else if (error_frame_ended | go_error_frame | go_overload_frame)
     error_cnt1 <=#Tp 3'd0;
   else if (error_frame & tx_point & (error_cnt1 < 3'd7))
     error_cnt1 <=#Tp error_cnt1 + 1'b1;
@@ -1479,7 +1456,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     error_flag_over_latched <= 1'b0;
-  else if (reset_mode | error_frame_ended | go_error_frame | go_overload_frame)
+  else if (error_frame_ended | go_error_frame | go_overload_frame)
     error_flag_over_latched <=#Tp 1'b0;
   else if (error_flag_over)
     error_flag_over_latched <=#Tp 1'b1;
@@ -1490,7 +1467,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     enable_error_cnt2 <= 1'b0;
-  else if (reset_mode | error_frame_ended | go_error_frame | go_overload_frame)
+  else if (error_frame_ended | go_error_frame | go_overload_frame)
     enable_error_cnt2 <=#Tp 1'b0;
   else if (error_frame & (error_flag_over & sampled_bit))
     enable_error_cnt2 <=#Tp 1'b1;
@@ -1501,7 +1478,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     error_cnt2 <= 3'd0;
-  else if (reset_mode | error_frame_ended | go_error_frame | go_overload_frame)
+  else if (error_frame_ended | go_error_frame | go_overload_frame)
     error_cnt2 <=#Tp 3'd0;
   else if (enable_error_cnt2 & tx_point)
     error_cnt2 <=#Tp error_cnt2 + 1'b1;
@@ -1512,7 +1489,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     delayed_dominant_cnt <= 3'h0;
-  else if (reset_mode | enable_error_cnt2 | go_error_frame | enable_overload_cnt2 | go_overload_frame)
+  else if (enable_error_cnt2 | go_error_frame | enable_overload_cnt2 | go_overload_frame)
     delayed_dominant_cnt <=#Tp 3'h0;
   else if (sample_point & (~sampled_bit) & ((error_cnt1 == 3'd7) | (overload_cnt1 == 3'd7)))
     delayed_dominant_cnt <=#Tp delayed_dominant_cnt + 1'b1;
@@ -1524,7 +1501,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     passive_cnt <= 3'h1;
-  else if (reset_mode | error_frame_ended | go_error_frame | go_overload_frame | first_compare_bit)
+  else if (error_frame_ended | go_error_frame | go_overload_frame | first_compare_bit)
     passive_cnt <=#Tp 3'h1;
   else if (sample_point & (passive_cnt < 3'h6))
     begin
@@ -1553,7 +1530,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     overload_frame <= 1'b0;
-  else if (reset_mode | overload_frame_ended | go_error_frame)
+  else if (overload_frame_ended | go_error_frame)
     overload_frame <=#Tp 1'b0;
   else if (go_overload_frame)
     overload_frame <=#Tp 1'b1;
@@ -1564,7 +1541,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     overload_cnt1 <= 3'd0;
-  else if (reset_mode | overload_frame_ended | go_error_frame | go_overload_frame)
+  else if (overload_frame_ended | go_error_frame | go_overload_frame)
     overload_cnt1 <=#Tp 3'd0;
   else if (overload_frame & tx_point & (overload_cnt1 < 3'd7))
     overload_cnt1 <=#Tp overload_cnt1 + 1'b1;
@@ -1578,7 +1555,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     enable_overload_cnt2 <= 1'b0;
-  else if (reset_mode | overload_frame_ended | go_error_frame | go_overload_frame)
+  else if (overload_frame_ended | go_error_frame | go_overload_frame)
     enable_overload_cnt2 <=#Tp 1'b0;
   else if (overload_frame & (overload_flag_over & sampled_bit))
     enable_overload_cnt2 <=#Tp 1'b1;
@@ -1589,7 +1566,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     overload_cnt2 <= 3'd0;
-  else if (reset_mode | overload_frame_ended | go_error_frame | go_overload_frame)
+  else if (overload_frame_ended | go_error_frame | go_overload_frame)
     overload_cnt2 <=#Tp 3'd0;
   else if (enable_overload_cnt2 & tx_point)
     overload_cnt2 <=#Tp overload_cnt2 + 1'b1;
@@ -1600,7 +1577,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     overload_request_cnt <= 2'b0;
-  else if (reset_mode | go_error_frame | go_rx_id1)
+  else if (go_error_frame | go_rx_id1)
     overload_request_cnt <=#Tp 2'b0;
   else if (overload_request & overload_frame)
     overload_request_cnt <=#Tp overload_request_cnt + 1'b1;
@@ -1611,7 +1588,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     overload_frame_blocked <= 1'b0;
-  else if (reset_mode | go_error_frame | go_rx_id1)
+  else if (go_error_frame | go_rx_id1)
     overload_frame_blocked <=#Tp 1'b0;
   else if (overload_request & overload_frame & overload_request_cnt == 2'h2)   // This is a second sequential overload_request
     overload_frame_blocked <=#Tp 1'b1;
@@ -1910,7 +1887,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     arbitration_lost <= 1'b0;
-  else if (go_rx_idle | error_frame_ended | reset_mode)
+  else if (go_rx_idle | error_frame_ended)
     arbitration_lost <=#Tp 1'b0;
   else if (transmitter & sample_point & tx & arbitration_field & ~sampled_bit)
     arbitration_lost <=#Tp 1'b1;
@@ -1920,20 +1897,18 @@ end
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    begin
-      arbitration_lost_q <=#Tp 1'b0;
-      read_arbitration_lost_capture_reg_q <=#Tp 1'b0;
-    end
-  else if (reset_mode)
-    begin
-      arbitration_lost_q <=#Tp 1'b0;
-      read_arbitration_lost_capture_reg_q <=#Tp 1'b0;
-    end
+    arbitration_lost_q <=#Tp 1'b0;
   else
-    begin
-      arbitration_lost_q <=#Tp arbitration_lost;
-      read_arbitration_lost_capture_reg_q <=#Tp read_arbitration_lost_capture_reg;
-    end
+    arbitration_lost_q <=#Tp arbitration_lost;
+end
+
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    arbitration_field_d <=#Tp 1'b0;
+  else if (sample_point)
+    arbitration_field_d <=#Tp arbitration_field;
 end
 
 
@@ -1943,23 +1918,12 @@ assign set_arbitration_lost_irq = arbitration_lost & (~arbitration_lost_q) & (~a
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    arbitration_cnt_en <= 1'b0;
-  else if (reset_mode || arbitration_blocked)
-    arbitration_cnt_en <=#Tp 1'b0;
-  else if (rx_id1 & sample_point & (~arbitration_blocked))
-    arbitration_cnt_en <=#Tp 1'b1;
-end
-
-
-
-always @ (posedge clk or posedge rst)
-begin
-  if (rst)
-    arbitration_blocked <= 1'b0;
-  else if (reset_mode || read_arbitration_lost_capture_reg)
-    arbitration_blocked <=#Tp 1'b0;
-  else if (set_arbitration_lost_irq)
-    arbitration_blocked <=#Tp 1'b1;
+    arbitration_cnt <= 5'h0;
+  else if (sample_point && !bit_de_stuff)
+    if (arbitration_field_d)
+      arbitration_cnt <=#Tp arbitration_cnt + 1'b1;
+    else
+      arbitration_cnt <=#Tp 5'h0;
 end
 
 
@@ -1967,12 +1931,20 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     arbitration_lost_capture <= 5'h0;
-  else if (read_arbitration_lost_capture_reg_q)
-    arbitration_lost_capture <=#Tp 5'h0;
-  else if (sample_point & (~arbitration_blocked) & arbitration_cnt_en & (~bit_de_stuff))
-    arbitration_lost_capture <=#Tp arbitration_lost_capture + 1'b1;
+  else if (set_arbitration_lost_irq)
+    arbitration_lost_capture <=#Tp arbitration_cnt;
 end
 
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    arbitration_blocked <= 1'b0;
+  else if (read_arbitration_lost_capture_reg)
+    arbitration_blocked <=#Tp 1'b0;
+  else if (set_arbitration_lost_irq)
+    arbitration_blocked <=#Tp 1'b1;
+end
 
 
 always @ (posedge clk or posedge rst)
@@ -2065,8 +2037,6 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     bus_free_cnt <= 4'h0;
-  else if (reset_mode)
-    bus_free_cnt <=#Tp 4'h0;
   else if (sample_point)
     begin
       if (sampled_bit & bus_free_cnt_en & (bus_free_cnt < 4'd10))
@@ -2092,9 +2062,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     bus_free <= 1'b0;
-  else if (reset_mode)
-    bus_free <= 1'b0;
-  else if (sample_point & sampled_bit & (bus_free_cnt==4'd10))
+  else if (sample_point & sampled_bit & (bus_free_cnt==4'd10) && waiting_for_bus_free)
     bus_free <=#Tp 1'b1;
   else
     bus_free <=#Tp 1'b0;
@@ -2105,11 +2073,9 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     waiting_for_bus_free <= 1'b1;
-  else if (reset_mode)
-    waiting_for_bus_free <= 1'b1;
   else if (bus_free & (~node_bus_off))
     waiting_for_bus_free <=#Tp 1'b0;
-  else if ((~reset_mode) & reset_mode_q | node_bus_off_q & (~reset_mode))
+  else if (node_bus_off_q & (~reset_mode))
     waiting_for_bus_free <=#Tp 1'b1;
 end
 
