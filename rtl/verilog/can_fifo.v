@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.27  2004/11/18 12:39:34  igorm
+// Fixes for compatibility after the SW reset.
+//
 // Revision 1.26  2004/02/08 14:30:57  mohor
 // Header changed.
 //
@@ -277,7 +280,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rd_info_pointer <= 6'h0;
-  else if (release_buffer & (~fifo_empty))
+  else if (release_buffer & (~info_full))
     rd_info_pointer <=#Tp rd_info_pointer + 1'b1;
 end
 
