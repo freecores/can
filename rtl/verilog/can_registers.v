@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.27  2003/06/22 09:43:03  mohor
+// synthesi full_case parallel_case fixed.
+//
 // Revision 1.26  2003/06/22 01:33:14  mohor
 // clkout is clk/2 after the reset.
 //

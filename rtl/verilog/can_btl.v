@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.21  2003/07/03 09:32:20  mohor
+// Synchronization changed.
+//
 // Revision 1.20  2003/06/20 14:51:11  mohor
 // Previous change removed. When resynchronization occurs we go to seg1
 // stage. sync stage does not cause another start of seg1 stage.
@@ -129,9 +132,6 @@ module can_btl
   rst,
   rx,
 
-  /* Mode register */
-  reset_mode,
-
   /* Bus Timing 0 register */
   baud_r_presc,
   sync_jump_width,
@@ -162,8 +162,6 @@ input         clk;
 input         rst;
 input         rx;
 
-  /* Mode register */
-input         reset_mode;
 
 /* Bus Timing 0 register */
 input   [5:0] baud_r_presc;

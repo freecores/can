@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.38  2003/07/03 09:32:20  mohor
+// Synchronization changed.
+//
 // Revision 1.37  2003/06/27 20:56:15  simons
 // Virtual silicon ram instances added.
 //
@@ -519,9 +522,6 @@ can_btl i_can_btl
   .clk(clk_i),
   .rst(rst),
   .rx(rx_registered),
-
-  /* Mode register */
-  .reset_mode(reset_mode),
 
   /* Bus Timing 0 register */
   .baud_r_presc(baud_r_presc),

@@ -50,11 +50,14 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.36  2003/07/03 09:32:20  mohor
+// Synchronization changed.
+//
 // Revision 1.35  2003/06/27 20:56:12  simons
 // Virtual silicon ram instances added.
 //
 // Revision 1.34  2003/06/22 09:43:03  mohor
-// synthesis full_case parallel_case fixed.
+// synthesi full_case parallel_case fixed.
 //
 // Revision 1.33  2003/06/21 12:16:30  mohor
 // paralel_case and full_case compiler directives added to case statements.
