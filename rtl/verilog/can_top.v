@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.41  2003/07/10 15:32:27  mohor
+// Unused signal removed.
+//
 // Revision 1.40  2003/07/10 01:59:04  tadejm
 // Synchronization fixed. In some strange cases it didn't work according to
 // the VHDL reference model.
@@ -694,15 +697,14 @@ assign tx_o = tx_oen? 1'bz : tx_out;
 always @ (extended_mode or addr or reset_mode)
 begin
   if (extended_mode & (~reset_mode) & ((addr >= 8'd16) && (addr <= 8'd28)) | (~extended_mode) & ((addr >= 8'd20) && (addr <= 8'd29)))
-    data_out_fifo_selected <= 1'b1;
+    data_out_fifo_selected = 1'b1;
   else
-    data_out_fifo_selected <= 1'b0;
+    data_out_fifo_selected = 1'b0;
 end
 
 
 always @ (posedge clk_i)
 begin
-//  if (wb_cyc_i & (~wb_we_i))
   if (cs & (~we))
     begin
       if (data_out_fifo_selected)

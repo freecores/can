@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.39  2003/07/16 13:12:46  mohor
+// Fixed according to the linter.
+//
 // Revision 1.38  2003/07/10 01:59:04  tadejm
 // Synchronization fixed. In some strange cases it didn't work according to
 // the VHDL reference model.
@@ -1359,7 +1362,7 @@ can_fifo i_can_fifo
   .wr(wr_fifo),
 
   .data_in(data_for_fifo),
-  .addr(addr),
+  .addr(addr[5:0]),
   .data_out(data_out),
   .fifo_selected(fifo_selected),
 
