@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.13  2003/06/11 14:21:35  mohor
+// When switching to tx, sync stage is overjumped.
+//
 // Revision 1.12  2003/02/14 20:17:01  mohor
 // Several registers added. Not finished, yet.
 //
@@ -176,7 +179,7 @@ reg           sync_blocked;
 reg           resync_blocked;
 reg           sampled_bit;
 reg           sampled_bit_q;
-reg     [7:0] quant_cnt;
+reg     [4:0] quant_cnt;
 reg     [3:0] delay;
 reg           sync;
 reg           seg1;
@@ -184,13 +187,17 @@ reg           seg2;
 reg           resync_latched;
 reg           sample_point;
 reg     [1:0] sample;
+reg           go_sync;
 
-wire          go_sync;
+wire          go_sync_unregistered;
 wire          go_seg1;
 wire          go_seg2;
 wire [8:0]    preset_cnt;
 wire          sync_window;
 wire          resync;
+wire          quant_cnt_rst1;
+wire          quant_cnt_rst2;
+
 
 
 assign preset_cnt = (baud_r_presc + 1'b1)<<1;        // (BRP+1)*2
@@ -203,10 +210,10 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     clk_cnt <= 0;
-  else if (clk_cnt == (preset_cnt-1))
+  else if (clk_cnt == (preset_cnt-1'b1))
     clk_cnt <=#Tp 0;
   else
-    clk_cnt <=#Tp clk_cnt + 1;
+    clk_cnt <=#Tp clk_cnt + 1'b1;
 end
 
 
@@ -214,7 +221,7 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     clk_en  <= 1'b0;
-  else if (clk_cnt == (preset_cnt-1))
+  else if (clk_cnt == (preset_cnt-1'b1))
     clk_en  <=#Tp 1'b1;
   else
     clk_en  <=#Tp 1'b0;
@@ -223,10 +230,19 @@ end
 
 
 /* Changing states */
- assign go_sync = clk_en & (seg2 & (~hard_sync) & (~resync) & ((quant_cnt == time_segment2)));
+ assign go_sync_unregistered = clk_en & (seg2 & (~hard_sync) & (~resync) & ((quant_cnt[2:0] == time_segment2)));
  assign go_seg1 = clk_en & (sync | hard_sync | (resync & seg2 & sync_window) | (resync_latched & sync_window));
  assign go_seg2 = clk_en & (seg1 & (~hard_sync) & (quant_cnt == (time_segment1 + delay)));
 
+
+
+always @ (posedge clk or posedge rst)
+begin
+  if (rst)
+    go_sync <= 1'b0;
+  else
+    go_sync <=#Tp go_sync_unregistered;
+end
 
 
 /* When early edge is detected outside of the SJW field, synchronization request is latched and performed when
@@ -250,7 +266,7 @@ begin
     sync <= 0;
   else if (go_sync)
     sync <=#Tp 1'b1;
-  else if (go_seg1)
+  else
     sync <=#Tp 1'b0;
 end
 
@@ -282,13 +298,16 @@ end
 
 
 /* Quant counter */
+
+assign quant_cnt_rst1 = go_sync | go_seg1 & (~overjump_sync_seg) | go_seg2;
+assign quant_cnt_rst2 = go_seg1 & overjump_sync_seg;
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
     quant_cnt <= 0;
-  else if (go_sync | go_seg1 & (~overjump_sync_seg) | go_seg2)
+  else if (quant_cnt_rst1)
     quant_cnt <=#Tp 0;
-  else if (go_seg1 & overjump_sync_seg)
+  else if (quant_cnt_rst2)
     quant_cnt <=#Tp 1;
   else if (clk_en)
     quant_cnt <=#Tp quant_cnt + 1'b1;
@@ -301,14 +320,14 @@ begin
   if (rst)
     delay <= 0;
   else if (clk_en & resync & seg1)
-    delay <=#Tp (quant_cnt > sync_jump_width)? (sync_jump_width + 1) : (quant_cnt + 1);
+    delay <=#Tp (quant_cnt > {3'h0, sync_jump_width})? (sync_jump_width + 1'b1) : (quant_cnt + 1'b1);
   else if (go_sync | go_seg1)
     delay <=#Tp 0;
 end
 
 
 // If early edge appears within this window (in seg2 stage), phase error is fully compensated
-assign sync_window = ((time_segment2 - quant_cnt) < ( sync_jump_width + 1));
+assign sync_window = ((time_segment2 - quant_cnt[2:0]) < ( sync_jump_width + 1'b1));
 
 
 // Sampling data (memorizing two samples all the time).
@@ -358,7 +377,7 @@ begin
     begin
       if (hard_sync | resync)
         sync_blocked <=#Tp 1'b1;
-      else if (seg2 & quant_cnt == time_segment2)
+      else if (seg2 & (quant_cnt[2:0] == time_segment2))
         sync_blocked <=#Tp 1'b0;
     end
 end
