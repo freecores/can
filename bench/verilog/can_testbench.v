@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.34  2003/03/26 11:25:39  mohor
+// CAN inturrupt is active low.
+//
 // Revision 1.33  2003/03/14 19:37:30  mohor
 // ALE changes on negedge of clk.
 //
@@ -233,13 +236,13 @@ can_top i_can_top
   .wb_adr_i(wb_adr_i),
   .wb_ack_o(wb_ack_o),
 `else
+  .cs_can_i(cs_can),
   .rst_i(rst_i),
   .ale_i(ale_i),
   .rd_i(rd_i),
   .wr_i(wr_i),
   .port_0_io(port_0),
 `endif
-  .cs_can_i(cs_can),
   .clk_i(clk),
   .rx_i(rx_and_tx),
   .tx_o(tx),
