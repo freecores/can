@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2002/12/25 14:17:00  mohor
+// Synchronization working.
+//
 // Revision 1.1.1.1  2002/12/20 16:39:21  mohor
 // Initial
 //
@@ -117,43 +120,32 @@ input         sync_mode;        // NOT USED, YET
 
 reg     [8:0] clk_cnt;
 reg           clk_en;
-
-
 reg           sync_blocked;
-reg           monitored_bit;
-
-
-/* Needed for edge detection */
-always @ (posedge clk or posedge rst)
-begin
-  if (rst) 
-    monitored_bit <= 1'b1;
-  else if(clk_en)
-    monitored_bit <=#Tp rx;
-end
-
-
 reg           sampled_bit;
 reg     [7:0] quant_cnt;
-reg     [3:0] dodatek;
-wire          odstevek;
+reg     [3:0] delay;
+reg           sync;
+reg           seg1;
+reg           seg2;
+reg           resync_latched;
+reg           sample_pulse;
 
-wire    [7:0] difference;
-
-
-reg           rx_early;
-
-
-
-/* Generating general enable signal that defines baud rate. 
-   Hard synchronization is done here.                       */
-wire [8:0]    preset_cnt = (baud_r_presc + 1'b1)<<1;        // (BRP+1)*2
-wire          hard_sync =   idle  & (~rx) & sampled_bit & (~sync_blocked);
-wire          resync    = (~idle) & (~rx) & sampled_bit & (~sync_blocked);
-
+wire          go_sync;
+wire          go_seg1;
+wire          go_seg2;
+wire [8:0]    preset_cnt;
+wire          hard_sync;
+wire          resync;
+wire          sync_window;
 
 
-/* Generating enable signal (can clock) */
+
+assign preset_cnt = (baud_r_presc + 1'b1)<<1;        // (BRP+1)*2
+assign hard_sync  =   idle  & (~rx) & sampled_bit & (~sync_blocked);  // Hard synchronization
+assign resync     = (~idle) & (~rx) & sampled_bit & (~sync_blocked);  // Re-synchronization
+
+
+/* Generating general enable signal that defines baud rate. */
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
@@ -175,115 +167,19 @@ end
 
 
 
-assign difference = time_segment1 + time_segment2 + 3 - quant_cnt;
+/* Changing states */
+assign go_sync = clk_en & (seg2 & (~resync) & ((quant_cnt == time_segment2)));
+assign go_seg1 = clk_en & (sync | hard_sync | (resync & seg2 & sync_window) | (resync_latched & sync_window));
+assign go_seg2 = clk_en & (seg1 & (quant_cnt == (time_segment1 + delay)));
 
 
-
-/* Synchronization */
-/*
-always @ (posedge clk or posedge rst)
-begin
-  if (rst)
-    begin
-      quant_cnt <=#Tp 0;
-      sync_blocked <=#Tp 1'b0;
-      dodatek <=#Tp 0;
-      odstevek <=#Tp 0;
-    end
-  else if (clk_en)
-    begin
-      if (hard_sync)        // Hard synchronization
-        begin
-          quant_cnt <=#Tp 1;
-          sync_blocked <=#Tp 1'b1;
-        end
-      else if (resync)      // resynchronization
-        begin
-          sync_blocked <=#Tp 1'b1;
-          if (quant_cnt == 0)     // Right on time
-            quant_cnt <=#Tp quant_cnt + 1;
-          else if (rx_early)                             // Too early
-            begin
-                quant_cnt <=#Tp 1;
-              odstevek <=#Tp (difference > (sync_jump_width + 1))? (sync_jump_width + 1) : difference;
-            end
-          else                                                // Too late         // Take smaller (SJW : quant_cnt)
-            begin
-              dodatek <=#Tp (quant_cnt > (sync_jump_width + 1))? (sync_jump_width + 1) : quant_cnt;
-              quant_cnt <=#Tp quant_cnt + 1;
-            end
-        end
-      else if (quant_cnt == (time_segment1 + time_segment2 + 2 + dodatek))
-//      else if (quant_cnt == (time_segment1 + time_segment2 + 2 + dodatek - odstevek))
-        begin
-          quant_cnt <=#Tp 0;
-          sync_blocked <=#Tp 1'b0;
-          dodatek <=#Tp 0;
-          odstevek <=#Tp 0;
-        end
-      else
-        quant_cnt <=#Tp quant_cnt + 1;
-    end
-end
-
-
-
-
-
-reg sample_pulse;
-// Sampling data 
-always @ (posedge clk or posedge rst)
-begin
-  if (rst)
-    begin
-      sampled_bit <= 1;
-      sample_pulse <= 0;
-    end
-  else if (clk_en & (quant_cnt == (time_segment1 + 1 + dodatek)) & (~idle))   // (~idle) blocks sampling so hard sync works in all cases
-    begin
-      sampled_bit <=#Tp rx;
-      sample_pulse <=#Tp 1;
-    end
-  else
-    sample_pulse <=#Tp 0;
-end
-
-
-
-always @ (posedge clk or posedge rst)
-begin
-  if (rst)
-    begin
-      rx_early <= 1'b0;
-    end
-  else if (clk_en & rx & (quant_cnt == (time_segment1 + 1)))
-    begin
-      rx_early <=#Tp 1'b1;
-    end
-  else if (clk_en & (quant_cnt == 0))
-    rx_early <=#Tp 1'b0;
-end
-
-
-*/
-
-
-reg sync;
-reg seg1;
-reg seg2;
-reg resync_latched;
-
-
-wire go_sync = clk_en & (seg2 & (~resync) & ((quant_cnt == time_segment2)));
-wire go_seg1 = clk_en & (sync | hard_sync | (resync & seg2 & odstevek) | (resync_latched & odstevek));
-wire go_seg2 = clk_en & (seg1 & (quant_cnt == (time_segment1 + dodatek)));
-
-
+/* When early edge is detected outside of the SJW field, synchronization request is latched and performed when
+   SJW is reached */
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
     resync_latched <= 1'b0;
-  else if (resync & seg2 & (~odstevek))
+  else if (resync & seg2 & (~sync_window))
     resync_latched <=#Tp 1'b1;
   else if (go_seg1)
     resync_latched <= 1'b0;
@@ -291,7 +187,7 @@ end
 
 
 
-
+/* Synchronization stage/segment */
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
@@ -303,6 +199,7 @@ begin
 end
 
 
+/* Seg1 stage/segment (together with propagation segment which is 1 quant long) */
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
@@ -314,6 +211,7 @@ begin
 end
 
 
+/* Seg2 stage/segment */
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
@@ -325,6 +223,7 @@ begin
 end
 
 
+/* Quant counter */
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
@@ -336,33 +235,22 @@ begin
 end
 
 
+/* When late edge is detected (in seg1 stage), stage seg1 is prolonged. */
 always @ (posedge clk or posedge rst)
 begin
   if (rst)
-    dodatek <= 0;
+    delay <= 0;
   else if (clk_en & resync & seg1)
-    dodatek <=#Tp (quant_cnt > sync_jump_width)? (sync_jump_width + 1) : (quant_cnt + 1);
+    delay <=#Tp (quant_cnt > sync_jump_width)? (sync_jump_width + 1) : (quant_cnt + 1);
   else if (go_sync | go_seg1)
-    dodatek <=#Tp 0;
+    delay <=#Tp 0;
 end
 
-/*
-always @ (posedge clk or posedge rst)
-begin
-  if (rst)
-    odstevek <= 0;
-  else if (clk_en & resync & seg2)
-    odstevek <=#Tp ((time_segment2 + 1 - quant_cnt) > sync_jump_width)? (sync_jump_width + 1) : (time_segment2 + 1 - quant_cnt);
-  else if (go_sync | go_seg1)
-    odstevek <=#Tp 0;
-end
-*/
 
-assign odstevek = ((time_segment2 - quant_cnt) < ( sync_jump_width + 1));
+// If early edge appears within this window (in seg2 stage), phase error is fully compensated
+assign sync_window = ((time_segment2 - quant_cnt) < ( sync_jump_width + 1));
 
 
-
-reg sample_pulse;
 // Sampling data 
 always @ (posedge clk or posedge rst)
 begin
@@ -377,7 +265,7 @@ begin
       sample_pulse <=#Tp 1;
     end
   else
-    sample_pulse <=#Tp 0;
+    sample_pulse <=#Tp 0;       // Sample pulse is for development purposes only. REMOVE ME.
 end
 
 

@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2002/12/25 14:16:54  mohor
+// Synchronization working.
+//
 // Revision 1.1.1.1  2002/12/20 16:39:21  mohor
 // Initial
 //
@@ -150,7 +153,7 @@ begin
   idle = 0;
 
   // Resynchronization early
-  repeat (9*4) @ (posedge clk);   // one frame too early
+  repeat (8*4) @ (posedge clk);   // two frames too early
   #1 rx=0;
   repeat (10*4) @ (posedge clk);
   #1 rx=1;
