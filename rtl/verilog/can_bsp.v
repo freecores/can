@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.48  2004/05/12 15:58:41  igorm
+// Core improved to pass all tests with the Bosch VHDL Reference system.
+//
 // Revision 1.47  2004/02/08 14:24:10  mohor
 // Error counters changed.
 //
@@ -1886,8 +1889,8 @@ begin
     arbitration_lost <= 1'b0;
   else if (go_rx_idle | error_frame_ended | reset_mode)
     arbitration_lost <=#Tp 1'b0;
-  else if (transmitter & sample_point & tx & arbitration_field)
-    arbitration_lost <=#Tp (~sampled_bit);
+  else if (transmitter & sample_point & tx & arbitration_field & ~sampled_bit)
+    arbitration_lost <=#Tp 1'b1;
 end
 
 
