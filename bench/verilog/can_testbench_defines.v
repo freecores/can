@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.7  2003/02/09 02:24:11  mohor
+// Bosch license warning added. Error counters finished. Overload frames
+// still need to be fixed.
+//
 // Revision 1.6  2003/01/14 12:19:29  mohor
 // rx_fifo is now working.
 //
@@ -84,6 +88,4 @@
 `define CAN_TIMING1_TSEG2               3'h3    /* TSEG2 segment (value+1) */
 `define CAN_TIMING1_SAM                 1'h0    /* Triple sampling */
 
-/* Clock Divider register */
-`define CAN_CLOCK_DIVIDER_MODE          1'b0    /* 0 - Normal mode, 1 - Extended mode */
 
