@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.20  2003/02/09 02:24:11  mohor
+// Bosch license warning added. Error counters finished. Overload frames
+// still need to be fixed.
+//
 // Revision 1.19  2003/02/04 17:24:33  mohor
 // Backup.
 //
@@ -279,9 +283,9 @@ end
 
 task manual_frame;    // Testbench sends a frame
   begin
-
-    begin
 /*
+    begin
+
       $display("\n\nTestbench sends a frame bit by bit");
       send_bit(0);  // SOF
       send_bit(1);  // ID
@@ -347,23 +351,23 @@ task manual_frame;    // Testbench sends a frame
       send_bit(1);  // IDLE
       send_bit(1);  // IDLE
       send_bit(1);  // IDLE
-*/      
 
-        write_register(8'd10, 8'he8); // Writing ID[10:3] = 0xe8
-        write_register(8'd11, 8'hb7); // Writing ID[2:0] = 0x5, rtr = 1, length = 7
-        write_register(8'd12, 8'h00); // data byte 1
-        write_register(8'd13, 8'h00); // data byte 2
-        write_register(8'd14, 8'h00); // data byte 3
-        write_register(8'd15, 8'h00); // data byte 4
-        write_register(8'd16, 8'h00); // data byte 5
-        write_register(8'd17, 8'h00); // data byte 6
-        write_register(8'd18, 8'h00); // data byte 7
-        write_register(8'd19, 8'h00); // data byte 8
     end
-
+*/
 // tx_bypassed=1;
 
   
+    write_register(8'd10, 8'he8); // Writing ID[10:3] = 0xe8
+    write_register(8'd11, 8'hb7); // Writing ID[2:0] = 0x5, rtr = 1, length = 7
+    write_register(8'd12, 8'h00); // data byte 1
+    write_register(8'd13, 8'h00); // data byte 2
+    write_register(8'd14, 8'h00); // data byte 3
+    write_register(8'd15, 8'h00); // data byte 4
+    write_register(8'd16, 8'h00); // data byte 5
+    write_register(8'd17, 8'h00); // data byte 6
+    write_register(8'd18, 8'h00); // data byte 7
+    write_register(8'd19, 8'h00); // data byte 8
+
     fork
       begin
         tx_request;
@@ -416,10 +420,41 @@ task manual_frame;    // Testbench sends a frame
         send_bit(1);  // EOF
         send_bit(1);  // EOF
 //  tx_bypassed=1;
+        send_bit(0);  // INTER
+        send_bit(1);  // INTER    overload
+        send_bit(1);  // INTER    overload
+        send_bit(1);  // INTER    overload
+        send_bit(1);  // INTER    overload
+        send_bit(1);  // INTER    overload
+        send_bit(1);  // INTER    overload
+        send_bit(1);  // INTER    overload delim
+        send_bit(1);  // INTER    overload delim
+        send_bit(1);  // INTER    overload delim
+        send_bit(1);  // INTER    overload delim
+        send_bit(1);  // INTER    overload delim
+        send_bit(1);  // INTER    overload delim
+        send_bit(1);  // INTER    overload delim
+        send_bit(1);  // INTER    overload delim
         send_bit(1);  // INTER
-        send_bit(1);  // INTER
-        send_bit(1);  // INTER
-        send_bit(1);  // IDLE
+        send_bit(0);  // IDLE
+        send_bit(1);  // INTER    overload
+        send_bit(1);  // INTER    overload
+        send_bit(1);  // INTER    overload
+        send_bit(1);  // INTER    overload
+        send_bit(1);  // INTER    overload
+        send_bit(1);  // INTER    overload
+        send_bit(0);  // INTER    waiting for recessive
+        send_bit(0);  // INTER    waiting for recessive
+        send_bit(0);  // INTER    waiting for recessive
+        send_bit(0);  // INTER    waiting for recessive
+        send_bit(1);  // INTER    overload delim
+        send_bit(1);  // INTER    overload delim
+        send_bit(1);  // INTER    overload delim
+        send_bit(1);  // INTER    overload delim
+        send_bit(1);  // INTER    overload delim
+        send_bit(1);  // INTER    overload delim
+        send_bit(1);  // INTER    overload delim
+        send_bit(1);  // INTER    overload delim
         send_bit(1);  // IDLE
         send_bit(1);  // IDLE
         send_bit(1);  // IDLE

@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.12  2003/02/09 02:24:33  mohor
+// Bosch license warning added. Error counters finished. Overload frames
+// still need to be fixed.
+//
 // Revision 1.11  2003/02/04 14:34:52  mohor
 // *** empty log message ***
 //
@@ -280,6 +284,7 @@ wire        resync;
 /* output from can_bsp module */
 wire        rx_idle;
 wire        transmitting;
+wire        last_bit_of_inter;
 
 
 
@@ -314,7 +319,8 @@ can_btl i_can_btl
   
   /* output from can_bsp module */
   .rx_idle(rx_idle),
-  .transmitting(transmitting)
+  .transmitting(transmitting),
+  .last_bit_of_inter(last_bit_of_inter)
   
 
 
@@ -351,6 +357,7 @@ can_bsp i_can_bsp
   /* output from can_bsp module */
   .rx_idle(rx_idle),
   .transmitting(transmitting),
+  .last_bit_of_inter(last_bit_of_inter),
   
   /* This section is for BASIC and EXTENDED mode */
   /* Acceptance code register */

@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2003/02/09 02:24:33  mohor
+// Bosch license warning added. Error counters finished. Overload frames
+// still need to be fixed.
+//
 // Revision 1.3  2003/01/31 01:13:37  mohor
 // backup.
 //
@@ -91,7 +95,7 @@ module can_acf
   acceptance_mask_3,
   
   go_rx_crc_lim,
-  go_rx_idle,
+  go_rx_inter,
   
   data0,
   data1,
@@ -125,7 +129,7 @@ input   [7:0] acceptance_mask_1;
 input   [7:0] acceptance_mask_2;
 input   [7:0] acceptance_mask_3;
 input         go_rx_crc_lim;
-input         go_rx_idle;
+input         go_rx_inter;
 input   [7:0] data0;
 input   [7:0] data1;
 input         rtr1;
@@ -328,9 +332,9 @@ begin
         begin
           if (acceptance_filter_mode)       // dual filter
             begin
-              if (ide)                        // extended frame message
+              if (ide)                      // extended frame message
                 id_ok <=#Tp match_df_ext;
-              else                            // standard frame message
+              else                          // standard frame message
                 id_ok <=#Tp match_df_std;
             end           
           else                              // single filter
@@ -344,7 +348,7 @@ begin
       else      
         id_ok <=#Tp match;
     end
-  else if (reset_mode | go_rx_idle)   // sample_point is already included in go_rx_idle
+  else if (reset_mode | go_rx_inter)        // sample_point is already included in go_rx_inter
     id_ok <=#Tp 0;
 end
 

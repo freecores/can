@@ -50,6 +50,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.10  2003/02/09 02:24:33  mohor
+// Bosch license warning added. Error counters finished. Overload frames
+// still need to be fixed.
+//
 // Revision 1.9  2003/01/31 01:13:38  mohor
 // backup.
 //
@@ -114,7 +118,8 @@ module can_btl
   
   /* Output from can_bsp module */
   rx_idle,
-  transmitting
+  transmitting,
+  last_bit_of_inter
   
   
   
@@ -143,6 +148,7 @@ input         triple_sampling;
 /* Output from can_bsp module */
 input         rx_idle;
 input         transmitting;
+input         last_bit_of_inter;
 
 /* Output signals from this module */
 output        clk_en;
@@ -179,8 +185,8 @@ wire          sync_window;
 
 
 assign preset_cnt = (baud_r_presc + 1'b1)<<1;        // (BRP+1)*2
-assign hard_sync  =   rx_idle  & (~rx) & sampled_bit & (~sync_blocked) & (~transmitting);  // Hard synchronization
-assign resync     = (~rx_idle) & (~rx) & sampled_bit & (~sync_blocked) & (~resync_blocked) & (~transmitting);  // Re-synchronization
+assign hard_sync  =   (rx_idle | last_bit_of_inter)  & (~rx) & sampled_bit & (~sync_blocked) & (~transmitting);  // Hard synchronization
+assign resync     =  (~rx_idle)                      & (~rx) & sampled_bit & (~sync_blocked) & (~resync_blocked) & (~transmitting);  // Re-synchronization
 
 
 /* Generating general enable signal that defines baud rate. */
