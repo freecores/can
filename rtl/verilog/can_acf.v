@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.8  2004/02/08 14:16:44  mohor
+// Header changed.
+//
 // Revision 1.7  2003/07/16 13:41:34  mohor
 // Fixed according to the linter.
 //
@@ -343,7 +346,7 @@ begin
     begin
       if (extended_mode)
         begin
-          if (acceptance_filter_mode)       // dual filter
+          if (~acceptance_filter_mode)      // dual filter
             begin
               if (ide)                      // extended frame message
                 id_ok <=#Tp match_df_ext;
