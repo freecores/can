@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.22  2003/08/20 09:59:16  mohor
+// Artisan RAM fixed (when not using BIST).
+//
 // Revision 1.21  2003/08/14 16:04:52  simons
 // Artisan ram instances added.
 //
@@ -182,6 +185,8 @@ input         scanb_en;
 wire          scanb_s_0;
 `endif
 
+`ifdef ALTERA_RAM
+`else
 `ifdef ACTEL_APA_RAM
 `else
 `ifdef XILINX_RAM
@@ -195,6 +200,7 @@ wire          scanb_s_0;
   reg     [7:0] fifo [0:63];
   reg     [3:0] length_fifo[0:63];
   reg           overrun_info[0:63];
+`endif
 `endif
 `endif
 `endif
@@ -363,6 +369,55 @@ begin
 end
 
 
+`ifdef ALTERA_RAM
+//  altera_ram_64x8_sync fifo
+  lpm_ram_dp fifo
+  (
+    .q         (data_out),
+    .rdclock   (clk),
+    .wrclock   (clk),
+    .data      (data_in),
+    .wren      (~(wr & (~fifo_full))),
+    .rden      (~fifo_selected),
+    .wraddress (wr_pointer),
+    .rdaddress (read_address)
+  );
+  defparam fifo.lpm_width = 8;
+  defparam fifo.lpm_widthad = 6;
+
+
+//  altera_ram_64x4_sync info_fifo
+  lpm_ram_dp info_fifo
+  (
+    .q         (length_info),
+    .rdclock   (clk),
+    .wrclock   (clk),
+    .data      (len_cnt & {4{~initialize_memories}}),
+    .wren      (~(write_length_info & (~info_full) | initialize_memories)),
+    .rden      (1'b0),                   // always enabled
+    .wraddress (wr_info_pointer),
+    .rdaddress (rd_info_pointer)
+  );
+  defparam info_fifo.lpm_width = 4;
+  defparam info_fifo.lpm_widthad = 6;
+
+
+//  altera_ram_64x1_sync overrun_fifo
+  lpm_ram_dp overrun_fifo
+  (
+    .q         (overrun),
+    .rdclock   (clk),
+    .wrclock   (clk),
+    .data      ((latch_overrun | (wr & fifo_full)) & (~initialize_memories)),
+    .wren      (~(write_length_info & (~info_full) | initialize_memories)),
+    .rden      (1'b0),                   // always enabled
+    .wraddress (wr_info_pointer),
+    .rdaddress (rd_info_pointer)
+  );
+  defparam overrun_fifo.lpm_width = 1;
+  defparam overrun_fifo.lpm_widthad = 6;
+
+`else
 `ifdef ACTEL_APA_RAM
   actel_ram_64x8_sync fifo
   (
@@ -686,6 +741,7 @@ end
   assign overrun = overrun_info[rd_info_pointer];
 
 
+`endif
 `endif
 `endif
 `endif

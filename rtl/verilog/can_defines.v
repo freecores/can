@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.10  2003/08/14 16:04:52  simons
+// Artisan ram instances added.
+//
 // Revision 1.9  2003/06/27 20:56:15  simons
 // Virtual silicon ram instances added.
 //
@@ -89,6 +92,9 @@
 
 // Uncomment following line if you want to use CAN in Actel APA devices (embedded memory used)
  `define   ACTEL_APA_RAM
+
+// Uncomment following line if you want to use CAN in Altera devices (embedded memory used)
+// `define   ALTERA_RAM
 
 // Uncomment following line if you want to use CAN in Xilinx devices (embedded memory used)
 // `define   XILINX_RAM
