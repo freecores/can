@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.14  2003/01/15 14:40:16  mohor
+// RX state machine fixed to receive "remote request" frames correctly. No data bytes are written to fifo when such frames are received.
+//
 // Revision 1.13  2003/01/15 13:16:42  mohor
 // When a frame with "remote request" is received, no data is stored to fifo, just the frame information (identifier, ...). Data length that is stored is the received data length and not the actual data length that is stored to fifo.
 //
@@ -171,11 +174,11 @@ begin
       write_register(8'd16, 8'ha6); // acceptance code 0
       write_register(8'd17, 8'hb0); // acceptance code 1
       write_register(8'd18, 8'h12); // acceptance code 2
-      write_register(8'd19, 8'h34); // acceptance code 3
+      write_register(8'd19, 8'h30); // acceptance code 3
       write_register(8'd20, 8'h0); // acceptance mask 0
       write_register(8'd21, 8'h0); // acceptance mask 1
-      write_register(8'd22, 8'h0); // acceptance mask 2
-      write_register(8'd23, 8'h0); // acceptance mask 3
+      write_register(8'd22, 8'h00); // acceptance mask 2
+      write_register(8'd23, 8'h00); // acceptance mask 3
     end
   else
     begin
@@ -201,9 +204,9 @@ begin
 
   if(`CAN_CLOCK_DIVIDER_MODE)   // Extended mode
     begin
-//      receive_frame(0, 0, {26'h00000a6, 3'h5}, 2, 15'h2a11); // mode, rtr, id, length, crc
-//      receive_frame(0, 0, 29'h12567635, 2, 15'h75b4); // mode, rtr, id, length, crc
-      receive_frame(0, 0, {26'h00000a6, 3'h5}, 4'h2, 15'h2a11); // mode, rtr, id, length, crc
+//      test_empty_fifo_ext;    // test currently switched off
+      test_full_fifo_ext;     // test currently switched on
+//      send_frame_ext;         // test currently switched off
     end
   else
     begin
@@ -303,14 +306,55 @@ endtask
 
 
 
+task test_empty_fifo_ext;
+  begin
+    receive_frame(1, 0, 29'h14d60246, 4'h3, 15'h5262); // mode, rtr, id, length, crc
+    receive_frame(1, 0, 29'h14d60246, 4'h7, 15'h1730); // mode, rtr, id, length, crc
+    
+    read_receive_buffer;
+    fifo_info;
+
+    release_rx_buffer;
+    $display("\n\n");
+    read_receive_buffer;
+    fifo_info;
+
+    release_rx_buffer;
+    $display("\n\n");
+    read_receive_buffer;
+    fifo_info;
+
+    release_rx_buffer;
+    $display("\n\n");
+    read_receive_buffer;
+    fifo_info;
+
+    receive_frame(1, 0, 29'h14d60246, 4'h8, 15'h2f7a); // mode, rtr, id, length, crc
+
+    $display("\n\n");
+    read_receive_buffer;
+    fifo_info;
+
+    release_rx_buffer;
+    $display("\n\n");
+    read_receive_buffer;
+    fifo_info;
+
+    release_rx_buffer;
+    $display("\n\n");
+    read_receive_buffer;
+    fifo_info;
+  end
+endtask
+
+
+
 task test_full_fifo;
   begin
     release_rx_buffer;
     $display("\n\n");
     read_receive_buffer;
     fifo_info;
-
-    read_overrun_info(0, 31);
 
     receive_frame(0, 0, {26'h0000008, 3'h1}, 4'h0, 15'h4edd); // mode, rtr, id, length, crc
     read_receive_buffer;
@@ -405,6 +449,75 @@ task test_full_fifo;
     read_receive_buffer;
     fifo_info;
 
+
+  end
+endtask
+
+
+
+task test_full_fifo_ext;
+  begin
+    release_rx_buffer;
+    $display("\n\n");
+    read_receive_buffer;
+    fifo_info;
+
+    receive_frame(1, 0, 29'h14d60246, 4'h0, 15'h6f54); // mode, rtr, id, length, crc
+    read_receive_buffer;
+    fifo_info;
+    receive_frame(1, 0, 29'h14d60246, 4'h1, 15'h6d38); // mode, rtr, id, length, crc
+    read_receive_buffer;
+    fifo_info;
+    receive_frame(1, 0, 29'h14d60246, 4'h2, 15'h053e); // mode, rtr, id, length, crc
+    fifo_info;
+    read_receive_buffer;
+    receive_frame(1, 0, 29'h14d60246, 4'h3, 15'h5262); // mode, rtr, id, length, crc
+    fifo_info;
+    receive_frame(1, 0, 29'h14d60246, 4'h4, 15'h4bba); // mode, rtr, id, length, crc
+    fifo_info;
+    receive_frame(1, 0, 29'h14d60246, 4'h5, 15'h4d7d); // mode, rtr, id, length, crc
+    fifo_info;
+    receive_frame(1, 0, 29'h14d60246, 4'h6, 15'h6f40); // mode, rtr, id, length, crc
+    fifo_info;
+    receive_frame(1, 0, 29'h14d60246, 4'h7, 15'h1730); // mode, rtr, id, length, crc
+    fifo_info;
+    read_overrun_info(0, 10);
+
+    release_rx_buffer;
+    release_rx_buffer;
+    fifo_info;
+    receive_frame(1, 0, 29'h14d60246, 4'h8, 15'h2f7a); // mode, rtr, id, length, crc
+    fifo_info;
+    read_overrun_info(0, 15);
+    $display("\n\n");
+
+    release_rx_buffer;
+    read_receive_buffer;
+    fifo_info;
+
+    release_rx_buffer;
+    read_receive_buffer;
+    fifo_info;
+
+    release_rx_buffer;
+    read_receive_buffer;
+    fifo_info;
+
+    release_rx_buffer;
+    read_receive_buffer;
+    fifo_info;
+
+    release_rx_buffer;
+    read_receive_buffer;
+    fifo_info;
+
+    release_rx_buffer;
+    read_receive_buffer;
+    fifo_info;
+
+    release_rx_buffer;
+    read_receive_buffer;
+    fifo_info;
 
   end
 endtask
@@ -583,7 +696,7 @@ task receive_frame;           // CAN IP core receives frames
     stuff = 0;
 
     if(mode)          // Extended format
-      data = {id[28:18], 1'b1, 1'b1, 1'b0, id[17:0], remote_trans_req, 2'h0, length};
+      data = {id[28:18], 1'b1, 1'b1, id[17:0], remote_trans_req, 2'h0, length};
     else              // Standard format
       data = {id[10:0], remote_trans_req, 1'b0, 1'b0, length};
 
@@ -604,14 +717,14 @@ task receive_frame;           // CAN IP core receives frames
     if (remote_trans_req)
       begin
         if(mode)          // Extended format
-          pointer = 53;
+          pointer = 52;
         else              // Standard format
           pointer = 32;
       end
     else
       begin
         if(mode)          // Extended format
-          pointer = 53 + 8 * length;
+          pointer = 52 + 8 * length;
         else              // Standard format
           pointer = 32 + 8 * length;
       end

@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.11  2003/01/15 14:40:23  mohor
+// RX state machine fixed to receive "remote request" frames correctly. No data bytes are written to fifo when such frames are received.
+//
 // Revision 1.10  2003/01/15 13:16:47  mohor
 // When a frame with "remote request" is received, no data is stored to fifo, just the frame information (identifier, ...). Data length that is stored is the received data length and not the actual data length that is stored to fifo.
 //
@@ -283,7 +286,7 @@ assign go_rx_dlc      = (~bit_de_stuff) & sample_point &  rx_r0;
 assign go_rx_data     = (~bit_de_stuff) & sample_point &  rx_dlc  & (bit_cnt == 3) &  (sampled_bit   |   (|data_len[2:0])) & (~remote_rq);
 assign go_rx_crc      = (~bit_de_stuff) & sample_point & (rx_dlc  & (bit_cnt == 3) & ((~sampled_bit) & (~(|data_len[2:0])) | remote_rq) |
                                                           rx_data & (bit_cnt == ((limited_data_len<<3) - 1'b1)));
-assign go_rx_crc_lim  =                   sample_point &  rx_crc  & (bit_cnt == 14);
+assign go_rx_crc_lim  = (~bit_de_stuff) & sample_point &  rx_crc  & (bit_cnt == 14);
 assign go_rx_ack      =                   sample_point &  rx_crc_lim;
 assign go_rx_ack_lim  =                   sample_point &  rx_ack;
 assign go_rx_eof      =                   sample_point &  rx_ack_lim  | (~reset_mode) & reset_mode_q;
@@ -770,12 +773,12 @@ wire [2:0]  header_len;
 wire        storing_header;
 wire [3:0]  limited_data_len_minus1;
 wire        reset_wr_fifo;
-
+wire        no_error;
 assign header_len[2:0] = extended_mode ? (ide? (3'h5) : (3'h3)) : 3'h2;
 assign storing_header = header_cnt < header_len;
 assign limited_data_len_minus1[3:0] = remote_rq? 4'hf : ((data_len < 8)? (data_len -1'b1) : 4'h7);   // - 1 because counter counts from 0
 assign reset_wr_fifo = data_cnt == (limited_data_len_minus1 + header_len);
-
+assign no_error = ~crc_error;
 
 // Write enable signal for 64-byte rx fifo
 always @ (posedge clk or posedge rst)
@@ -784,7 +787,7 @@ begin
     wr_fifo <= 1'b0;
   else if (reset_wr_fifo)
     wr_fifo <=#Tp 1'b0;
-  else if (go_rx_ack_lim & (~extended_mode) & id_ok & (~crc_error))
+  else if (go_rx_ack_lim & id_ok & no_error)          // FIX go_rx_ack_lim
     wr_fifo <=#Tp 1'b1;
 end
 
