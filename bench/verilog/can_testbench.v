@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.38  2003/10/17 05:55:18  markom
+// mbist signals updated according to newest convention
+//
 // Revision 1.37  2003/09/30 20:53:58  mohor
 // Fixing the core to be Bosch VHDL Reference compatible.
 //
@@ -219,7 +222,7 @@ reg         clk;
 reg         rx;
 wire        tx;
 wire        tx_i;
-wire        tx_oen;
+wire        bus_off_on;
 wire        irq;
 wire        clkout;
 
@@ -256,7 +259,7 @@ can_top i_can_top
   .clk_i(clk),
   .rx_i(rx_and_tx),
   .tx_o(tx_i),
-  .tx_oen_o(tx_oen),
+  .bus_off_on(bus_off_on),
   .irq_on(irq),
   .clkout_o(clkout)
 
