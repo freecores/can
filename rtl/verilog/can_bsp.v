@@ -17,7 +17,7 @@
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2002, 2003 Authors                             ////
+//// Copyright (C) 2002, 2003, 2004 Authors                       ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.46  2003/10/17 05:55:20  markom
+// mbist signals updated according to newest convention
+//
 // Revision 1.45  2003/09/30 21:14:33  mohor
 // Error counters changed.
 //
@@ -288,8 +291,6 @@ module can_bsp
   node_error_active,
   rx_message_counter,
 
-
-
   /* This section is for BASIC and EXTENDED mode */
   /* Acceptance code register */
   acceptance_code_0,
@@ -329,7 +330,7 @@ module can_bsp
   /* Tx signal */
   tx,
   tx_next,
-  tx_oen,
+  bus_off_on,
 
   go_overload_frame,
   go_error_frame,
@@ -359,13 +360,11 @@ input   [7:0] data_in;
 output  [7:0] data_out;
 input         fifo_selected;
 
-
 input         reset_mode;
 input         listen_only_mode;
 input         acceptance_filter_mode;
 input         extended_mode;
 input         self_test_mode;
-
 
 /* Command register */
 input         release_buffer;
@@ -461,7 +460,7 @@ input   [7:0] tx_data_12;
 /* Tx signal */
 output        tx;
 output        tx_next;
-output        tx_oen;
+output        bus_off_on;
 
 output        go_overload_frame;
 output        go_error_frame;
@@ -699,8 +698,6 @@ assign go_error_frame = (form_err | stuff_err | bit_err | ack_err | (crc_err & g
 assign error_frame_ended = (error_cnt2 == 3'd7) & tx_point;
 assign overload_frame_ended = (overload_cnt2 == 3'd7) & tx_point;
 
-//assign go_overload_frame = (   ((sample_point &  rx_eof  & (eof_cnt == 3'd6)) | error_frame_ended | overload_frame_ended) & (overload_request | (~sampled_bit)) | 
-//assign go_overload_frame = (     sample_point & ((~sampled_bit) | overload_request) & (rx_eof  & (eof_cnt == 3'd6) | error_frame_ended | overload_frame_ended) | 
 assign go_overload_frame = (     sample_point & ((~sampled_bit) | overload_request) & (rx_eof & (~transmitter) & (eof_cnt == 3'd6) | error_frame_ended | overload_frame_ended) | 
                                  sample_point & (~sampled_bit) & rx_inter & (bit_cnt[1:0] < 2'd2)                                                            |
                                  sample_point & (~sampled_bit) & ((error_cnt2 == 3'd7) | (overload_cnt2 == 3'd7))
@@ -738,7 +735,6 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_idle <= 1'b0;
-//  else if (reset_mode | go_rx_id1 | error_frame)
   else if (reset_mode | go_rx_id1 | go_error_frame)
     rx_idle <=#Tp 1'b0;
   else if (go_rx_idle)
@@ -751,7 +747,6 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_id1 <= 1'b0;
-//  else if (reset_mode | go_rx_rtr1 | error_frame)
   else if (reset_mode | go_rx_rtr1 | go_error_frame)
     rx_id1 <=#Tp 1'b0;
   else if (go_rx_id1)
@@ -764,7 +759,6 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_rtr1 <= 1'b0;
-//  else if (reset_mode | go_rx_ide | error_frame)
   else if (reset_mode | go_rx_ide | go_error_frame)
     rx_rtr1 <=#Tp 1'b0;
   else if (go_rx_rtr1)
@@ -777,7 +771,6 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_ide <= 1'b0;
-//  else if (reset_mode | go_rx_r0 | go_rx_id2 | error_frame)
   else if (reset_mode | go_rx_r0 | go_rx_id2 | go_error_frame)
     rx_ide <=#Tp 1'b0;
   else if (go_rx_ide)
@@ -790,7 +783,6 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_id2 <= 1'b0;
-//  else if (reset_mode | go_rx_rtr2 | error_frame)
   else if (reset_mode | go_rx_rtr2 | go_error_frame)
     rx_id2 <=#Tp 1'b0;
   else if (go_rx_id2)
@@ -803,7 +795,6 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_rtr2 <= 1'b0;
-//  else if (reset_mode | go_rx_r1 | error_frame)
   else if (reset_mode | go_rx_r1 | go_error_frame)
     rx_rtr2 <=#Tp 1'b0;
   else if (go_rx_rtr2)
@@ -816,7 +807,6 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_r1 <= 1'b0;
-//  else if (reset_mode | go_rx_r0 | error_frame)
   else if (reset_mode | go_rx_r0 | go_error_frame)
     rx_r1 <=#Tp 1'b0;
   else if (go_rx_r1)
@@ -829,7 +819,6 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_r0 <= 1'b0;
-//  else if (reset_mode | go_rx_dlc | error_frame)
   else if (reset_mode | go_rx_dlc | go_error_frame)
     rx_r0 <=#Tp 1'b0;
   else if (go_rx_r0)
@@ -842,7 +831,6 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_dlc <= 1'b0;
-//  else if (reset_mode | go_rx_data | go_rx_crc | error_frame)
   else if (reset_mode | go_rx_data | go_rx_crc | go_error_frame)
     rx_dlc <=#Tp 1'b0;
   else if (go_rx_dlc)
@@ -855,7 +843,6 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_data <= 1'b0;
-//  else if (reset_mode | go_rx_crc | error_frame)
   else if (reset_mode | go_rx_crc | go_error_frame)
     rx_data <=#Tp 1'b0;
   else if (go_rx_data)
@@ -868,7 +855,6 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_crc <= 1'b0;
-//  else if (reset_mode | go_rx_crc_lim | error_frame)
   else if (reset_mode | go_rx_crc_lim | go_error_frame)
     rx_crc <=#Tp 1'b0;
   else if (go_rx_crc)
@@ -881,7 +867,6 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_crc_lim <= 1'b0;
-//  else if (reset_mode | go_rx_ack | error_frame)
   else if (reset_mode | go_rx_ack | go_error_frame)
     rx_crc_lim <=#Tp 1'b0;
   else if (go_rx_crc_lim)
@@ -894,7 +879,6 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_ack <= 1'b0;
-//  else if (reset_mode | go_rx_ack_lim | error_frame)
   else if (reset_mode | go_rx_ack_lim | go_error_frame)
     rx_ack <=#Tp 1'b0;
   else if (go_rx_ack)
@@ -907,7 +891,6 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_ack_lim <= 1'b0;
-//  else if (reset_mode | go_rx_eof | error_frame)
   else if (reset_mode | go_rx_eof | go_error_frame)
     rx_ack_lim <=#Tp 1'b0;
   else if (go_rx_ack_lim)
@@ -920,7 +903,6 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rx_eof <= 1'b0;
-//  else if (go_rx_inter | error_frame | go_overload_frame)
   else if (go_rx_inter | go_error_frame | go_overload_frame)
     rx_eof <=#Tp 1'b0;
   else if (go_rx_eof)
@@ -1226,7 +1208,6 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     rule3_exc1_2 <= 1'b0;
-//  else if (reset_mode | error_flag_over)
   else if (reset_mode | go_error_frame | rule3_exc1_2)
     rule3_exc1_2 <=#Tp 1'b0;
   else if (rule3_exc1_1 & (error_cnt1 < 3'd7) & sample_point & (~sampled_bit))
@@ -1610,12 +1591,11 @@ assign send_ack = (~tx_state) & rx_ack & (~err) & (~listen_only_mode);
 
 
 reg tx_next;
-always @ (reset_mode or tx_state or bit_de_stuff_tx or tx_bit or tx_q or
-//always @ (reset_mode or go_tx or tx_state or bit_de_stuff_tx or tx_bit or tx_q or
+always @ (reset_mode or node_bus_off or tx_state or bit_de_stuff_tx or tx_bit or tx_q or
           send_ack or go_overload_frame or overload_frame or overload_cnt1 or
           go_error_frame or error_frame or error_cnt1 or node_error_passive)
 begin
-  if (reset_mode)                                                               // Reset
+  if (reset_mode | node_bus_off)                                                // Reset or node_bus_off
     tx_next = 1'b1;
   else
     begin
@@ -1639,7 +1619,6 @@ begin
             tx_next = 1'b1;
         end
       else if (tx_state)                                                        // Transmitting message
-//      else if (go_tx | tx_state)                                                // Transmitting message
         tx_next = ((~bit_de_stuff_tx) & tx_bit) | (bit_de_stuff_tx & (~tx_q));
       else if (send_ack)                                                        // Acknowledge
         tx_next = 1'b0;
@@ -1766,7 +1745,6 @@ begin
 end
 
 
-//assign tx_successful = transmitter & go_rx_inter & (~error_frame_ended) & (~overload_frame_ended) & (~arbitration_lost);
 assign tx_successful = transmitter & go_rx_inter & (~go_error_frame) & (~error_frame_ended) & (~overload_frame_ended) & (~arbitration_lost);
 
 
@@ -1791,7 +1769,6 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     go_early_tx_latched <= 1'b0;
-//  else if (tx_point_q)
   else if (tx_point)
     go_early_tx_latched <=#Tp 1'b0;
   else if (go_early_tx)
@@ -1828,7 +1805,6 @@ begin
     transmitter <= 1'b0;
   else if (go_tx)
     transmitter <=#Tp 1'b1;
-//  else if ((reset_mode | go_rx_inter ) | ((~tx_state) & tx_state_q))
   else if (reset_mode | go_rx_idle)
     transmitter <=#Tp 1'b0;
 end
@@ -1841,7 +1817,6 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     transmitting <= 1'b0;
-//  else if (go_error_frame | go_overload_frame | go_tx)
   else if (go_error_frame | go_overload_frame | go_tx | send_ack)
     transmitting <=#Tp 1'b1;
   else if (reset_mode | go_rx_idle | (go_rx_id1 & (~tx_state)) | (arbitration_lost & tx_state) | rx_ack_lim)
@@ -1855,7 +1830,6 @@ begin
     suspend <= 1'b0;
   else if (reset_mode | (sample_point & (susp_cnt == 3'h7)))
     suspend <=#Tp 1'b0;
-//  else if (go_rx_inter & transmitter & node_error_passive)
   else if (not_first_bit_of_inter & transmitter & node_error_passive)
     suspend <=#Tp 1'b1;
 end
@@ -1984,7 +1958,6 @@ begin
 //              else if ( (error_flag_over & (~error_flag_over_latched) & sample_point & (~sampled_bit) & (error_cnt1 == 3'd7)     ) |   // 2
               else if ( (error_flag_over & (~error_flag_over_latched) & sample_point & (~sampled_bit) & (error_cnt1 == 3'd7)     ) |   // 2
                         (go_error_frame & rule5                                                                                  ) |   // 5
-//                        (error_frame & sample_point & (~sampled_bit) & (delayed_dominant_cnt == 3'h7)                            )     // 6
                         (sample_point & (~sampled_bit) & (delayed_dominant_cnt == 3'h7)                            )     // 6
                       )
                 rx_err_cnt <=#Tp rx_err_cnt + 4'h8;
@@ -2037,7 +2010,6 @@ always @ (posedge clk or posedge rst)
 begin
   if (rst)
     node_error_passive <= 1'b0;
-//  else if ((rx_err_cnt < 128) & (tx_err_cnt < 9'd128) & error_frame_ended)
   else if ((rx_err_cnt < 128) & (tx_err_cnt < 9'd128))
     node_error_passive <=#Tp 1'b0;
   else if (((rx_err_cnt >= 128) | (tx_err_cnt >= 9'd128)) & (error_frame_ended | go_error_frame | (~reset_mode) & reset_mode_q) & (~node_bus_off))
@@ -2109,7 +2081,7 @@ begin
 end
 
 
-assign tx_oen = node_bus_off;
+assign bus_off_on = ~node_bus_off;
 
 assign set_reset_mode = node_bus_off & (~node_bus_off_q);
 assign error_status = (~reset_mode) & extended_mode? ((rx_err_cnt >= error_warning_limit) | (tx_err_cnt >= error_warning_limit))    :
