@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.42  2003/07/16 15:11:28  mohor
+// Fixed according to the linter.
+//
 // Revision 1.41  2003/07/10 15:32:27  mohor
 // Unused signal removed.
 //
@@ -214,8 +217,10 @@ module can_top
   clk_i,
   rx_i,
   tx_o,
+  tx_oen_o,
   irq_on,
   clkout_o
+
   // Bist
 `ifdef CAN_BIST
   ,
@@ -269,6 +274,7 @@ parameter Tp = 1;
 input        clk_i;
 input        rx_i;
 output       tx_o;
+output       tx_oen_o;
 output       irq_on;
 output       clkout_o;
 
@@ -401,8 +407,6 @@ wire   [4:0] arbitration_lost_capture;
 wire         node_error_passive;
 wire         node_error_active;
 wire   [6:0] rx_message_counter;
-wire         tx_out;
-wire         tx_oen;
 
 wire         rst;
 wire         we;
@@ -676,8 +680,8 @@ can_bsp i_can_bsp
   /* End: Tx data registers */
   
   /* Tx signal */
-  .tx(tx_out),
-  .tx_oen(tx_oen)
+  .tx(tx_o),
+  .tx_oen(tx_oen_o)
 
 `ifdef CAN_BIST
   ,
@@ -690,7 +694,6 @@ can_bsp i_can_bsp
 `endif
 );
 
-assign tx_o = tx_oen? 1'bz : tx_out;
 
 
 // Multiplexing wb_dat_o from registers and rx fifo
