@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.29  2003/03/05 15:33:37  mohor
+// tx_o is now tristated signal. tx_oen and tx_o combined together.
+//
 // Revision 1.28  2003/03/05 15:00:49  mohor
 // Top level signal names changed.
 //
@@ -160,20 +163,34 @@ parameter Tp = 1;
 parameter BRP = 2*(`CAN_TIMING0_BRP + 1);
 
 
+`ifdef CAN_WISHBONE_IF
+  reg         wb_clk_i;
+  reg         wb_rst_i;
+  reg   [7:0] wb_dat_i;
+  wire  [7:0] wb_dat_o;
+  reg         wb_cyc_i;
+  reg         wb_stb_i;
+  reg         wb_we_i;
+  reg   [7:0] wb_adr_i;
+  wire        wb_ack_o;
+  reg         wb_free;
+`else
+  reg         rst_i;
+  reg         ale_i;
+  reg         rd_i;   // active low
+  reg         wr_i;   // active low
+  wire  [7:0] port_0;
+  wire  [7:0] port_0_i;
+  reg   [7:0] port_0_o;
+  reg         port_0_en;
+  reg         port_free;
+`endif
 
-reg         wb_clk_i;
-reg         wb_rst_i;
-reg   [7:0] wb_dat_i;
-wire  [7:0] wb_dat_o;
-reg         wb_cyc_i;
-reg         wb_stb_i;
 
-reg         wb_we_i;
-reg   [7:0] wb_adr_i;
+reg         cs_can;
 reg         clk;
 reg         rx;
 wire        tx;
-wire        wb_ack_o;
 wire        irq;
 wire        clkout;
 
@@ -183,7 +200,6 @@ integer     start_tb;
 reg   [7:0] tmp_data;
 reg         delayed_tx;
 reg         tx_bypassed;
-reg         wb_free;
 reg         extended_mode;
 
 
@@ -191,6 +207,7 @@ reg         extended_mode;
 // Instantiate can_top module
 can_top i_can_top
 ( 
+`ifdef CAN_WISHBONE_IF
   .wb_clk_i(wb_clk_i),
   .wb_rst_i(wb_rst_i),
   .wb_dat_i(wb_dat_i),
@@ -200,6 +217,14 @@ can_top i_can_top
   .wb_we_i(wb_we_i),
   .wb_adr_i(wb_adr_i),
   .wb_ack_o(wb_ack_o),
+`else
+  .rst_i(rst_i),
+  .ale_i(ale_i),
+  .rd_i(rd_i),                // active low
+  .wr_i(wr_i),                // active low
+  .port_0_i(port_0),
+`endif
+  .cs_can(cs_can),
   .clk_i(clk),
   .rx_i(rx_and_tx),
   .tx_o(tx),
@@ -208,13 +233,21 @@ can_top i_can_top
 );
 
 
+`ifdef CAN_WISHBONE_IF
+  // Generate wishbone clock signal 10 MHz
+  initial
+  begin
+    wb_clk_i=0;
+    forever #50 wb_clk_i = ~wb_clk_i;
+  end
+`endif
 
-// Generate wishbone clock signal 10 MHz
-initial
-begin
-  wb_clk_i=0;
-  forever #50 wb_clk_i = ~wb_clk_i;
-end
+
+`ifdef CAN_WISHBONE_IF
+`else
+  assign port_0_i = port_0;
+  assign port_0 = port_0_en? port_0_o : 8'hz;
+`endif
 
 
 // Generate clock signal 24 MHz
@@ -228,19 +261,33 @@ end
 initial
 begin
   start_tb = 0;
-  wb_dat_i = 'hz;
-  wb_cyc_i = 0;
-  wb_stb_i = 0;
-  wb_we_i = 'hz;
-  wb_adr_i = 'hz;
-  wb_free = 1;
+  cs_can = 0;
   rx = 1;
-  wb_rst_i = 1;
   extended_mode = 0;
-  #200 wb_rst_i = 0;
-//  #200 initialize_fifo;
-  #200 start_tb = 1;
   tx_bypassed = 0;
+
+  `ifdef CAN_WISHBONE_IF
+    wb_dat_i = 'hz;
+    wb_cyc_i = 0;
+    wb_stb_i = 0;
+    wb_we_i = 'hz;
+    wb_adr_i = 'hz;
+    wb_free = 1;
+    wb_rst_i = 1;
+    #200 wb_rst_i = 0;
+    #200 start_tb = 1;
+  `else
+    rst_i = 1'b0;
+    ale_i = 1'b0;
+    rd_i  = 1'b1;   // active low
+    wr_i  = 1'b1;   // active low
+    port_0_o = 8'h0;
+    port_0_en = 0;
+    port_free = 1;
+    rst_i = 1;
+    #200 rst_i = 0;
+    #200 start_tb = 1;
+  `endif
 end
 
 
@@ -1554,25 +1601,52 @@ endtask
 task read_register;
   input [7:0] reg_addr;
 
-  begin
-    wait (wb_free);
-    wb_free = 0;
-    @ (posedge wb_clk_i);
-    #1; 
-    wb_adr_i = reg_addr;
-    wb_cyc_i = 1;
-    wb_stb_i = 1;
-    wb_we_i = 0;
-    wait (wb_ack_o);
-    $display("(%0t) Reading register [%0d] = 0x%0x", $time, wb_adr_i, wb_dat_o);
-    @ (posedge wb_clk_i);
-    #1; 
-    wb_adr_i = 'hz;
-    wb_cyc_i = 0;
-    wb_stb_i = 0;
-    wb_we_i = 'hz;
-    wb_free = 1;
-  end
+  `ifdef CAN_WISHBONE_IF
+    begin
+      wait (wb_free);
+      wb_free = 0;
+      @ (posedge wb_clk_i);
+      #1; 
+      cs_can = 1;
+      wb_adr_i = reg_addr;
+      wb_cyc_i = 1;
+      wb_stb_i = 1;
+      wb_we_i = 0;
+      wait (wb_ack_o);
+      $display("(%0t) Reading register [%0d] = 0x%0x", $time, wb_adr_i, wb_dat_o);
+      @ (posedge wb_clk_i);
+      #1; 
+      wb_adr_i = 'hz;
+      wb_cyc_i = 0;
+      wb_stb_i = 0;
+      wb_we_i = 'hz;
+      cs_can = 0;
+      wb_free = 1;
+    end
+  `else
+    begin
+      wait (port_free);
+      port_free = 0;
+      @ (posedge clk);
+      #1;
+      cs_can = 1;
+      ale_i = 1;
+      port_0_en = 1;
+      port_0_o = reg_addr;
+      @ (posedge clk);
+      #1;
+      ale_i = 0;
+      #90;            // 73 - 103 ns
+      port_0_en = 0;
+      rd_i = 0;       // active low
+      #158;
+      $display("(%0t) Reading register [%0d] = 0x%0x", $time, can_testbench.i_can_top.addr_latched, port_0_i);
+      #1;
+      rd_i = 1;       // active low
+      cs_can = 0;
+      port_free = 1;
+    end
+  `endif
 endtask
 
 
@@ -1580,26 +1654,52 @@ task write_register;
   input [7:0] reg_addr;
   input [7:0] reg_data;
 
-  begin
-    wait (wb_free);
-    wb_free = 0;
-    @ (posedge wb_clk_i);
-    #1; 
-    wb_adr_i = reg_addr;
-    wb_dat_i = reg_data;
-    wb_cyc_i = 1;
-    wb_stb_i = 1;
-    wb_we_i = 1;
-    wait (wb_ack_o);
-    @ (posedge wb_clk_i);
-    #1; 
-    wb_adr_i = 'hz;
-    wb_dat_i = 'hz;
-    wb_cyc_i = 0;
-    wb_stb_i = 0;
-    wb_we_i = 'hz;
-    wb_free = 1;
-  end
+  `ifdef CAN_WISHBONE_IF
+    begin
+      wait (wb_free);
+      wb_free = 0;
+      @ (posedge wb_clk_i);
+      #1; 
+      cs_can = 1;
+      wb_adr_i = reg_addr;
+      wb_dat_i = reg_data;
+      wb_cyc_i = 1;
+      wb_stb_i = 1;
+      wb_we_i = 1;
+      wait (wb_ack_o);
+      @ (posedge wb_clk_i);
+      #1; 
+      wb_adr_i = 'hz;
+      wb_dat_i = 'hz;
+      wb_cyc_i = 0;
+      wb_stb_i = 0;
+      wb_we_i = 'hz;
+      cs_can = 0;
+      wb_free = 1;
+    end
+  `else
+    begin
+      wait (port_free);
+      port_free = 0;
+      @ (posedge clk);
+      #1;
+      cs_can = 1;
+      ale_i = 1;
+      port_0_en = 1;
+      port_0_o = reg_addr;
+      @ (posedge clk);
+      #1;
+      ale_i = 0;
+      #90;            // 73 - 103 ns
+      port_0_o = reg_data;
+      wr_i = 0;       // active low
+      #158;
+      wr_i = 1;       // active low
+      port_0_en = 0;
+      cs_can = 0;
+      port_free = 1;
+    end
+  `endif
 endtask
 
 

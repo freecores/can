@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.24  2003/03/10 17:24:40  mohor
+// wire declaration added.
+//
 // Revision 1.23  2003/03/05 15:33:13  mohor
 // tx_o is now tristated signal. tx_oen and tx_o combined together.
 //
@@ -136,15 +139,24 @@
 
 module can_top
 ( 
-  wb_clk_i,
-  wb_rst_i,
-  wb_dat_i,
-  wb_dat_o,
-  wb_cyc_i,
-  wb_stb_i,
-  wb_we_i,
-  wb_adr_i,
-  wb_ack_o,
+  `ifdef CAN_WISHBONE_IF
+    wb_clk_i,
+    wb_rst_i,
+    wb_dat_i,
+    wb_dat_o,
+    wb_cyc_i,
+    wb_stb_i,
+    wb_we_i,
+    wb_adr_i,
+    wb_ack_o,
+  `else
+    rst_i,
+    ale_i,
+    rd_i,   // active low
+    wr_i,   // active low
+    port_0_i,
+  `endif
+  cs_can,
   clk_i,
   rx_i,
   tx_o,
@@ -154,34 +166,48 @@ module can_top
 
 parameter Tp = 1;
 
-input        wb_clk_i;
-input        wb_rst_i;
-input  [7:0] wb_dat_i;
-output [7:0] wb_dat_o;
-input        wb_cyc_i;
-input        wb_stb_i;
-input        wb_we_i;
-input  [7:0] wb_adr_i;
-output       wb_ack_o;
+`ifdef CAN_WISHBONE_IF
+  input        wb_clk_i;
+  input        wb_rst_i;
+  input  [7:0] wb_dat_i;
+  output [7:0] wb_dat_o;
+  input        wb_cyc_i;
+  input        wb_stb_i;
+  input        wb_we_i;
+  input  [7:0] wb_adr_i;
+  output       wb_ack_o;
+
+  reg          wb_ack_o;
+  reg          cs_sync1;
+  reg          cs_sync2;
+  reg          cs_sync3;
+  
+  reg          cs_ack1;
+  reg          cs_ack2;
+  reg          cs_ack3;
+  reg          cs_sync_rst1;
+  reg          cs_sync_rst2;
+`else
+  input        rst_i;
+  input        ale_i;
+  input        rd_i;   // active low
+  input        wr_i;   // active low
+  inout  [7:0] port_0_i;
+  
+  reg    [7:0] addr_latched;
+  reg          wr_i_q;
+  reg          rd_i_q;
+`endif
+
+input        cs_can;
 input        clk_i;
 input        rx_i;
 output       tx_o;
 output       irq_o;
 output       clkout_o;
 
-reg    [7:0] wb_dat_o;
-reg          wb_ack_o;
 reg          data_out_fifo_selected;
 
-reg          cs_sync1;
-reg          cs_sync2;
-reg          cs_sync3;
-
-reg          cs_ack1;
-reg          cs_ack2;
-reg          cs_ack3;
-reg          cs_sync_rst1;
-reg          cs_sync_rst2;
 
 wire   [7:0] data_out_fifo;
 wire   [7:0] data_out_regs;
@@ -303,17 +329,22 @@ wire   [6:0] rx_message_counter;
 wire         tx_out;
 wire         tx_oen;
 
+wire         rst;
+wire         we;
+wire   [7:0] addr;
+wire   [7:0] data_in;
+reg    [7:0] data_out;
 
 
 /* Connecting can_registers module */
 can_registers i_can_registers
 ( 
   .clk(clk_i),
-  .rst(wb_rst_i),
+  .rst(rst),
   .cs(cs),
-  .we(wb_we_i),
-  .addr(wb_adr_i),
-  .data_in(wb_dat_i),
+  .we(we),
+  .addr(addr),
+  .data_in(data_in),
   .data_out(data_out_regs),
   .irq(irq_o),
 
@@ -432,7 +463,7 @@ can_registers i_can_registers
 can_btl i_can_btl
 ( 
   .clk(clk_i),
-  .rst(wb_rst_i),
+  .rst(rst),
   .rx(rx_i),
 
   /* Mode register */
@@ -471,7 +502,7 @@ can_btl i_can_btl
 can_bsp i_can_bsp
 (
   .clk(clk_i),
-  .rst(wb_rst_i),
+  .rst(rst),
   
   /* From btl module */
   .sample_point(sample_point),
@@ -480,8 +511,8 @@ can_bsp i_can_bsp
   .tx_point(tx_point),
   .hard_sync(hard_sync),
 
-  .addr(wb_adr_i),
-  .data_in(wb_dat_i),
+  .addr(addr),
+  .data_in(data_in),
   .data_out(data_out_fifo),
   .fifo_selected(data_out_fifo_selected),
 
@@ -584,9 +615,9 @@ assign tx_o = tx_oen? 1'bz : tx_out;
 
 
 // Multiplexing wb_dat_o from registers and rx fifo
-always @ (extended_mode or wb_adr_i or reset_mode)
+always @ (extended_mode or addr or reset_mode)
 begin
-  if (extended_mode & (~reset_mode) & ((wb_adr_i >= 8'd16) && (wb_adr_i <= 8'd28)) | (~extended_mode) & ((wb_adr_i >= 8'd20) && (wb_adr_i <= 8'd29)))
+  if (extended_mode & (~reset_mode) & ((addr >= 8'd16) && (addr <= 8'd28)) | (~extended_mode) & ((addr >= 8'd20) && (addr <= 8'd29)))
     data_out_fifo_selected <= 1'b1;
   else
     data_out_fifo_selected <= 1'b0;
@@ -595,56 +626,103 @@ end
 
 always @ (posedge clk_i)
 begin
-  if (wb_cyc_i & (~wb_we_i))
+//  if (wb_cyc_i & (~wb_we_i))
+  if (cs & (~we))
     begin
       if (data_out_fifo_selected)
-        wb_dat_o <=#Tp data_out_fifo;
+        data_out <=#Tp data_out_fifo;
       else
-        wb_dat_o <=#Tp data_out_regs;
+        data_out <=#Tp data_out_regs;
     end
 end
 
 
 
-// Combining wb_cyc_i and wb_stb_i signals to cs signal. Than synchronizing to clk_i clock domain. 
-always @ (posedge clk_i or posedge wb_rst_i)
-begin
-  if (wb_rst_i)
-    begin
-      cs_sync1     <= 1'b0;
-      cs_sync2     <= 1'b0;
-      cs_sync3     <= 1'b0;
-      cs_sync_rst1 <= 1'b0;
-      cs_sync_rst2 <= 1'b0;
-    end
-  else
-    begin
-      cs_sync1     <=#Tp wb_cyc_i & wb_stb_i & (~cs_sync_rst2);
-      cs_sync2     <=#Tp cs_sync1            & (~cs_sync_rst2);
-      cs_sync3     <=#Tp cs_sync2            & (~cs_sync_rst2);
-      cs_sync_rst1 <=#Tp cs_ack3;
-      cs_sync_rst2 <=#Tp cs_sync_rst1;
-    end
-end
+`ifdef CAN_WISHBONE_IF
+  // Combining wb_cyc_i and wb_stb_i signals to cs signal. Than synchronizing to clk_i clock domain. 
+  always @ (posedge clk_i or posedge rst)
+  begin
+    if (rst)
+      begin
+        cs_sync1     <= 1'b0;
+        cs_sync2     <= 1'b0;
+        cs_sync3     <= 1'b0;
+        cs_sync_rst1 <= 1'b0;
+        cs_sync_rst2 <= 1'b0;
+      end
+    else
+      begin
+        cs_sync1     <=#Tp wb_cyc_i & wb_stb_i & (~cs_sync_rst2) & cs_can;
+        cs_sync2     <=#Tp cs_sync1            & (~cs_sync_rst2);
+        cs_sync3     <=#Tp cs_sync2            & (~cs_sync_rst2);
+        cs_sync_rst1 <=#Tp cs_ack3;
+        cs_sync_rst2 <=#Tp cs_sync_rst1;
+      end
+  end
+  
+  
+  assign cs = cs_sync2 & (~cs_sync3);
+  
+  
+  always @ (posedge wb_clk_i)
+  begin
+    cs_ack1 <=#Tp cs_sync3;
+    cs_ack2 <=#Tp cs_ack1;
+    cs_ack3 <=#Tp cs_ack2;
+  end
+  
+  
+  
+  // Generating acknowledge signal
+  always @ (posedge wb_clk_i)
+  begin
+    wb_ack_o <=#Tp (cs_ack2 & (~cs_ack3));
+  end
 
 
-assign cs = cs_sync2 & (~cs_sync3);
+  assign rst      = wb_rst_i;
+  assign we       = wb_we_i;
+  assign addr     = wb_adr_i;
+  assign data_in  = wb_dat_i;
+  assign wb_dat_o = data_out;
 
 
-always @ (posedge wb_clk_i)
-begin
-  cs_ack1 <=#Tp cs_sync3;
-  cs_ack2 <=#Tp cs_ack1;
-  cs_ack3 <=#Tp cs_ack2;
-end
+`else
+  // Latching address
+  always @ (posedge clk_i or posedge rst)
+  begin
+    if (rst)
+      addr_latched <= 8'h0;
+    else if (ale_i)
+      addr_latched <=#Tp port_0_i;
+  end
 
 
+  // Generating delayed wr_i and rd_i signals
+  always @ (posedge clk_i or posedge rst)
+  begin
+    if (rst)
+      begin
+        wr_i_q <= 1'b0;
+        rd_i_q <= 1'b0;
+      end
+    else
+      begin
+        wr_i_q <=#Tp wr_i;
+        rd_i_q <=#Tp rd_i;
+      end
+  end
 
-// Generating acknowledge signal
-always @ (posedge wb_clk_i)
-begin
-  wb_ack_o <=#Tp (cs_ack2 & (~cs_ack3));
-end
 
+  assign cs = ((~wr_i) & wr_i_q) | ((~rd_i) & rd_i_q) & cs_can;
+
+
+  assign rst      = rst_i;
+  assign we       = ~wr_i;
+  assign addr     = addr_latched;
+  assign data_in  = port_0_i;
+  assign port_0_i = (cs_can & (~rd_i))? data_out : 8'hz;
+
+`endif
 
 endmodule
