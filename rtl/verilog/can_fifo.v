@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.21  2003/08/14 16:04:52  simons
+// Artisan ram instances added.
+//
 // Revision 1.20  2003/07/16 14:00:45  mohor
 // Fixed according to the linter.
 //
@@ -613,10 +616,10 @@ end
         .DB         (data_in),
         .QA         (data_out),
         .QB         (),
-        .RENA       (~fifo_selected),
-        .RENB       (1'b1),
+        .OENA       (~fifo_selected),
+        .OENB       (1'b1),
         .WENA       (1'b1),
-        .WENB       (~(wr & (~fifo_full))),
+        .WENB       (~(wr & (~fifo_full)))
     );
     art_hsdp_64x4 info_fifo
     (
@@ -630,9 +633,9 @@ end
         .DB         (len_cnt & {4{~initialize_memories}}),
         .QA         (length_info),
         .QB         (),
-        .RENA       (1'b0),
-        .RENB       (1'b1),
-        .WENB       (),
+        .OENA       (1'b0),
+        .OENB       (1'b1),
+        .WENA       (1'b1),
         .WENB       (~(write_length_info & (~info_full) | initialize_memories))
     );
 `endif
