@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.9  2004/05/31 14:46:11  igorm
+// Bit acceptance_filter_mode was inverted.
+//
 // Revision 1.8  2004/02/08 14:16:44  mohor
 // Header changed.
 //
@@ -271,10 +274,10 @@ assign match_df_std = (((id[3]  == acceptance_code_0[0] | acceptance_mask_0[0] )
                         (data0[1] == acceptance_code_3[1] | acceptance_mask_3[1] | no_byte0) &
                         (data0[2] == acceptance_code_3[2] | acceptance_mask_3[2] | no_byte0) &
                         (data0[3] == acceptance_code_3[3] | acceptance_mask_3[3] | no_byte0) &
-                        (data0[4] == acceptance_code_1[4] | acceptance_mask_1[4] | no_byte0) &
-                        (data0[5] == acceptance_code_1[5] | acceptance_mask_1[5] | no_byte0) &
-                        (data0[6] == acceptance_code_1[6] | acceptance_mask_1[6] | no_byte0) &
-                        (data0[7] == acceptance_code_1[7] | acceptance_mask_1[7] | no_byte0) )
+                        (data0[4] == acceptance_code_1[0] | acceptance_mask_1[0] | no_byte0) &
+                        (data0[5] == acceptance_code_1[1] | acceptance_mask_1[1] | no_byte0) &
+                        (data0[6] == acceptance_code_1[2] | acceptance_mask_1[2] | no_byte0) &
+                        (data0[7] == acceptance_code_1[3] | acceptance_mask_1[3] | no_byte0) )
                         
                        |
 
