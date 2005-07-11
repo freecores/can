@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.40  2004/03/18 17:39:17  igorm
+// I forgot to thange one signal name.
+//
 // Revision 1.39  2004/03/18 17:15:26  igorm
 // Signal bus_off_on added.
 //
@@ -212,6 +215,9 @@ parameter BRP = 2*(`CAN_TIMING0_BRP + 1);
   reg         ale_i;
   reg         rd_i;
   reg         wr_i;
+  reg         ale2_i;
+  reg         rd2_i;
+  reg         wr2_i;
   wire  [7:0] port_0;
   wire  [7:0] port_0_i;
   reg   [7:0] port_0_o;
@@ -221,6 +227,7 @@ parameter BRP = 2*(`CAN_TIMING0_BRP + 1);
 
 
 reg         cs_can;
+reg         cs_can2;
 reg         clk;
 reg         rx;
 wire        tx;
@@ -277,8 +284,54 @@ can_top i_can_top
 );
 
 
+// Instantiate can_top module 2
+can_top i_can_top2
+( 
+`ifdef CAN_WISHBONE_IF
+  .wb_clk_i(wb_clk_i),
+  .wb_rst_i(wb_rst_i),
+  .wb_dat_i(wb_dat_i),
+  .wb_dat_o(wb_dat_o),
+  .wb_cyc_i(wb_cyc_i),
+  .wb_stb_i(wb_stb_i),
+  .wb_we_i(wb_we_i),
+  .wb_adr_i(wb_adr_i),
+  .wb_ack_o(wb_ack_o),
+`else
+  .cs_can_i(cs_can2),
+  .rst_i(rst_i),
+  .ale_i(ale2_i),
+  .rd_i(rd2_i),
+  .wr_i(wr2_i),
+  .port_0_io(port_0),
+`endif
+  .clk_i(clk),
+  .rx_i(rx_and_tx),
+  .tx_o(tx2_i),
+  .bus_off_on(bus_off2_on),
+  .irq_on(),
+  .clkout_o(clkout)
+
+  // Bist
+`ifdef CAN_BIST
+  ,
+  // debug chain signals
+  .mbist_si_i(1'b0),       // bist scan serial in
+  .mbist_so_o(),           // bist scan serial out
+  .mbist_ctrl_i(3'b001)    // mbist scan {enable, clock, reset}
+`endif
+);
+
+
 // Combining tx with the output enable signal.
-assign tx = bus_off_on? tx_i : 1'bz;
+wire tx_tmp1;
+wire tx_tmp2;
+
+assign tx_tmp1 = bus_off_on?  tx_i  : 1'bz;
+assign tx_tmp2 = bus_off2_on? tx2_i : 1'bz;
+
+assign tx = tx_tmp1 & tx_tmp2;
+
 
 `ifdef CAN_WISHBONE_IF
   // Generate wishbone clock signal 10 MHz
@@ -309,6 +362,7 @@ initial
 begin
   start_tb = 0;
   cs_can = 0;
+  cs_can2 = 0;
   rx = 1;
   extended_mode = 0;
   tx_bypassed = 0;
@@ -328,6 +382,9 @@ begin
     ale_i = 1'b0;
     rd_i  = 1'b0;
     wr_i  = 1'b0;
+    ale2_i = 1'b0;
+    rd2_i  = 1'b0;
+    wr2_i  = 1'b0;
     port_0_o = 8'h0;
     port_0_en = 0;
     port_free = 1;
@@ -344,10 +401,10 @@ end
 always
 begin
   wait (tx);
-  repeat (4*BRP) @ (posedge clk);   // 4 time quants delay
+  repeat (2*BRP) @ (posedge clk);   // 4 time quants delay
   #1 delayed_tx = tx;
   wait (~tx);
-  repeat (4*BRP) @ (posedge clk);   // 4 time quants delay
+  repeat (2*BRP) @ (posedge clk);   // 4 time quants delay
   #1 delayed_tx = tx;
 end
 
@@ -362,27 +419,39 @@ begin
 
   // Set bus timing register 0
   write_register(8'd6, {`CAN_TIMING0_SJW, `CAN_TIMING0_BRP});
+  write_register2(8'd6, {`CAN_TIMING0_SJW, `CAN_TIMING0_BRP});
 
   // Set bus timing register 1
   write_register(8'd7, {`CAN_TIMING1_SAM, `CAN_TIMING1_TSEG2, `CAN_TIMING1_TSEG1});
+  write_register2(8'd7, {`CAN_TIMING1_SAM, `CAN_TIMING1_TSEG2, `CAN_TIMING1_TSEG1});
 
 
   // Set Clock Divider register
-  extended_mode = 1'b0;
-  write_register(8'd31, {extended_mode, 3'h0, 1'b0, 3'h0});   // Setting the normal mode (not extended)
+//  extended_mode = 1'b1;
+//  write_register(8'd31, {extended_mode, 3'h0, 1'b0, 3'h0});   // Setting the normal mode (not extended)
+  write_register2(8'd31, {extended_mode, 3'h0, 1'b0, 3'h0});   // Setting the normal mode (not extended)
 
 
   // Set Acceptance Code and Acceptance Mask registers (their address differs for basic and extended mode
-/*
-  // Set Acceptance Code and Acceptance Mask registers
+
+  /* Set Acceptance Code and Acceptance Mask registers
   write_register(8'd16, 8'ha6); // acceptance code 0
   write_register(8'd17, 8'hb0); // acceptance code 1
   write_register(8'd18, 8'h12); // acceptance code 2
   write_register(8'd19, 8'h30); // acceptance code 3
-  write_register(8'd20, 8'h0); // acceptance mask 0
-  write_register(8'd21, 8'h0); // acceptance mask 1
-  write_register(8'd22, 8'h00); // acceptance mask 2
-  write_register(8'd23, 8'h00); // acceptance mask 3
+  write_register(8'd20, 8'hff); // acceptance mask 0
+  write_register(8'd21, 8'hff); // acceptance mask 1
+  write_register(8'd22, 8'hff); // acceptance mask 2
+  write_register(8'd23, 8'hff); // acceptance mask 3
+
+  write_register2(8'd16, 8'ha6); // acceptance code 0
+  write_register2(8'd17, 8'hb0); // acceptance code 1
+  write_register2(8'd18, 8'h12); // acceptance code 2
+  write_register2(8'd19, 8'h30); // acceptance code 3
+  write_register2(8'd20, 8'hff); // acceptance mask 0
+  write_register2(8'd21, 8'hff); // acceptance mask 1
+  write_register2(8'd22, 8'hff); // acceptance mask 2
+  write_register2(8'd23, 8'hff); // acceptance mask 3
 */
 
   // Set Acceptance Code and Acceptance Mask registers
@@ -394,6 +463,7 @@ begin
   
   // Switch-off reset mode
   write_register(8'd0, {7'h0, ~(`CAN_MODE_RESET)});
+  write_register2(8'd0, {7'h0, ~(`CAN_MODE_RESET)});
 
   repeat (BRP) @ (posedge clk);   // At least BRP clocks needed before bus goes to dominant level. Otherwise 1 quant difference is possible
                                   // This difference is resynchronized later.
@@ -401,15 +471,16 @@ begin
   // After exiting the reset mode sending bus free
   repeat (11) send_bit(1);
 
-  test_synchronization;       // test currently switched off
+//  test_synchronization;       // test currently switched off
 //  test_empty_fifo_ext;        // test currently switched off
 //  test_full_fifo_ext;         // test currently switched off
 //  send_frame_ext;             // test currently switched off
 //  test_empty_fifo;            // test currently switched off
-//  test_full_fifo;             // test currently switched on
+  test_full_fifo;             // test currently switched off
+//  test_reset_mode;              // test currently switched off
 //  bus_off_test;               // test currently switched off
 //  forced_bus_off;             // test currently switched off
-//  send_frame_basic;           // test currently switched off
+//  send_frame_basic;           // test currently switched on
 //  send_frame_extended;        // test currently switched off
 //  self_reception_request;       // test currently switched off
 //  manual_frame_basic;         // test currently switched off
@@ -469,14 +540,14 @@ task manual_frame_basic;    // Testbench sends a basic format frame
     repeat (100) @ (posedge clk);
     
     // Switch-off reset mode
-    write_register(8'd0, {7'h0, ~(`CAN_MODE_RESET)});
+//    write_register(8'd0, {7'h0, ~(`CAN_MODE_RESET)});
+    write_register(8'd0, 8'h1e);  // reset_off, all irqs enabled.
 
     // After exiting the reset mode sending bus free
     repeat (11) send_bit(1);
 
-
     write_register(8'd10, 8'h55); // Writing ID[10:3] = 0x55
-    write_register(8'd11, 8'h57); // Writing ID[2:0] = 0x2, rtr = 1, length = 7
+    write_register(8'd11, 8'h77); // Writing ID[2:0] = 0x3, rtr = 1, length = 7
     write_register(8'd12, 8'h00); // data byte 1
     write_register(8'd13, 8'h00); // data byte 2
     write_register(8'd14, 8'h00); // data byte 3
@@ -486,16 +557,17 @@ task manual_frame_basic;    // Testbench sends a basic format frame
     write_register(8'd18, 8'h00); // data byte 7
     write_register(8'd19, 8'h00); // data byte 8
 
-    tx_bypassed = 1;    // When this signal is on, tx is not looped back to the rx.
+    tx_bypassed = 0;    // When this signal is on, tx is not looped back to the rx.
     
+
     fork
       begin
-//        tx_request_command;
-        self_reception_request_command;
+        tx_request_command;
+//        self_reception_request_command;
       end
 
       begin
-        #2200;
+        #931;
 
 
         repeat (1)
@@ -511,7 +583,7 @@ task manual_frame_basic;    // Testbench sends a basic format frame
           send_bit(1);  // ID
           send_bit(0);  // ID
           send_bit(1);  // ID
-          send_bit(0);  // ID
+          send_bit(0);  // ID arbi lost
           send_bit(1);  // RTR
           send_bit(0);  // IDE
           send_bit(0);  // r0
@@ -549,6 +621,55 @@ task manual_frame_basic;    // Testbench sends a basic format frame
           send_bit(1);  // INTER
           send_bit(1);  // INTER
           send_bit(1);  // INTER
+#400;
+
+          send_bit(0);  // SOF
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(1);  // ID
+          send_bit(1);  // RTR
+          send_bit(0);  // IDE
+          send_bit(0);  // r0
+          send_bit(0);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC 6
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC 0
+          send_bit(0);  // CRC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC 5
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC b
+          send_bit(1);  // CRC DELIM
+          send_bit(0);  // ACK
+          send_bit(1);  // ACK DELIM
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // INTER
+          send_bit(1);  // INTER
+          send_bit(1);  // INTER
         end // repeat
 
 
@@ -563,6 +684,187 @@ task manual_frame_basic;    // Testbench sends a basic format frame
     read_receive_buffer;
     release_rx_buffer_command;
 
+    #1000 read_register(8'd3);
+    read_receive_buffer;
+    release_rx_buffer_command;
+    read_receive_buffer;
+
+// First we receive a msg
+          send_bit(0);  // SOF
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(1);  // ID
+          send_bit(1);  // RTR
+          send_bit(0);  // IDE
+          send_bit(0);  // r0
+          send_bit(0);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC 6
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC 0
+          send_bit(0);  // CRC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC 5
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC b
+          send_bit(1);  // CRC DELIM
+          send_bit(0);  // ACK
+          send_bit(1);  // ACK DELIM
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // INTER
+          send_bit(1);  // INTER
+          send_bit(1);  // INTER
+
+
+
+
+
+    fork
+      begin
+        tx_request_command;
+//        self_reception_request_command;
+      end
+
+      begin
+        #931;
+
+
+        repeat (1)
+        begin
+          send_bit(0);  // SOF
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID arbi lost
+          send_bit(1);  // RTR
+          send_bit(0);  // IDE
+          send_bit(0);  // r0
+          send_bit(0);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC 6
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC 0
+          send_bit(0);  // CRC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC 5
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC b
+          send_bit(1);  // CRC DELIM
+          send_bit(0);  // ACK
+          send_bit(1);  // ACK DELIM
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // INTER
+          send_bit(1);  // INTER
+          send_bit(1);  // INTER
+#6000;
+
+          send_bit(0);  // SOF
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(1);  // ID
+          send_bit(1);  // RTR
+          send_bit(0);  // IDE
+          send_bit(0);  // r0
+          send_bit(0);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC 6
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC 0
+          send_bit(0);  // CRC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC 5
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC b
+          send_bit(1);  // CRC DELIM
+          send_bit(0);  // ACK
+          send_bit(1);  // ACK DELIM
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // INTER
+          send_bit(1);  // INTER
+          send_bit(1);  // INTER
+        end // repeat
+
+
+
+      end
+    
+    
+    join
+
+
+
+    read_receive_buffer;
+    release_rx_buffer_command;
+
+    #1000 read_register(8'd3);
     read_receive_buffer;
     release_rx_buffer_command;
     read_receive_buffer;
@@ -633,10 +935,150 @@ task manual_frame_ext;    // Testbench sends an extended format frame
       end
 
       begin
-        #2400;
+        #771;
 
         repeat (1)
         begin
+          send_bit(0);  // SOF
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID a
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID 6
+          send_bit(0);  // ID
+          send_bit(0);  // ID
+          send_bit(0);  // ID 
+          send_bit(1);  // RTR
+          send_bit(1);  // IDE
+          send_bit(0);  // ID 0
+          send_bit(0);  // ID 
+          send_bit(0);  // ID 
+          send_bit(0);  // ID 
+          send_bit(0);  // ID 0
+          send_bit(1);  // ID stuff
+          send_bit(0);  // ID 
+          send_bit(1);  // ID 
+          send_bit(0);  // ID 
+          send_bit(1);  // ID 6
+          send_bit(1);  // ID 
+          send_bit(0);  // ID 
+          send_bit(1);  // ID 
+          send_bit(0);  // ID a
+          send_bit(1);  // ID 1
+          send_bit(0);  // ID 
+          send_bit(1);  // ID
+          send_bit(0);  // ID 
+          send_bit(0);  // ID 5   // Force arbitration lost
+          send_bit(1);  // RTR
+          send_bit(0);  // r1
+          send_bit(0);  // r0
+          send_bit(0);  // DLC
+          send_bit(1);  // DLC
+          send_bit(0);  // DLC
+          send_bit(1);  // DLC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC 
+          send_bit(0);  // CRC 6
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC  
+          send_bit(1);  // CRC f
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC
+          send_bit(1);  // CRC  
+          send_bit(0);  // CRC 2
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC a
+          send_bit(1);  // CRC DELIM
+          send_bit(0);  // ACK
+          send_bit(1);  // ACK DELIM
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // INTER
+          send_bit(1);  // INTER
+          send_bit(1);  // INTER
+#80;
+          send_bit(0);  // SOF
+          send_bit(1);  // ID
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID a
+          send_bit(0);  // ID
+          send_bit(1);  // ID
+          send_bit(1);  // ID
+          send_bit(0);  // ID 6
+          send_bit(0);  // ID
+          send_bit(0);  // ID
+          send_bit(0);  // ID 
+          send_bit(1);  // RTR
+          send_bit(1);  // IDE
+          send_bit(0);  // ID 0
+          send_bit(0);  // ID 
+          send_bit(0);  // ID 
+          send_bit(0);  // ID 
+          send_bit(0);  // ID 0
+          send_bit(1);  // ID stuff
+          send_bit(0);  // ID 
+          send_bit(1);  // ID 
+          send_bit(0);  // ID 
+          send_bit(1);  // ID 6
+          send_bit(1);  // ID 
+          send_bit(0);  // ID 
+          send_bit(1);  // ID 
+          send_bit(0);  // ID a
+          send_bit(1);  // ID 1
+          send_bit(0);  // ID 
+          send_bit(0);  // ID     // Force arbitration lost 
+          send_bit(0);  // ID 
+          send_bit(1);  // ID 5
+          send_bit(1);  // RTR
+          send_bit(0);  // r1
+          send_bit(0);  // r0
+          send_bit(0);  // DLC
+          send_bit(1);  // DLC
+          send_bit(0);  // DLC
+          send_bit(1);  // DLC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC 
+          send_bit(0);  // CRC 0
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC
+          send_bit(1);  // CRC stuff 
+          send_bit(0);  // CRC  
+          send_bit(0);  // CRC 0
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC  
+          send_bit(0);  // CRC e
+          send_bit(1);  // CRC
+          send_bit(1);  // CRC
+          send_bit(0);  // CRC
+          send_bit(0);  // CRC c
+          send_bit(1);  // CRC DELIM
+          send_bit(0);  // ACK
+          send_bit(1);  // ACK DELIM
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // EOF
+          send_bit(1);  // INTER
+          send_bit(1);  // INTER
+          send_bit(1);  // INTER
+
+#80;
           send_bit(0);  // SOF
           send_bit(1);  // ID
           send_bit(0);  // ID
@@ -1036,8 +1478,8 @@ task send_frame_basic;    // CAN IP core sends frames
         receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h2, 15'h2da1); // mode, rtr, id, length, crc
         receive_frame(0, 0, {26'h00000ee, 3'h1}, 4'h0, 15'h6cea); // mode, rtr, id, length, crc
         receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h2, 15'h2da1); // mode, rtr, id, length, crc
-        receive_frame(0, 0, {26'h00000ee, 3'h1}, 4'h1, 15'h00c5); // mode, rtr, id, length, crc
         receive_frame(0, 0, {26'h00000ee, 3'h1}, 4'h2, 15'h7b4a); // mode, rtr, id, length, crc
+        receive_frame(0, 0, {26'h00000ee, 3'h1}, 4'h1, 15'h00c5); // mode, rtr, id, length, crc
       end
 
       begin
@@ -1092,10 +1534,12 @@ task send_frame_extended;    // CAN IP core sends basic or extended frames in ex
 
     // Switch-on reset mode
     write_register(8'd0, {7'h0, (`CAN_MODE_RESET)});
+    write_register2(8'd0, {7'h0, (`CAN_MODE_RESET)});
     
     // Set Clock Divider register
     extended_mode = 1'b1;
     write_register(8'd31, {extended_mode, 7'h0});    // Setting the extended mode
+    write_register2(8'd31, {extended_mode, 7'h0});    // Setting the extended mode
  
     // Set Acceptance Code and Acceptance Mask registers
     write_register(8'd16, 8'ha6); // acceptance code 0
@@ -1107,8 +1551,18 @@ task send_frame_extended;    // CAN IP core sends basic or extended frames in ex
     write_register(8'd22, 8'h00); // acceptance mask 2
     write_register(8'd23, 8'h00); // acceptance mask 3
 
+    write_register2(8'd16, 8'ha6); // acceptance code 0
+    write_register2(8'd17, 8'hb0); // acceptance code 1
+    write_register2(8'd18, 8'h12); // acceptance code 2
+    write_register2(8'd19, 8'h30); // acceptance code 3
+    write_register2(8'd20, 8'h00); // acceptance mask 0
+    write_register2(8'd21, 8'h00); // acceptance mask 1
+    write_register2(8'd22, 8'h00); // acceptance mask 2
+    write_register2(8'd23, 8'h00); // acceptance mask 3
+
     // Switch-off reset mode
     write_register(8'd0, {7'h0, ~(`CAN_MODE_RESET)});
+    write_register2(8'd0, {7'h0, ~(`CAN_MODE_RESET)});
 
     // After exiting the reset mode sending bus free
     repeat (11) send_bit(1);
@@ -1138,6 +1592,11 @@ task send_frame_extended;    // CAN IP core sends basic or extended frames in ex
     write_register(8'd18, 8'h00);   // ID[20:13] = 00
     write_register(8'd19, 8'h5a);   // ID[12:5]  = 5a
     write_register(8'd20, 8'ha8);   // ID[4:0]   = 15
+    write_register2(8'd16, 8'hc5);   // Frame format = 1, Remote transmision request = 1, DLC = 5
+    write_register2(8'd17, 8'ha6);   // ID[28:21] = a6
+    write_register2(8'd18, 8'h00);   // ID[20:13] = 00
+    write_register2(8'd19, 8'h5a);   // ID[12:5]  = 5a
+    write_register2(8'd20, 8'ha8);   // ID[4:0]   = 15
     // write_register(8'd21, 8'h78); RTR does not send any data
     // write_register(8'd22, 8'h9a);
     // write_register(8'd23, 8'hbc);
@@ -1150,11 +1609,12 @@ task send_frame_extended;    // CAN IP core sends basic or extended frames in ex
 
     // Enabling IRQ's (extended mode)
     write_register(8'd4, 8'hff);
+    write_register2(8'd4, 8'hff);
 
 
     fork
       begin
-        #2700;
+        #1251;
         $display("\n\nStart receiving data from CAN bus");
         /* Standard frame format
         receive_frame(0, 0, {26'h00000a0, 3'h1}, 4'h1, 15'h2d9c); // mode, rtr, id, length, crc
@@ -1165,7 +1625,7 @@ task send_frame_extended;    // CAN IP core sends basic or extended frames in ex
         */
 
         // Extended frame format
-        receive_frame(1, 0, {8'ha6, 8'h00, 8'h5a, 5'h15}, 4'h1, 15'h2d22); // mode, rtr, id, length, crc
+        receive_frame(1, 0, {8'ha6, 8'h00, 8'h5a, 5'h14}, 4'h1, 15'h1528); // mode, rtr, id, length, crc
         receive_frame(1, 0, {8'ha6, 8'h00, 8'h5a, 5'h15}, 4'h2, 15'h3d2d); // mode, rtr, id, length, crc
         receive_frame(1, 0, {8'ha6, 8'h00, 8'h5a, 5'h15}, 4'h0, 15'h23aa); // mode, rtr, id, length, crc
         receive_frame(1, 0, {8'ha6, 8'h00, 8'h5a, 5'h15}, 4'h1, 15'h2d22); // mode, rtr, id, length, crc
@@ -1224,6 +1684,19 @@ task send_frame_extended;    // CAN IP core sends basic or extended frames in ex
             read_register(8'd11);
           end
 
+      end
+
+      begin
+        # 344000;
+
+        // Switch-on reset mode
+        $display("expect: SW reset ON\n");
+        write_register(8'd0, {7'h0, (`CAN_MODE_RESET)});
+
+        #40000;
+        // Switch-off reset mode
+        $display("expect: SW reset OFF\n");
+        write_register(8'd0, {7'h0, (~`CAN_MODE_RESET)});
       end
 
     join
@@ -1422,7 +1895,8 @@ task test_full_fifo;
   begin
 
     // Enable irqs (basic mode)
-    write_register(8'd0, 8'h1e);
+    // write_register(8'd0, 8'h1e);
+    write_register(8'd0, 8'h10); // enable only overrun irq
 
     $display("\n\n");
 
@@ -1447,23 +1921,37 @@ task test_full_fifo;
     receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h8, 15'h70e0); // mode, rtr, id, length, crc
     fifo_info;
     $display("FIFO should be full now");
+    $display("2 packets won't be received because of the overrun. IRQ should be set");
 
     // Following one is accepted with overrun
     receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h8, 15'h70e0); // mode, rtr, id, length, crc
     fifo_info;
 
+    // Following one is accepted with overrun
+    receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h8, 15'h70e0); // mode, rtr, id, length, crc
+    fifo_info;
+
+    $display("Now we'll release 1 packet.");
     release_rx_buffer_command;
     fifo_info;
 
     // Space just enough for the following frame.
+    $display("Getting 1 small packet (just big enough). Fifo is full again");
     receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h0, 15'h2372); // mode, rtr, id, length, crc
     fifo_info;
 
     // Following accepted with overrun
+    $display("1 packets won't be received because of the overrun. IRQ should be set");
+    receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h8, 15'h70e0); // mode, rtr, id, length, crc
+    fifo_info;
+
+    // Following accepted with overrun
+    $display("1 packets won't be received because of the overrun. IRQ should be set");
     receive_frame(0, 0, {26'h00000e8, 3'h1}, 4'h8, 15'h70e0); // mode, rtr, id, length, crc
     fifo_info;
 //    read_overrun_info(0, 15);
 
+    $display("Releasing 3 packets.");
     release_rx_buffer_command;
     release_rx_buffer_command;
 
@@ -1609,6 +2097,131 @@ task test_full_fifo_ext;
 
   end
 endtask
+
+
+task test_reset_mode;
+  begin
+    release_rx_buffer_command;
+    $display("\n\n");
+    read_receive_buffer;
+    fifo_info;
+    $display("expect: Until now no data was received\n");
+
+    receive_frame(1, 0, 29'h14d60246, 4'h0, 15'h6f54); // mode, rtr, id, length, crc
+    receive_frame(1, 0, 29'h14d60246, 4'h1, 15'h6d38); // mode, rtr, id, length, crc
+    receive_frame(1, 0, 29'h14d60246, 4'h2, 15'h053e); // mode, rtr, id, length, crc
+
+    fifo_info;
+    read_receive_buffer;
+    $display("expect: 3 packets should be received (totally 18 bytes)\n");
+
+    release_rx_buffer_command;
+    fifo_info;
+    read_receive_buffer;
+    $display("expect: 2 packets should be received (totally 13 bytes)\n");
+
+
+    $display("expect: SW reset performed\n");
+
+    // Switch-on reset mode
+    write_register(8'd0, {7'h0, `CAN_MODE_RESET});
+
+    // Switch-off reset mode
+    write_register(8'd0, {7'h0, ~(`CAN_MODE_RESET)});
+
+    fifo_info;
+    read_receive_buffer;
+    $display("expect: The above read was after the SW reset.\n");
+
+    receive_frame(1, 0, 29'h14d60246, 4'h3, 15'h5262); // mode, rtr, id, length, crc
+    fifo_info;
+    read_receive_buffer;
+    $display("expect: 1 packets should be received (totally 8 bytes). See above.\n");
+
+    // Switch-on reset mode
+    $display("expect: SW reset ON\n");
+    write_register(8'd0, {7'h0, `CAN_MODE_RESET});
+
+    receive_frame(1, 0, 29'h14d60246, 4'h5, 15'h4d7d); // mode, rtr, id, length, crc
+
+    fifo_info;
+    read_receive_buffer;
+    $display("expect: 0 packets should be received because we are in reset. (totally 0 bytes). See above.\n");
+
+/*
+    fork
+      begin
+      receive_frame(1, 0, 29'h14d60246, 4'h4, 15'h4bba); // mode, rtr, id, length, crc
+      end
+      begin
+        // Switch-on reset mode
+        write_register(8'd0, {7'h0, `CAN_MODE_RESET});
+
+        // Switch-off reset mode
+        write_register(8'd0, {7'h0, ~(`CAN_MODE_RESET)});
+
+
+      end
+    
+    join
+*/
+
+
+
+
+    fifo_info;
+    receive_frame(1, 0, 29'h14d60246, 4'h5, 15'h4d7d); // mode, rtr, id, length, crc
+    fifo_info;
+    receive_frame(1, 0, 29'h14d60246, 4'h6, 15'h6f40); // mode, rtr, id, length, crc
+    fifo_info;
+    receive_frame(1, 0, 29'h14d60246, 4'h7, 15'h1730); // mode, rtr, id, length, crc
+    fifo_info;
+//    read_overrun_info(0, 10);
+
+    release_rx_buffer_command;
+    release_rx_buffer_command;
+    fifo_info;
+
+
+
+    // Switch-off reset mode
+    $display("expect: SW reset OFF\n");
+    write_register(8'd0, {7'h0, (~`CAN_MODE_RESET)});
+
+    receive_frame(1, 0, 29'h14d60246, 4'h8, 15'h2f7a); // mode, rtr, id, length, crc
+    fifo_info;
+    read_receive_buffer;
+    $display("expect: 1 packets should be received (totally 13 bytes). See above.\n");
+
+    release_rx_buffer_command;
+    fifo_info;
+    read_receive_buffer;
+    $display("expect: 0 packets should be received (totally 0 bytes). See above.\n");
+    $display("\n\n");
+
+
+    fork 
+      receive_frame(1, 0, 29'h14d60246, 4'h5, 15'h4d7d); // mode, rtr, id, length, crc
+
+      begin
+        #8000;
+        // Switch-off reset mode
+        $display("expect: SW reset ON while receiving a packet\n");
+        write_register(8'd0, {7'h0, `CAN_MODE_RESET});
+      end
+    join
+
+
+    read_receive_buffer;
+    fifo_info;
+    $display("expect: 0 packets should be received (totally 0 bytes) because CAN was in reset. See above.\n");
+
+    release_rx_buffer_command;
+    read_receive_buffer;
+    fifo_info;
+
+  end
+endtask   // test_reset_mode
 
 
 /*
@@ -1762,6 +2375,115 @@ task write_register;
 endtask
 
 
+task read_register2;
+  input [7:0] reg_addr;
+
+  `ifdef CAN_WISHBONE_IF
+    begin
+      wait (wb_free);
+      wb_free = 0;
+      @ (posedge wb_clk_i);
+      #1; 
+      cs_can = 1;
+      wb_adr_i = reg_addr;
+      wb_cyc_i = 1;
+      wb_stb_i = 1;
+      wb_we_i = 0;
+      wait (wb_ack_o);
+      $display("(%0t) Reading register [%0d] = 0x%0x", $time, wb_adr_i, wb_dat_o);
+      @ (posedge wb_clk_i);
+      #1; 
+      wb_adr_i = 'hz;
+      wb_cyc_i = 0;
+      wb_stb_i = 0;
+      wb_we_i = 'hz;
+      cs_can = 0;
+      wb_free = 1;
+    end
+  `else
+    begin
+      wait (port_free);
+      port_free = 0;
+      @ (posedge clk);
+      #1;
+      cs_can2 = 1;
+      @ (negedge clk);
+      #1;
+      ale2_i = 1;
+      port_0_en = 1;
+      port_0_o = reg_addr;
+      @ (negedge clk);
+      #1;
+      ale2_i = 0;
+      #90;            // 73 - 103 ns
+      port_0_en = 0;
+      rd2_i = 1;
+      #158;
+      $display("(%0t) Reading register [%0d] = 0x%0x", $time, can_testbench.i_can_top.addr_latched, port_0_i);
+      #1;
+      rd2_i = 0;
+      cs_can2 = 0;
+      port_free = 1;
+    end
+  `endif
+endtask
+
+
+task write_register2;
+  input [7:0] reg_addr;
+  input [7:0] reg_data;
+
+  `ifdef CAN_WISHBONE_IF
+    begin
+      wait (wb_free);
+      wb_free = 0;
+      @ (posedge wb_clk_i);
+      #1; 
+      cs_can = 1;
+      wb_adr_i = reg_addr;
+      wb_dat_i = reg_data;
+      wb_cyc_i = 1;
+      wb_stb_i = 1;
+      wb_we_i = 1;
+      wait (wb_ack_o);
+      @ (posedge wb_clk_i);
+      #1; 
+      wb_adr_i = 'hz;
+      wb_dat_i = 'hz;
+      wb_cyc_i = 0;
+      wb_stb_i = 0;
+      wb_we_i = 'hz;
+      cs_can = 0;
+      wb_free = 1;
+    end
+  `else
+    begin
+      wait (port_free);
+      port_free = 0;
+      @ (posedge clk);
+      #1;
+      cs_can2 = 1;
+      @ (negedge clk);
+      #1;
+      ale2_i = 1;
+      port_0_en = 1;
+      port_0_o = reg_addr;
+      @ (negedge clk);
+      #1;
+      ale2_i = 0;
+      #90;            // 73 - 103 ns
+      port_0_o = reg_data;
+      wr2_i = 1;
+      #158;
+      wr2_i = 0;
+      port_0_en = 0;
+      cs_can2 = 0;
+      port_free = 1;
+    end
+  `endif
+endtask
+
+
 task read_receive_buffer;
   integer i;
   begin
@@ -1770,15 +2492,15 @@ task read_receive_buffer;
       begin
         for (i=8'd16; i<=8'd28; i=i+1)
           read_register(i);
-        if (can_testbench.i_can_top.i_can_bsp.i_can_fifo.overrun)
-          $display("\nWARNING: Above packet was received with overrun.");
+        //if (can_testbench.i_can_top.i_can_bsp.i_can_fifo.overrun)
+        //  $display("\nWARNING: Above packet was received with overrun.");
       end
     else
       begin
         for (i=8'd20; i<=8'd29; i=i+1)
           read_register(i);
-        if (can_testbench.i_can_top.i_can_bsp.i_can_fifo.overrun)
-          $display("\nWARNING: Above packet was received with overrun.");
+        //if (can_testbench.i_can_top.i_can_bsp.i_can_fifo.overrun)
+        //  $display("\nWARNING: Above packet was received with overrun.");
       end
   end
 endtask
