@@ -31,6 +31,7 @@ echo "-LOGFILE ../log/ncvlog.log"     >> ncvlog.args
 
 foreach filename ( `cat ../bin/rtl_file_list` )
     echo "../../../rtl/verilog/"$filename >> ncvlog.args
+#    echo "../../../rtl/can_strip_down/rtl/verilog/"$filename >> ncvlog.args
 end
 
 #foreach filename ( `cat ../bin/memory_file_list` )
