@@ -50,6 +50,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.41  2005/07/11 10:25:13  igorm
+// Fixing overrun problems.
+//
 // Revision 1.40  2004/03/18 17:39:17  igorm
 // I forgot to thange one signal name.
 //
@@ -244,6 +247,7 @@ reg         delayed_tx;
 reg         tx_bypassed;
 reg         extended_mode;
 
+event       igor;
 
 // Instantiate can_top module
 can_top i_can_top
@@ -327,10 +331,11 @@ can_top i_can_top2
 wire tx_tmp1;
 wire tx_tmp2;
 
-assign tx_tmp1 = bus_off_on?  tx_i  : 1'bz;
-assign tx_tmp2 = bus_off2_on? tx2_i : 1'bz;
+assign tx_tmp1 = bus_off_on?  tx_i  : 1'b1;
+assign tx_tmp2 = bus_off2_on? tx2_i : 1'b1;
 
 assign tx = tx_tmp1 & tx_tmp2;
+
 
 
 `ifdef CAN_WISHBONE_IF
@@ -351,10 +356,12 @@ assign tx = tx_tmp1 & tx_tmp2;
 
 
 // Generate clock signal 25 MHz
+// Generate clock signal 16 MHz
 initial
 begin
   clk=0;
-  forever #20 clk = ~clk;
+  //forever #20 clk = ~clk;
+  forever #31.25 clk = ~clk;
 end
 
 
@@ -476,7 +483,7 @@ begin
 //  test_full_fifo_ext;         // test currently switched off
 //  send_frame_ext;             // test currently switched off
 //  test_empty_fifo;            // test currently switched off
-  test_full_fifo;             // test currently switched off
+//  test_full_fifo;             // test currently switched off
 //  test_reset_mode;              // test currently switched off
 //  bus_off_test;               // test currently switched off
 //  forced_bus_off;             // test currently switched off
@@ -485,11 +492,235 @@ begin
 //  self_reception_request;       // test currently switched off
 //  manual_frame_basic;         // test currently switched off
 //  manual_frame_ext;           // test currently switched off
+//    error_test;
+//    register_test;
+    bus_off_recovery_test;
 
+
+/*
+  #5000;
+  $display("\n\nStart rx/tx err cnt\n");
+  -> igor;
+ 
+  // Switch-off reset mode
+  $display("Rest mode ON");
+  write_register(8'd0, {7'h0, (`CAN_MODE_RESET)});
+
+  $display("Set extended mode");
+  extended_mode = 1'b1;
+  write_register(8'd31, {extended_mode, 3'h0, 1'b0, 3'h0});   // Setting the extended mode
+
+  $display("Rest mode OFF");
+  write_register(8'd0, {7'h0, ~(`CAN_MODE_RESET)});
+
+  write_register(8'd14, 8'hde); // rx err cnt
+  write_register(8'd15, 8'had); // tx err cnt
+
+  read_register(8'd14, tmp_data); // rx err cnt
+  read_register(8'd15, tmp_data); // tx err cnt
+
+  // Switch-on reset mode
+  $display("Switch-on reset mode");
+  write_register(8'd0, {7'h0, `CAN_MODE_RESET});
+
+  write_register(8'd14, 8'h12); // rx err cnt
+  write_register(8'd15, 8'h34); // tx err cnt
+
+  read_register(8'd14, tmp_data); // rx err cnt
+  read_register(8'd15, tmp_data); // tx err cnt
+
+  // Switch-off reset mode
+  $display("Switch-off reset mode");
+  write_register(8'd0, {7'h0, ~(`CAN_MODE_RESET)});
+
+  read_register(8'd14, tmp_data); // rx err cnt
+  read_register(8'd15, tmp_data); // tx err cnt
+
+  // Switch-on reset mode
+  $display("Switch-on reset mode");
+  write_register(8'd0, {7'h0, `CAN_MODE_RESET});
+
+  write_register(8'd14, 8'h56); // rx err cnt
+  write_register(8'd15, 8'h78); // tx err cnt
+
+  // Switch-off reset mode
+  $display("Switch-off reset mode");
+  write_register(8'd0, {7'h0, ~(`CAN_MODE_RESET)});
+
+  read_register(8'd14, tmp_data); // rx err cnt
+  read_register(8'd15, tmp_data); // tx err cnt
+*/
+  #1000;
   $display("CAN Testbench finished !");
   $stop;
 end
 
+
+task bus_off_recovery_test;
+  begin
+    -> igor;
+
+    // Switch-on reset mode
+    write_register(8'd0, {7'h0, (`CAN_MODE_RESET)});
+    write_register2(8'd0, {7'h0, (`CAN_MODE_RESET)});
+
+    // Set Clock Divider register
+    extended_mode = 1'b1;
+    write_register(8'd31, {extended_mode, 3'h0, 1'b0, 3'h0});   // Setting the normal mode (not extended)
+    write_register2(8'd31, {extended_mode, 3'h0, 1'b0, 3'h0});   // Setting the normal mode (not extended)
+
+    write_register(8'd16, 8'h00); // acceptance code 0
+    write_register(8'd17, 8'h00); // acceptance code 1
+    write_register(8'd18, 8'h00); // acceptance code 2
+    write_register(8'd19, 8'h00); // acceptance code 3
+    write_register(8'd20, 8'hff); // acceptance mask 0
+    write_register(8'd21, 8'hff); // acceptance mask 1
+    write_register(8'd22, 8'hff); // acceptance mask 2
+    write_register(8'd23, 8'hff); // acceptance mask 3
+
+    write_register2(8'd16, 8'h00); // acceptance code 0
+    write_register2(8'd17, 8'h00); // acceptance code 1
+    write_register2(8'd18, 8'h00); // acceptance code 2
+    write_register2(8'd19, 8'h00); // acceptance code 3
+    write_register2(8'd20, 8'hff); // acceptance mask 0
+    write_register2(8'd21, 8'hff); // acceptance mask 1
+    write_register2(8'd22, 8'hff); // acceptance mask 2
+    write_register2(8'd23, 8'hff); // acceptance mask 3
+
+    // Switch-off reset mode
+    write_register(8'd0, {7'h0, ~(`CAN_MODE_RESET)});
+    write_register2(8'd0, {7'h0, ~(`CAN_MODE_RESET)});
+
+    // Enable all interrupts
+    write_register(8'd4, 8'hff); // irq enable register
+
+    repeat (30) send_bit(1);
+    -> igor;
+    $display("(%0t) CAN should be idle now", $time);
+
+    // Node 2 sends a message
+    write_register2(8'd16, 8'h83); // tx registers
+    write_register2(8'd17, 8'h12); // tx registers
+    write_register2(8'd18, 8'h34); // tx registers
+    write_register2(8'd19, 8'h45); // tx registers
+    write_register2(8'd20, 8'h56); // tx registers
+    write_register2(8'd21, 8'hde); // tx registers
+    write_register2(8'd22, 8'had); // tx registers
+    write_register2(8'd23, 8'hbe); // tx registers
+
+    write_register2(8'd1, 8'h1);  // tx request
+
+    // Wait until node 1 receives rx irq
+    read_register(8'd3, tmp_data);
+    while (!(tmp_data & 8'h01)) begin
+      read_register(8'd3, tmp_data);
+    end
+
+    $display("Frame received by node 1.");
+
+    // Node 1 will send a message and will receive many errors
+    write_register(8'd16, 8'haa); // tx registers
+    write_register(8'd17, 8'haa); // tx registers
+    write_register(8'd18, 8'haa); // tx registers
+    write_register(8'd19, 8'haa); // tx registers
+    write_register(8'd20, 8'haa); // tx registers
+    write_register(8'd21, 8'haa); // tx registers
+    write_register(8'd22, 8'haa); // tx registers
+    write_register(8'd23, 8'haa); // tx registers
+
+    fork 
+      begin
+        write_register(8'd1, 8'h1);  // tx request
+      end
+
+      begin
+        // Waiting until node 1 starts transmitting
+        wait (!tx_i);
+        repeat (33) send_bit(1);
+        repeat (330) send_bit(0);
+        repeat (1) send_bit(1);
+      end
+
+    join
+
+    // Switch-off reset mode
+    write_register(8'd0, {7'h0, ~(`CAN_MODE_RESET)});
+    write_register2(8'd0, {7'h0, ~(`CAN_MODE_RESET)});
+
+    repeat (1999) send_bit(1);
+
+    // Switch-on reset mode
+    write_register(8'd0, {7'h0, (`CAN_MODE_RESET)});
+    write_register2(8'd0, {7'h0, (`CAN_MODE_RESET)});
+
+    write_register(8'd14, 8'h0); // rx err cnt
+
+    // Switch-off reset mode
+    write_register(8'd0, {7'h0, ~(`CAN_MODE_RESET)});
+    write_register2(8'd0, {7'h0, ~(`CAN_MODE_RESET)});
+
+
+    // Wait some time before simulation ends
+    repeat (10000) @ (posedge clk);
+  end
+endtask // bus_off_recovery_test
+
+
+task error_test;
+  begin
+    // Switch-off reset mode
+    write_register(8'd0, {7'h0, (`CAN_MODE_RESET)});
+    write_register2(8'd0, {7'h0, (`CAN_MODE_RESET)});
+
+    // Set Clock Divider register
+    extended_mode = 1'b1;
+    write_register(8'd31, {extended_mode, 3'h0, 1'b0, 3'h0});   // Setting the normal mode (not extended)
+    write_register2(8'd31, {extended_mode, 3'h0, 1'b0, 3'h0});   // Setting the normal mode (not extended)
+
+    // Set error warning limit register
+    write_register(8'd13, 8'h56); // error warning limit
+
+    // Switch-off reset mode
+    write_register(8'd0, {7'h0, ~(`CAN_MODE_RESET)});
+    write_register2(8'd0, {7'h0, ~(`CAN_MODE_RESET)});
+
+    // Enable all interrupts
+    write_register(8'd4, 8'hff); // irq enable register
+
+    repeat (300) send_bit(0);
+
+    $display("Kr neki");
+
+  end
+endtask
+
+
+task register_test;
+  integer i, j, tmp;
+  begin
+    $display("Change mode to extended mode and test registers");
+    // Switch-off reset mode
+    write_register(8'd0, {7'h0, (`CAN_MODE_RESET)});
+    write_register2(8'd0, {7'h0, (`CAN_MODE_RESET)});
+
+    // Set Clock Divider register
+    extended_mode = 1'b1;
+    write_register(8'd31, {extended_mode, 3'h0, 1'b0, 3'h0});   // Setting the normal mode (not extended)
+    write_register2(8'd31, {extended_mode, 3'h0, 1'b0, 3'h0});   // Setting the normal mode (not extended)
+
+    // Switch-off reset mode
+    write_register(8'd0, {7'h0, ~(`CAN_MODE_RESET)});
+    write_register2(8'd0, {7'h0, ~(`CAN_MODE_RESET)});
+
+    for (i=1; i<128; i=i+1) begin
+      for (j=0; j<8; j=j+1) begin
+        read_register(i, tmp_data);
+        write_register(i, tmp_data | (1 << j));
+      end
+    end
+
+  end
+endtask
 
 task forced_bus_off;    // Forcing bus-off by writinf to tx_err_cnt register
   begin
@@ -684,7 +915,7 @@ task manual_frame_basic;    // Testbench sends a basic format frame
     read_receive_buffer;
     release_rx_buffer_command;
 
-    #1000 read_register(8'd3);
+    #1000 read_register(8'd3, tmp_data);
     read_receive_buffer;
     release_rx_buffer_command;
     read_receive_buffer;
@@ -864,7 +1095,7 @@ task manual_frame_basic;    // Testbench sends a basic format frame
     read_receive_buffer;
     release_rx_buffer_command;
 
-    #1000 read_register(8'd3);
+    #1000 read_register(8'd3, tmp_data);
     read_receive_buffer;
     release_rx_buffer_command;
     read_receive_buffer;
@@ -897,6 +1128,12 @@ task manual_frame_ext;    // Testbench sends an extended format frame
     write_register(8'd22, 8'h00); // acceptance mask 2
     write_register(8'd23, 8'h00); // acceptance mask 3
     
+//write_register(8'd14, 8'h7a); // rx err cnt
+//write_register(8'd15, 8'h7a); // tx err cnt
+
+//read_register(8'd14, tmp_data); // rx err cnt
+//read_register(8'd15, tmp_data); // tx err cnt
+
     repeat (100) @ (posedge clk);
     
     // Switch-off reset mode
@@ -1164,13 +1401,16 @@ task manual_frame_ext;    // Testbench sends an extended format frame
     read_receive_buffer;
 
     // Read irq register
-    #1 read_register(8'd3);
+    #1 read_register(8'd3, tmp_data);
 
     // Read error code capture register
-    read_register(8'd12);
+    read_register(8'd12, tmp_data);
 
     // Read error capture code register
-//    read_register(8'd12);
+//    read_register(8'd12, tmp_data);
+
+read_register(8'd14, tmp_data); // rx err cnt
+read_register(8'd15, tmp_data); // tx err cnt
 
     #4000000;
 
@@ -1261,9 +1501,11 @@ task bus_off_test;    // Testbench sends a frame
         // Node is error passive now.
 
         // Read irq register (error interrupt should be cleared now.
-        read_register(8'd3);
+        read_register(8'd3, tmp_data);
 
-        repeat (20)
+->igor;
+
+        repeat (34)
         
         begin
           send_bit(0);  // SOF
@@ -1329,11 +1571,13 @@ task bus_off_test;    // Testbench sends a frame
           send_bit(1);  // SUSPEND
         end // repeat
 
+->igor;
+
         // Node is bus-off now
 
 
         // Read irq register (error interrupt should be cleared now.
-        read_register(8'd3);
+        read_register(8'd3, tmp_data);
 
 
 
@@ -1348,7 +1592,7 @@ task bus_off_test;    // Testbench sends a frame
         end // repeat
 
         // Read irq register (error interrupt should be cleared now.
-        read_register(8'd3);
+        read_register(8'd3, tmp_data);
 
         repeat (64 * 11)
         begin
@@ -1358,7 +1602,7 @@ task bus_off_test;    // Testbench sends a frame
 
 
         // Read irq register (error interrupt should be cleared now.
-        read_register(8'd3);
+        read_register(8'd3, tmp_data);
 
       end
      
@@ -1521,7 +1765,7 @@ task send_frame_basic;    // CAN IP core sends frames
     read_receive_buffer;
 
     // Read irq register
-    read_register(8'd3);
+    read_register(8'd3, tmp_data);
     #1000;
 
   end
@@ -1655,10 +1899,10 @@ task send_frame_extended;    // CAN IP core sends basic or extended frames in ex
               end
 
             // Read irq register
-            #1 read_register(8'd3);
+            #1 read_register(8'd3, tmp_data);
     
             // Read arbitration lost capture register
-            read_register(8'd11);
+            read_register(8'd11, tmp_data);
           end
 
 
@@ -1670,7 +1914,7 @@ task send_frame_extended;    // CAN IP core sends basic or extended frames in ex
               end
 
             // Read irq register
-            #1 read_register(8'd3);
+            #1 read_register(8'd3, tmp_data);
           end
 
         repeat(1)
@@ -1681,7 +1925,7 @@ task send_frame_extended;    // CAN IP core sends basic or extended frames in ex
               end
 
             // Read arbitration lost capture register
-            read_register(8'd11);
+            read_register(8'd11, tmp_data);
           end
 
       end
@@ -1717,7 +1961,7 @@ task send_frame_extended;    // CAN IP core sends basic or extended frames in ex
     read_receive_buffer;
 
     // Read irq register
-    read_register(8'd3);
+    read_register(8'd3, tmp_data);
     #1000;
 
   end
@@ -1793,7 +2037,7 @@ task self_reception_request;    // CAN IP core sends sets self reception mode an
     read_receive_buffer;
 
     // Read irq register
-    read_register(8'd3);
+    read_register(8'd3, tmp_data);
     #1000;
 
   end
@@ -2020,10 +2264,10 @@ task test_full_fifo;
     fifo_info;
 
     // Read irq register
-    read_register(8'd3);
+    read_register(8'd3, tmp_data);
 
     // Read irq register
-    read_register(8'd3);
+    read_register(8'd3, tmp_data);
     #1000;
 
   end
@@ -2268,6 +2512,7 @@ endtask
 
 task read_register;
   input [7:0] reg_addr;
+  output [7:0] data;
 
   `ifdef CAN_WISHBONE_IF
     begin
@@ -2282,6 +2527,7 @@ task read_register;
       wb_we_i = 0;
       wait (wb_ack_o);
       $display("(%0t) Reading register [%0d] = 0x%0x", $time, wb_adr_i, wb_dat_o);
+      data = wb_dat_o;
       @ (posedge wb_clk_i);
       #1; 
       wb_adr_i = 'hz;
@@ -2311,6 +2557,7 @@ task read_register;
       rd_i = 1;
       #158;
       $display("(%0t) Reading register [%0d] = 0x%0x", $time, can_testbench.i_can_top.addr_latched, port_0_i);
+      data = port_0_i;
       #1;
       rd_i = 0;
       cs_can = 0;
@@ -2349,6 +2596,7 @@ task write_register;
     end
   `else
     begin
+      $display("(%0t) Writing register [%0d] with 0x%0x", $time, reg_addr, reg_data);
       wait (port_free);
       port_free = 0;
       @ (posedge clk);
@@ -2377,6 +2625,7 @@ endtask
 
 task read_register2;
   input [7:0] reg_addr;
+  output [7:0] data;
 
   `ifdef CAN_WISHBONE_IF
     begin
@@ -2391,6 +2640,7 @@ task read_register2;
       wb_we_i = 0;
       wait (wb_ack_o);
       $display("(%0t) Reading register [%0d] = 0x%0x", $time, wb_adr_i, wb_dat_o);
+      data = wb_dat_o;
       @ (posedge wb_clk_i);
       #1; 
       wb_adr_i = 'hz;
@@ -2420,6 +2670,7 @@ task read_register2;
       rd2_i = 1;
       #158;
       $display("(%0t) Reading register [%0d] = 0x%0x", $time, can_testbench.i_can_top.addr_latched, port_0_i);
+      data = port_0_i;
       #1;
       rd2_i = 0;
       cs_can2 = 0;
@@ -2491,14 +2742,14 @@ task read_receive_buffer;
     if(extended_mode)   // Extended mode
       begin
         for (i=8'd16; i<=8'd28; i=i+1)
-          read_register(i);
+          read_register(i, tmp_data);
         //if (can_testbench.i_can_top.i_can_bsp.i_can_fifo.overrun)
         //  $display("\nWARNING: Above packet was received with overrun.");
       end
     else
       begin
         for (i=8'd20; i<=8'd29; i=i+1)
-          read_register(i);
+          read_register(i, tmp_data);
         //if (can_testbench.i_can_top.i_can_bsp.i_can_fifo.overrun)
         //  $display("\nWARNING: Above packet was received with overrun.");
       end
